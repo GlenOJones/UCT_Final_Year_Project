@@ -1,0 +1,168 @@
+%=====================================================================
+%   BIBLIOGRAPHY
+%=====================================================================
+%   One example of each entry type you are likely to need. Copy the nearest
+%   one and edit it.
+%
+%   EVERY ENTRY BELOW IS A PLACEHOLDER, except shannon1948, which is real and
+%   is cited by the example figure in the introduction. The rest are here to
+%   show the SHAPE of an entry, not to be cited. Do not copy a placeholder
+%   into your thesis and leave it there.
+%
+%   Do not type entries by hand if you can avoid it. Export them from the
+%   publisher, from Google Scholar, or from your reference manager, then
+%   delete the fields you do not need. Typed-out entries are where wrong page
+%   numbers and missing volumes come from.
+%
+%   NOTE: bibtex does NOT treat % as a comment character. It skips text
+%   outside an entry, but an at-sign in prose starts a new entry and the parse
+%   collapses with "I was expecting a { or a (". The entry types are therefore
+%   named in these comments without their leading at-sign. This comment
+%   included.
+%
+%   FIELD NAMES MATTER. bibtex silently drops a field it does not recognise
+%   for that type, and complains about ones it half-recognises, e.g.
+%
+%       Warning--there's a number but no series in some_key
+%
+%   which means a "number" was given to an entry type where a number only
+%   makes sense alongside a "series". The reference still prints. It prints
+%   wrong.
+%
+%   KEYS: use authorYEAR, lower case, e.g. shannon1948. Keep them stable.
+%   Renaming a key means finding every cite that used it.
+%=====================================================================
+
+%---------------------------------------------------------------------
+%   JOURNAL ARTICLE           (type: article)
+%   Required: author, title, journal, year
+%   Usual:    volume, number, pages, doi
+%---------------------------------------------------------------------
+%   This one is REAL. It is cited by the example figure in 1_intro.tex.
+@article{shannon1948,
+  author  = {Shannon, C. E.},
+  title   = {A Mathematical Theory of Communication},
+  journal = {The Bell System Technical Journal},
+  year    = {1948},
+  volume  = {27},
+  number  = {3},
+  pages   = {379--423},
+  doi     = {10.1002/j.1538-7305.1948.tb01338.x}
+}
+
+%   PLACEHOLDER. Replace it.
+@article{placeholder_article,
+  author  = {Surname, A. N. and Othersurname, B. C.},
+  title   = {Title of the Journal Article},
+  journal = {Name of the Journal},
+  year    = {2024},
+  volume  = {12},
+  number  = {4},
+  pages   = {101--117},
+  doi     = {10.0000/placeholder}
+}
+
+%---------------------------------------------------------------------
+%   BOOK                      (type: book)
+%   Required: author (or editor), title, publisher, year
+%   Usual:    edition, address
+%---------------------------------------------------------------------
+@book{placeholder_book,
+  author    = {Surname, A. N.},
+  title     = {Title of the Book},
+  publisher = {Name of the Publisher},
+  year      = {2020},
+  edition   = {3rd},
+  address   = {City, Country}
+}
+
+%---------------------------------------------------------------------
+%   CHAPTER IN AN EDITED BOOK (type: incollection)
+%   Required: author, title, booktitle, publisher, year
+%   Usual:    editor, pages
+%
+%   Use this ONLY for a chapter in a book that has an editor. A paper in a
+%   journal is an article, even if the journal is thick.
+%---------------------------------------------------------------------
+@incollection{placeholder_chapter,
+  author    = {Surname, A. N.},
+  title     = {Title of the Chapter},
+  booktitle = {Title of the Edited Book},
+  editor    = {Editorsurname, E. D.},
+  publisher = {Name of the Publisher},
+  year      = {2021},
+  pages     = {45--72}
+}
+
+%---------------------------------------------------------------------
+%   CONFERENCE PAPER          (type: inproceedings)
+%   Required: author, title, booktitle, year
+%   Usual:    pages, address, doi
+%---------------------------------------------------------------------
+@inproceedings{placeholder_conference,
+  author    = {Surname, A. N. and Othersurname, B. C.},
+  title     = {Title of the Conference Paper},
+  booktitle = {Proceedings of the Name of the Conference},
+  year      = {2023},
+  pages     = {1--6},
+  address   = {City, Country},
+  doi       = {10.0000/placeholder-conf}
+}
+
+%---------------------------------------------------------------------
+%   THESIS                    (types: phdthesis, mastersthesis)
+%   Both take the same fields.
+%   Required: author, title, school, year
+%   Usual:    type  (which overrides the default label)
+%---------------------------------------------------------------------
+@phdthesis{placeholder_phd,
+  author = {Surname, A. N.},
+  title  = {Title of the Doctoral Thesis},
+  school = {University of Cape Town},
+  year   = {2024},
+  type   = {PhD thesis}
+}
+
+@mastersthesis{placeholder_msc,
+  author = {Surname, B. N.},
+  title  = {Title of the Master's Dissertation},
+  school = {University of Cape Town},
+  year   = {2023},
+  type   = {MSc (Eng) dissertation}
+}
+
+%---------------------------------------------------------------------
+%   TECHNICAL REPORT          (type: techreport)
+%   Required: author, title, institution, year
+%   Usual:    number, type
+%
+%   "number" is fine HERE. It is in article and book that a bare number
+%   without a series makes bibtex complain.
+%---------------------------------------------------------------------
+@techreport{placeholder_report,
+  author      = {Surname, A. N.},
+  title       = {Title of the Technical Report},
+  institution = {Name of the Institution},
+  year        = {2022},
+  number      = {TR-2022-04},
+  type        = {Technical Report}
+}
+
+%---------------------------------------------------------------------
+%   WEBSITE, DATASHEET, DATASET, SOFTWARE, STANDARD   (type: misc)
+%   misc is the catch-all.
+%   Usual: author, title, year, howpublished (with \url), note (access date)
+%
+%   ALWAYS give an access date for anything online. It will move or vanish,
+%   and an examiner checking a dead link wants to know when you saw it.
+%
+%   Braces around a corporate author, {{Name of Company}}, stop bibtex
+%   reading it as a surname and abbreviating it.
+%---------------------------------------------------------------------
+@misc{placeholder_website,
+  author       = {{Name of the Organisation}},
+  title        = {Title of the Page or Document},
+  year         = {2025},
+  howpublished = {\url{https://example.org/path/to/document}},
+  note         = {Accessed: 2025-02-11}
+}

@@ -1,0 +1,426 @@
+%=====================================================================
+%	UCT-MARIS-ARU LaTeX THESIS TEMPLATE
+%---------------------------------------------------------------------
+%	Created by:		R.A. Verrinder
+%	Date Modified:	July 2025
+%---------------------------------------------------------------------
+%	Compile with:	pdfLaTeX
+%====================================================================
+% UCT thesis guidelines
+%---------------------------------------------------------------------
+% * The document should include:
+%		-	Title Page
+%		-	Abstract
+%		-	Acknowledgements
+%		-	Table of Contents
+%		-	List of Figures
+%		-	List of Tables
+%		-	Chapters
+%		-	Bibliography
+%		-	Appendices (if any)
+%=====================================================================
+%	Document properties:
+%---------------------------------------------------------------------
+%	Paper size:			A4
+%	Margins:			1.5 cm (top,bottom,left,right)
+%	Printing:			Double sided
+%	Base font size:		10pt
+%	Paragraph spacing:	10pt
+%	Paragraph indent:	0pt
+%=====================================================================
+\documentclass[a4paper,11pt,oneside]{book}
+%---------------------------------------------------------------------
+%	PACKAGES
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+% BASIC DOCUMENT CONFIGURATION
+%---------------------------------------------------------------------
+\usepackage[T1]{fontenc}              % Modern font encoding
+\usepackage[british]{babel}            % British English hyphenation and dates
+\usepackage{setspace}                 % Line spacing commands
+
+%---------------------------------------------------------------------
+% PAGE LAYOUT AND STRUCTURE
+%---------------------------------------------------------------------
+\usepackage[margin=1.5cm]{geometry}   % Page margins
+\usepackage{scrextend}                % Extended layout tools
+\usepackage{titlesec}                 % Section title formatting
+\usepackage{fancyhdr}                 % Headers and footers
+\usepackage{lastpage}                 % Reference to last page
+\usepackage[bottom]{footmisc}         % Footnotes aligned to bottom
+\usepackage{tocloft}                  % TOC customisation
+\usepackage{import}                   % Import files/folders
+\usepackage{pdfpages}                 % Insert full PDFs
+\usepackage{calc}                     % Length arithmetic
+\usepackage{xspace}                   % Smarter spacing after macros
+\usepackage{datetime}                 % Legacy date formatting
+\usepackage[en-GB]{datetime2}         % Date formatting.
+                                     % NOTE: en-GB is a datetime2 locale.
+                                     % babel does NOT accept it: babel wants
+                                     % "british", as set above.
+                                     % NOTE: en-GB is a datetime2 locale.
+                                     % babel does NOT accept it: babel wants
+                                     % "british", as set above. Passing en-GB
+                                     % to babel raises
+                                     %   ! Package babel Error: Unknown option
+                                     % NOTE: en-GB is a datetime2 locale.
+                                     % babel does NOT accept it: babel wants
+                                     % "british", as set above. Passing en-GB
+                                     % to babel raises
+                                     %   ! Package babel Error: Unknown option
+\DTMlangsetup[en-GB]{ord=omit}        % Remove 'st', 'nd' etc. from dates
+\usepackage[nonumberlist]{glossaries} % Glossary without page numbers
+
+%---------------------------------------------------------------------
+% FONTS AND TYPOGRAPHY
+%---------------------------------------------------------------------
+\usepackage{fix-cm}                  % Enable scalable font sizes
+\usepackage{color}                   % Basic colour support
+\usepackage[dvipsnames,table,xcdraw]{xcolor} % Extended colours
+\usepackage{gensymb}                 % Generic symbols (e.g. °)
+\usepackage{ebgaramond}    % Use EB Garamond font
+
+%---------------------------------------------------------------------
+% GRAPHICS AND VISUALS
+%---------------------------------------------------------------------
+\usepackage{graphicx}                % Image inclusion
+\usepackage{float}                   % Improved float positioning
+\usepackage{wrapfig}                 % Wrap text around figures
+\usepackage{lscape}                  % Landscape pages
+\usepackage{rotating}                % Rotated figures/tables
+\usepackage{subcaption}              % Sub-figures support
+\usepackage{caption}                 % Caption formatting
+\usepackage{tikz}                    % Create vector graphics
+\usepackage{mdframed}                % Framed text boxes
+
+%---------------------------------------------------------------------
+% TABLES
+%---------------------------------------------------------------------
+\usepackage{array}                   % Custom column formatting
+\usepackage{booktabs}                % High-quality table lines
+\usepackage{tabularx}                % Tables with flexible width
+\usepackage{multirow}                % Multirow table cells
+\usepackage{hhline}                  % Fine-tuned horizontal lines
+
+%---------------------------------------------------------------------
+% LISTS AND ENUMERATION
+%---------------------------------------------------------------------
+\usepackage{enumitem}                % Custom list formatting
+
+%---------------------------------------------------------------------
+% TEXT ALIGNMENT AND JUSTIFICATION
+%---------------------------------------------------------------------
+\usepackage{ragged2e}                % Better text justification
+\usepackage{hyphenat}                % Hyphenation control
+
+%---------------------------------------------------------------------
+% REFERENCES, CITATIONS, AND LINKS
+%---------------------------------------------------------------------
+\usepackage{hyperref}                % Hyperlinks in PDF
+%---------------------------------------------------------------------
+%   hidelinks removes the coloured boxes hyperref draws around every link,
+%   reference and URL. They are invisible on screen in some viewers and
+%   print as boxes on paper, which looks like a mistake in a bound thesis.
+%
+%   If you WANT coloured links (for a screen-only PDF), replace hidelinks
+%   with e.g.
+%       \hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue,
+%                   urlcolor=blue}
+%---------------------------------------------------------------------
+\hypersetup{hidelinks}
+\usepackage{fancyref}                % Enhanced references
+\usepackage{url}                     % URL formatting
+%=====================================================================
+%   CITATION STYLE
+%=====================================================================
+%   ONE SWITCH. Set it here and both the in-text citations and the
+%   bibliography follow.
+%
+%       \IEEEcitefalse   Harvard   (Shannon, 1948)   <- default
+%       \IEEEcitetrue    IEEE      [1]
+%
+%   The declaration page commits you to the Harvard convention, so leave
+%   this false unless you have changed the declaration as well.
+%
+%   NOTE ON THE SQUARE BRACKETS: natbib loaded with NO options defaults to
+%   NUMERIC citations, which is where [1] comes from. It has to be told
+%   "authoryear" explicitly, even when the .bst is an author-year style.
+%   The two are configured separately and will not agree on their own.
+%=====================================================================
+\newif\ifIEEEcite
+\IEEEcitefalse
+
+\ifIEEEcite
+    % IEEE: numeric, square brackets, sorted and compressed ([1]-[3], not [1],[2],[3])
+    \PassOptionsToPackage{numbers,square,comma,sort&compress}{natbib}
+\else
+    % Harvard: author-year, round brackets, semicolon between citations
+    \PassOptionsToPackage{authoryear,round,semicolon}{natbib}
+\fi
+\usepackage{natbib}
+%=====================================================================
+\usepackage{refcount}                % Arithmetic on \pageref values, for the
+                                     % automatic page count on the declaration
+
+%---------------------------------------------------------------------
+% VERBATIM AND CODE LISTINGS
+%---------------------------------------------------------------------
+\usepackage{fancyvrb}                % Code-style text environments
+
+%---------------------------------------------------------------------
+% MATHS
+%---------------------------------------------------------------------
+\usepackage{amsmath, amsthm, amssymb} % Core maths packages
+\usepackage{bm}                       % Bold maths symbols
+
+%---------------------------------------------------------------------
+% GLOSSARY DEFINITIONS
+%---------------------------------------------------------------------
+
+%=====================================================================
+%   AUTOMATIC WORD AND PAGE COUNT
+%=====================================================================
+%   The declaration page states a word count and a page count, EXCLUDING the
+%   preamble, the appendices and the bibliography. Both are computed rather
+%   than typed, so they cannot go stale the moment you add a paragraph.
+%
+%   PAGE COUNT
+%     \label{body:start} is placed just before the first body chapter and
+%     \label{body:end} just after the last one. \bodypages is the difference,
+%     using \getpagerefnumber from refcount. It needs TWO LaTeX passes, like
+%     any cross-reference. On the first pass it prints ??.
+%
+%   WORD COUNT
+%     LaTeX cannot count words: by the time it sees the text it has already
+%     thrown away the distinction between a word and a macro argument. The
+%     count is therefore produced OUTSIDE the document, by texcount, and
+%     written to wordcount.tex, which is read back in here.
+%
+%     latexmkrc runs it before each build. If it has not run, the placeholder
+%     below is printed instead, so the thesis still compiles.
+%=====================================================================
+\providecommand{\wordcount}{\textcolor{red}{[run latexmk]}}
+
+%   NOTE the file name. It is NOT "wordcount.tex": TeX Live already ships a
+%   file by that name (an interactive word-counting utility). If the generated
+%   file is missing, \InputIfFileExists{wordcount} finds TeX Live's copy on the
+%   search path instead, runs it, and the build stops dead at
+%
+%       File name [press RETURN to cancel]:
+%       ! Emergency stop.
+%
+%   which is a baffling thing to debug. The generated file is therefore called
+%   thesis-wordcount.tex, which nothing else claims.
+\InputIfFileExists{thesis-wordcount.tex}{}{}
+
+\newcommand{\bodypages}{%
+    %   The two \pageref calls below are typeset into a box that is then
+    %   thrown away, so they print nothing. They are here on purpose.
+    %
+    %   \getpagerefnumber returns 0 for a label it has not seen yet, and does
+    %   so SILENTLY: no warning, because no \ref was used. latexmk therefore
+    %   believes the document has converged after one pass and stops, and the
+    %   declaration goes out saying
+    %
+    %       Page count   1 pages
+    %
+    %   which is 0 - 0 + 1, and is wrong, and looks plausible enough to miss.
+    %
+    %   Using \pageref makes LaTeX raise its own "Reference undefined" warning
+    %   on the first pass, which is what makes latexmk run a second one.
+    \begingroup
+        \setbox0=\hbox{\pageref{body:start}\pageref{body:end}}%
+    \endgroup
+    \number\numexpr\getpagerefnumber{body:end}-\getpagerefnumber{body:start}+1\relax
+}
+%---------------------------------------------------------------------
+%=====================================================================
+
+\makeglossaries
+
+%---------------------------------------------------------------------
+%   Glossary and acronym entries are DEFINED here, in the preamble.
+%   v_glossary.tex only prints the list; it defines nothing.
+%---------------------------------------------------------------------
+\input{0_glossaryentries}
+%---------------------------------------------------------------------
+%	DOCUMENT
+%---------------------------------------------------------------------
+\begin{document}
+%---------------------------------------------------------------------
+\include{0_documentproperties}
+%=====================================================================
+%	TITLE PAGE
+%=====================================================================
+\include{0_titlepage}
+%=====================================================================
+%	FRONT MATTER
+%=====================================================================
+%---------------------------------------------------------------------
+%   FRONT MATTER
+%---------------------------------------------------------------------
+%   \pagestyle{plain} gives the front matter a page number in the footer and
+%   NOTHING in the header. The book class defaults to "headings", which puts a
+%   running head with the chapter name at the top of every page, which is not
+%   wanted on the declaration, the abstract or the contents.
+%
+%   The running heads are restored at the start of the main matter, so the
+%   body chapters keep them.
+%---------------------------------------------------------------------
+\frontmatter
+\pagestyle{plain}
+%---------------------------------------------------------------------
+%	Declaration
+%---------------------------------------------------------------------
+\include{i_declaration}
+%---------------------------------------------------------------------
+%	Abstract
+%---------------------------------------------------------------------
+\include{ii_abstract}
+%---------------------------------------------------------------------
+%	Acknowledgements
+%---------------------------------------------------------------------
+\include{iii_acknowledgments}
+%---------------------------------------------------------------------
+% Table of Contents
+%---------------------------------------------------------------------
+\tableofcontents
+\pagebreak
+%---------------------------------------------------------------------
+% List of Figures
+%---------------------------------------------------------------------
+\listoffigures
+\addcontentsline{toc}{chapter}{List of Figures}
+\pagebreak
+%---------------------------------------------------------------------
+% List of Tables
+%---------------------------------------------------------------------
+\listoftables
+\addcontentsline{toc}{chapter}{List of Tables}
+
+%---------------------------------------------------------------------
+%	List of Symbols/Document conventions (optional)
+%---------------------------------------------------------------------
+\include{iv_listofsymbols}
+
+%---------------------------------------------------------------------
+%	Glossary (optional)
+%---------------------------------------------------------------------
+\include{v_glossary}
+
+%-------------------------------------------------------
+%	MAIN MATTER
+%=====================================================================
+\mainmatter
+\pagestyle{headings}   % running heads return for the body
+% Create a separate file for each chapter. You may choose to rename these
+% chapters as needed.
+
+%---------------------------------------------------------------------
+% Chapter 1: Introduction
+%---------------------------------------------------------------------
+%   Marks the first page of the body, for the automatic page count.
+\label{body:start}
+\include{1_intro}
+%---------------------------------------------------------------------
+% Chapter 2: Literature Review
+%---------------------------------------------------------------------
+\include{2_review}
+%---------------------------------------------------------------------
+% Chapter 3: Theoretical development
+%---------------------------------------------------------------------
+\include{3_ch3}
+%---------------------------------------------------------------------
+% Chapter 4: Design description
+%---------------------------------------------------------------------
+\include{4_ch4}
+%---------------------------------------------------------------------
+% Chapter 5: Experimental design
+%---------------------------------------------------------------------
+\include{5_ch5}
+%---------------------------------------------------------------------
+% Chapter 6: Results
+%---------------------------------------------------------------------
+\include{6_results}
+%---------------------------------------------------------------------
+% Chapter 7: Discussion
+%---------------------------------------------------------------------
+\include{7_discussion}
+%---------------------------------------------------------------------
+% Chapter 8: Conclusions
+%---------------------------------------------------------------------
+\include{8_conclusions}
+%---------------------------------------------------------------------
+% Chapter 9: Recommendations
+%---------------------------------------------------------------------
+\include{9_furtherwork}
+%   Marks the last page of the body. Everything after this (appendices,
+%   bibliography) is excluded from the page count.
+\label{body:end}
+%---------------------------------------------------------------------
+% Appendices
+%---------------------------------------------------------------------
+\appendix
+%---------------------------------------------------------------------
+
+\renewcommand{\thechapter}{\Alph{chapter}} % Makes chapters A, B, C, etc.
+\renewcommand{\thesection}{\thechapter.\arabic{section}} % Makes sections A.1, A.2, etc.
+\renewcommand{\thesubsection}{\thesection.\arabic{subsection}} % Makes subsections A.1.1, A.1.2, etc.
+
+% Reset section counter at the beginning of each appendix chapter
+\setcounter{section}{0}
+%---------------------------------------------------------------------
+
+\include{A_gitrepo}
+\include{B_ethics}
+%---------------------------------------------------------------------
+%   C: the original topic description, as issued during project selection.
+%      Required for a final year project report. Not usually included in a
+%      postgraduate thesis: comment it out if you are writing one.
+%
+%   D: the ECSA Graduate Attributes reflection table. Required for a final
+%      year project report, since ECSA accreditation depends on it. Not
+%      required for a postgraduate thesis.
+%---------------------------------------------------------------------
+\include{C_topicdescription}
+\include{D_ECSA}
+%=====================================================================
+%	BACK MATTER
+%=====================================================================
+\backmatter
+%---------------------------------------------------------------------
+% Bibliography
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+%   BIBLIOGRAPHY STYLE
+%---------------------------------------------------------------------
+%   Driven by \ifIEEEcite, set once at the top of this file.
+%
+%   plainnat  natbib's author-year style. Part of natbib itself, so always
+%             available, and it matches the Harvard convention the
+%             declaration page commits you to.
+%
+%   IEEEtran  the IEEE numeric style. Ships with the IEEEtran package.
+%
+%   NOTE: this was previously \bibliographystyle{kluwer}. kluwer.bst is not
+%   part of TeX Live and was not in this repository, so bibtex failed with
+%
+%       I couldn't open style file kluwer.bst
+%
+%   and no bibliography was produced at all. If your department supplies a
+%   kluwer.bst, commit it alongside 0_main.tex and use it here.
+%---------------------------------------------------------------------
+\ifIEEEcite
+    \bibliographystyle{IEEEtran}
+\else
+    \bibliographystyle{plainnat}
+\fi
+{\small \bibliography{thesis,zotero_collection}}
+\addcontentsline{toc}{chapter}{Bibliography}
+%---------------------------------------------------------------------
+\end{document}
+%---------------------------------------------------------------------
+%	End of the document
+%=====================================================================
+
+

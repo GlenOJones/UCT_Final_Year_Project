@@ -1,0 +1,6 @@
+# Ignore everything in the root
+/*
+
+# Except these
+!/Report/
+!.gitignore

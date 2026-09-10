@@ -1,0 +1,49 @@
+%=====================================================================
+%   GLOSSARY AND ACRONYM ENTRIES
+%=====================================================================
+%   Entries must be DEFINED in the preamble, before they are used. This file
+%   is \input from 0_main.tex, after \makeglossaries.
+%
+%   v_glossary.tex only PRINTS the list. It does not define anything.
+%
+%   USE
+%     \gls{ecsa}    first use  -> Engineering Council of South Africa (ECSA)
+%                   after that -> ECSA
+%     \glspl{ga}    plural
+%     \Gls{ga}      capitalised at the start of a sentence
+%
+%   An entry that is never cited with \gls does not appear in the list. That
+%   is deliberate: the list shows what the reader actually met.
+%=====================================================================
+
+%---------------------------------------------------------------------
+%   ACRONYMS
+%---------------------------------------------------------------------
+%   Needed by Appendix D (the ECSA Graduate Attributes table). Leave these.
+\newacronym{ecsa}{ECSA}{Engineering Council of South Africa}
+\newacronym{ga}{GAs}{Graduate Attributes}
+
+%   Generally useful. Keep or delete.
+\newacronym{uct}{UCT}{University of Cape Town}
+\newacronym{fyp}{FYP}{Final Year Project}
+
+%   Cited by the example chapters. Replace with your own.
+\newacronym{gps}{GPS}{Global Positioning System}
+\newacronym{miz}{MIZ}{Marginal Ice Zone}
+\newacronym{so}{SO}{Southern Ocean}
+
+%   Add your own below. One line each. They only appear in the printed list
+%   if they are actually cited with \gls somewhere.
+% \newacronym{adc}{ADC}{analogue-to-digital converter}
+% \newacronym{imu}{IMU}{inertial measurement unit}
+
+%---------------------------------------------------------------------
+%   GLOSSARY TERMS (a definition, not an abbreviation)
+%---------------------------------------------------------------------
+% \newglossaryentry{marginalicezone}{
+%     name        = {marginal ice zone},
+%     description = {The transitional region between the open ocean and
+%                    consolidated pack ice, where surface waves and sea ice
+%                    interact.}
+% }
+%=====================================================================

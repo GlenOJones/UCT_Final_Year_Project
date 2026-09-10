@@ -1,0 +1,219 @@
+%---------------------------------------------------------------------
+% Document Properties Macros
+%---------------------------------------------------------------------
+% Title Information
+%---------------------------------------------------------------------
+\newcommand{\titl}{Thesis Title}
+\newcommand{\subtitle}{Thesis Subtitle}
+%---------------------------------------------------------------------
+% Degree Information
+%---------------------------------------------------------------------
+\newcommand{\degreeprogramme}{Electrical Engineering}
+%\newcommand{\degreeprogramme}{Electrical and Computer Engineering}
+%\newcommand{\degreeprogramme}{Mechatronics}
+%\newcommand{\degreeprogramme}{Ocean & Atmosphere Science}
+%\newcommand{\degreeprogramme}{Applied Ocean Sciences (Operational Oceanography)}
+%\newcommand{\degreee}{Bachelor of Science in \degreeprogramme}
+%\newcommand{\degreee}{Bachelor of Science with Honours in \degreeprogramme}
+\newcommand{\degreee}{Master of Science in \degreeprogramme}
+%\newcommand{\degreee}{Doctor of Philosophy}
+%\newcommand{\degreeabv}{BSc (Eng)}
+%\newcommand{\degreeabv}{BSc (Hon)}
+\newcommand{\degreeabv}{MSc (Eng)}
+%\newcommand{\degreeabv}{MSc}
+%\newcommand{\degreeabv}{PhD}
+%---------------------------------------------------------------------
+% Document Type
+%---------------------------------------------------------------------
+%\newcommand{\documenttype}{final year project report}
+\newcommand{\documenttype}{thesis}
+%\newcommand{\documenttype}{dissertation}
+%---------------------------------------------------------------------
+% Author Information
+%---------------------------------------------------------------------
+\newcommand{\auth}{Glen Oliver \textbf{Jones}}
+\newcommand{\studentnumber}{JNSGLE007}
+\newcommand{\psemplid}{TODO}
+\newcommand{\aemail}{jnsgle007@uct.ac.za}
+%---------------------------------------------------------------------
+% Identifiers
+%---------------------------------------------------------------------
+\newcommand{\ebeethicsnumber}{STU-EBE-yyyy-PSQxxxxxx}
+%   \href, NOT \hyperlink. \hyperlink jumps to a target INSIDE this document;
+%   it does not open a URL. Written with \hyperlink, these two links look
+%   right on the page and do nothing when clicked.
+\newcommand{\orcidid}{\href{https://orcid.org/xxxx-xxxx-xxxx-xxxx}{xxxx-xxxx-xxxx-xxxx}}
+\newcommand{\gitrepo}{\href{https://github.com/username/project}{Repo name}}
+%---------------------------------------------------------------------
+% Institutional Information
+%---------------------------------------------------------------------
+\newcommand{\dept}{Department of Electrical Engineering}
+%\newcommand{\dept}{Department of Oceanography}
+\newcommand{\uni}{University of Cape Town}
+\newcommand{\city}{Rondebosch, Cape Town}
+\newcommand{\country}{South Africa}
+
+%---------------------------------------------------------------------
+% Supervisors
+%---------------------------------------------------------------------
+\newcommand{\supervisor}{Supervisor's Initials \textbf{Surname}}
+\newcommand{\cosupervisor}{Co-supervisor's Initials \textbf{Surname}}
+\newcommand{\hod}{Prof. M.A. Khan}
+%\newcommand{\hod}{Prof. M. Vichi}
+%---------------------------------------------------------------------
+% Keywords
+%---------------------------------------------------------------------
+\newcommand{\key}{keyword1; keyword2; keyword3}
+%---------------------------------------------------------------------
+% UCT Logos
+%---------------------------------------------------------------------
+\newcommand{\logo}{\includegraphics[height=3.5cm]{figs/0_logos/logo_uct.png}}
+%---------------------------------------------------------------------
+% Research Group Logos
+%---------------------------------------------------------------------
+%---------------------------------------------------------------------
+%   RESEARCH GROUP LOGOS (title page, below the title block)
+%---------------------------------------------------------------------
+%   Uncomment the groups this thesis actually belongs to. All of them are
+%   commented out at present, so \bottomlogos prints nothing and the title
+%   page is clean.
+%
+%   Available in figs/0_logos/:
+%       logo_aru.jpg     African Robotics Unit
+%       logo_rrsg.png    Radar Remote Sensing Group
+%       logo_MARIS.jpg   Marine and Antarctic Research centre (MARiS)
+%       logo_MMRU.jpg    Marine Mammal Research Unit
+%       logo_socco.png   Southern Ocean Carbon and Climate Observatory
+%       logo_SEA.png     SEA
+%       logo_eee.jpg     Department of Electrical Engineering
+%
+%   Keep to three across a row, or they will not fit. If you use fewer than
+%   three, widen the minipages so they still balance.
+%---------------------------------------------------------------------
+\newcommand{\bottomlogos}{
+  \begin{figure}[H]
+    \begin{minipage}{0.3\textwidth}
+      \centering
+      % \includegraphics[height=2cm]{figs/0_logos/logo_aru.jpg}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.3\textwidth}
+      \centering
+      \includegraphics[height=2cm]{figs/0_logos/logo_eee.jpg}
+    \end{minipage}
+    \hfill
+    \begin{minipage}{0.3\textwidth}
+      \centering
+      % \includegraphics[height=2cm]{figs/0_logos/logo_rrsg.png}
+      % \includegraphics[height=2cm]{figs/0_logos/logo_MARIS.jpg}
+      % \includegraphics[height=2cm]{figs/0_logos/logo_MMRU.jpg}
+      % \includegraphics[height=1.5cm]{figs/0_logos/logo_socco.png}
+    \end{minipage}
+  \end{figure}
+}
+%=====================================================================
+%	DOCUMENT PROPERTIES
+%---------------------------------------------------------------------
+% 	PAGE FORMATTING
+%---------------------------------------------------------------------
+\setlength{\parskip}{10pt}       % Paragraph spacing
+\setlength{\parindent}{0pt}      % No paragraph indentation
+%---------------------------------------------------------------------
+% 	CAPTIONS  Caption margins 80% of text
+%---------------------------------------------------------------------
+\captionsetup{
+  width=0.8\textwidth,
+  font=footnotesize,
+  labelfont=bf
+}                               
+%---------------------------------------------------------------------
+% 	FOOTNOTES
+%---------------------------------------------------------------------
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+
+%---------------------------------------------------------------------
+% Header and Footer
+%---------------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\setlength{\footskip}{0.5cm}     % Ensure space for the footer
+\setlength{\headheight}{1cm}     % Increase header height
+\setlength{\headsep}{0.5cm}      % Increase space between header and text
+
+%---------------------------------------------------------------------
+%	NEW COMMANDS
+%---------------------------------------------------------------------
+% Macros for Date and Time
+%---------------------------------------------------------------------
+\newcommand{\thesisdate}{\DTMdisplaydate{2024}{07}{01}{-1}}
+\newcommand{\FullDate}{\shortdayofweekname{\day}{\month}{\year} \the\day\ \monthname[\month], \the\year}
+\newcommand{\MonthYear}{\monthname[\month] \the\year}
+
+%---------------------------------------------------------------------
+% Signature Macro
+%---------------------------------------------------------------------
+\newcommand*{\signature}[1]
+{
+    \par\noindent\makebox[8cm]{\hrulefill}
+    \par\noindent\makebox[8cm][r]{#1}
+}
+
+%---------------------------------------------------------------------
+% Theorems and Activities
+%---------------------------------------------------------------------
+\newtheorem*{guess*}{Hypothesis}
+\newtheorem*{activity*}{Activity}
+
+%---------------------------------------------------------------------
+% Define custom colors
+%---------------------------------------------------------------------
+\definecolor{titlebg}{HTML}{959595}
+\definecolor{colbg}{HTML}{F5F5F5}
+\definecolor{objectivebg}{HTML}{C5C5C5}
+\definecolor{defaulttext}{HTML}{595959}
+\definecolor{tablerule}{HTML}{666666}
+
+%---------------------------------------------------------------------
+% 	TOC FORMATTING
+%---------------------------------------------------------------------
+% Set spacing between entries
+\renewcommand{\cftchapfont}{\normalfont\bfseries}
+\renewcommand{\cftsecfont}{\normalfont}
+\renewcommand{\cftsubsecfont}{\normalfont}
+\renewcommand{\cftchappagefont}{\normalfont\bfseries}
+\renewcommand{\cftsecpagefont}{\normalfont}
+\renewcommand{\cftsubsecpagefont}{\normalfont}
+\setlength{\cftbeforechapskip}{5pt}
+\setlength{\cftbeforesecskip}{3pt}
+\setlength{\cftbeforesubsecskip}{2pt}
+
+% Enable dot leaders
+\renewcommand{\cftchapdotsep}{\cftdotsep}
+\renewcommand{\cftsecdotsep}{\cftdotsep}
+\renewcommand{\cftsubsecdotsep}{\cftdotsep}
+
+% Default: Display "Chapter" in ToC entries for regular chapters
+\renewcommand{\cftchappresnum}{\chaptername\space}
+
+% Set ToC entries for appendix chapters to display "Appendix"
+\setlength{\cftchapnumwidth}{\widthof{\textbf{Appendix~999~}}}
+\makeatletter
+\g@addto@macro\appendix{%
+  \addtocontents{toc}{%
+    \protect\renewcommand{\protect\cftchappresnum}{\appendixname\space}%
+  }%
+}
+\makeatother
+
+% Reduce space before chapter headings
+\titlespacing*{\chapter}{0pt}{-10pt}{20pt}
+
+% Adjust chapter heading formatting to avoid cropping
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{10pt}{40pt}
+
+
+\newcolumntype{U}{>{\raggedleft\arraybackslash}p{2cm}}

@@ -1,0 +1,37 @@
+# LaTeX build artefacts
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.run.xml
+
+# Glossary and index artefacts
+*.glo
+*.gls
+*.glg
+*.ist
+*.acn
+*.acr
+*.alg
+
+# Built PDF
+*.pdf
+
+# ...but PDFs that are INPUT to the build are source assets, not artefacts.
+# Anything under pdfs/ or figs/ is included with \includepdf or
+# \includegraphics, and the build fails without it.
+!pdfs/**/*.pdf
+!figs/**/*.pdf
+
+# Editor and OS noise
+.DS_Store
+*.swp
+.vscode/
+thesis-wordcount.tex

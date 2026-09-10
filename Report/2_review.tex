@@ -1,0 +1,151 @@
+%=====================================================================
+%   LITERATURE REVIEW
+%=====================================================================
+%   Replace this chapter with your own. What is here is a demonstration of
+%   how to cite, kept because it is the thing people get wrong.
+%
+%   The keys cited below are PLACEHOLDERS from thesis.bib. They exist to show
+%   the citation commands working. Do not leave them in your thesis.
+%=====================================================================
+\chapter{Literature review}
+\label{ch:review}
+
+%---------------------------------------------------------------------
+%   HOW TO CITE
+%---------------------------------------------------------------------
+%   natbib gives you two forms, and they are NOT interchangeable.
+%
+%     \citet{key}   TEXTUAL. The author becomes part of the sentence.
+%                   "As \citet{shannon1948} showed, ..."
+%                   -> As Shannon (1948) showed, ...
+%
+%     \citep{key}   PARENTHETICAL. The whole citation sits in brackets at
+%                   the end of a clause.
+%                   "...is a solved problem \citep{shannon1948}."
+%                   -> ...is a solved problem (Shannon, 1948).
+%
+%   \cite{key} behaves like \citet in author-year mode and like a numeric
+%   citation in IEEE mode, so it reads differently depending on the switch at
+%   the top of 0_main.tex. Prefer \citet and \citep: they always mean what
+%   they say.
+%
+%   In IEEE mode both come out as [1], which is why IEEE citations are easier
+%   to write and harder to read.
+%---------------------------------------------------------------------
+
+Textualtual, where the author is the subject of the sentence:
+\citet{shannon1948} established the information-theoretic limits that still
+bound modern communication systems.
+
+Parenthetical, at the end of a clause:
+The effect is well documented \citep{placeholder_article}.
+
+Several sources at once, which natbib sorts and compresses:
+The same conclusion is reached by three independent routes
+\citep{placeholder_article,placeholder_book,placeholder_conference}.
+
+A page, chapter or section within a source:
+The register map is given in full \citep[Ch.~8]{placeholder_website}.
+
+The year alone, where the sentence already names the author:
+Shannon's channel capacity theorem \citeyearpar{shannon1948} is the origin of
+the result.
+
+%---------------------------------------------------------------------
+%   thesis.bib ships with one example of each entry type: article, book,
+%   chapter in an edited book, conference paper, thesis, technical report and
+%   website. Copy the nearest one and edit it.
+%---------------------------------------------------------------------
+
+
+% Sea-Ice Draft is the vertical distance that sea ice extends below the waterline down to the bottom of the ice sheet or floe.
+
+\section{Introduction}
+\label{sec:ch2.introduction}
+% Introduce literature review and summarise whats in it
+% Roadmap for the chaptor
+
+
+
+\section{Region importants}
+\label{sec:ch2.region}
+% TODO: Rename chapter
+% Discussion about where MIZ is, why it matters climatically
+% Why pancake / flow morphology is dominant ice type here
+% Why the underside specifically matters:
+% - roughness, algae, heat/momentum exhange..
+
+% Intro sentence as to what the MIZ is, basic importance
+Antarctic more defined by ice texture., important to understand the underrside of the ice
+
+The Marginal Ice Zone (MIZ) is the portion of the ice cover between the main ice cover and open Sea, and is typically defined as the region with sea ice concentration (SiC) between 15-80\% \citep{dumontMarginalIceZone}. The MIZ is responsible for several important processes. It provides a habitat for sea-ice algea, which act as primary producers during low productivity periods \citep{lizotteContributionsSeaIce2001}, and polar sea ice acts as an carbon pump that increases the net CO\textsubscript{2} uptake through brine rejection and further processes \citep{rysgaardSeaIceContribution2011}. 
+
+ Majority of studies regard ice thickness using to categorise the MIZ, but \citet{vichiIndicatorSeaIce2022} argues that the 15-80\% model is less effective in the southern oceans because sea ice type is unrelated to the concentration value (also explain why he says that, sat data I think). They further suggests that in the thin, seasonal frazil dominated areas, the energy exchange across the atmosphere-ice-ocean interface is more dependent on the sea ice tecture than percentage coverage. The underside of the ice is important as it defines the ICE-SEA interface and is critical important in defining drag coeffiecients (ref Hoerten et al.).
+
+% FORMATION OF ICE?
+
+ % Metric of coverage is less relavent in antacric, exhanges of energy more affected by sea ice texture...
+
+
+\section{Current Data and Gaps}
+\label{sec:ch2.existing_Data}
+% What satellites gave and limitations for better understanding the underside of ice8
+% What in-situ methods exist (conf papers)
+% Key gap is most do under-ice thickness and acoustic reconstruction at a course scale. acoustic vs optical gap
+% compare reconstruction options (sonar, structured light, laser, monocular SFm, passive stereo, stereo)
+% % Interestingly ref ni https://www.cambridge.org/core/journals/annals-of-glaciology/article/development-of-sea-ice-in-the-weddell-sea/06887E8C6716177BC0491F73BF87F92C
+
+
+
+
+\section{Stereo vision for Surface Reconstrucion}
+\label{sec:ch2.calibration}
+
+% EPipoplar geometry and rectificatino
+% Correspondance ant matching (poor underwater)
+% Pinhole camera model & Calibration
+% Point clouds, registration, and fusion
+% Evaluating accuracy of above
+% Stereo Geometry and 3D reconstruction (in-air case, point clouds, disparity->depth)
+
+
+\section{Underwater challenges and calibration techniques}
+\label{sec:ch2.underwater_challenges}
+% Connection back to original prohject
+% Existing calibration techniques and how they compensate (S2667393226000153)
+% 		- Ignore refratcion and absorb into distortion
+%		- Explicit physical / ray-tracing models
+%		- The Pinax modl
+%		- Corrective optics
+% Point to methedology chapter
+
+% Concerns around IMU that uses magnometer in high / low lattitudes
+
+%=======================
+
+At its core, we need to get transfrom pixel data and measurements into metric values. This transformation is largely system dependent and calibration is required to compensate. A set of intrinsic parameters are needed to be determined \citet{semeniutaAnalysisCameraCalibration2016}:
+
+% TODO: Make this a table and have a description / method of finding section
+\begin{itemize}
+	\item Pixel size
+	\item Center of projection
+	\item principal length
+	\item distortion characteristics
+\end{itemize}
+ \citet{semeniutaAnalysisCameraCalibration2016}:
+ 
+
+Can find these parameters by...
+
+
+
+
+
+% INtroduce the challenges, explored solutions.
+
+
+
+
+% How to now pivot to why we are using stereo cams. Is this within lit review territory?
+
+% IF so, then air calibration, reconstrucion 

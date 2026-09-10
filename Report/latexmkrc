@@ -1,0 +1,111 @@
+# =====================================================================
+#   latexmk configuration
+# =====================================================================
+#   pdfLaTeX. The thesis is set in EB Garamond, a pdfLaTeX font package.
+#
+#       latexmk 0_main
+#
+#   Overleaf reads this file too, so the word count works there as well.
+# =====================================================================
+$pdf_mode = 1;
+
+# ---------------------------------------------------------------------
+#   Run pdfLaTeX TWICE per latexmk pass.
+# ---------------------------------------------------------------------
+#   The page count on the declaration is computed as
+#
+#       \getpagerefnumber{body:end} - \getpagerefnumber{body:start} + 1
+#
+#   On the first pass those labels do not exist yet and refcount returns 0
+#   for each, so the declaration prints "1 pages", which is 0 - 0 + 1. It is
+#   wrong, and it is plausible enough to go unnoticed.
+#
+#   latexmk's rerun heuristics do not reliably catch this: the value changes
+#   without LaTeX raising a warning it recognises. Rather than depend on
+#   that, run the engine twice every time. It costs a few seconds and it
+#   cannot be got wrong.
+# ---------------------------------------------------------------------
+$pdflatex = 'pdflatex %O %S ; pdflatex %O %S';
+$clean_ext = 'synctex.gz run.xml bbl fdb_latexmk fls glo gls glg ist acn acr alg thesis-wordcount.tex';
+
+# ---------------------------------------------------------------------
+#   Glossary. makeglossaries has to run between LaTeX passes, or every
+#   \gls{} comes out as ??.
+# ---------------------------------------------------------------------
+add_cus_dep('glo', 'gls', 0, 'makeglo2gls');
+sub makeglo2gls {
+    system("makeglossaries '$_[0]'");
+}
+
+# =====================================================================
+#   AUTOMATIC WORD COUNT
+# =====================================================================
+#   The declaration page states a word count EXCLUDING the preamble, the
+#   appendices and the bibliography. LaTeX cannot count words itself, so the
+#   count is produced here and written to thesis-wordcount.tex, which 0_main.tex
+#   reads back with \InputIfFileExists.
+#
+#   Only the files in @BODY are counted. ADD A CHAPTER HERE WHEN YOU ADD ONE
+#   TO 0_main.tex, or it will not be counted.
+#
+#   texcount is used when available: it understands LaTeX, so it does not
+#   count \section or the contents of an equation as words. It ships with TeX
+#   Live and is present on Overleaf.
+#
+#   If texcount is missing, the fallback does a crude count in pure perl:
+#   strip comments, maths and macros, then count what is left. It is
+#   approximate, but it beats a number typed in by hand two months ago.
+# =====================================================================
+my @BODY = qw(
+    1_intro.tex
+    2_review.tex
+    3_ch3.tex
+    4_ch4.tex
+    5_ch5.tex
+    6_results.tex
+    7_discussion.tex
+    8_conclusions.tex
+    9_furtherwork.tex
+);
+
+sub count_words {
+    my @files = grep { -e $_ } @BODY;
+    return 0 unless @files;
+
+    # preferred: texcount
+    my $out = `texcount -1 -sum -q -merge @files 2>/dev/null`;
+    if ($? == 0 && $out =~ /(\d+)/) {
+        return $1;
+    }
+
+    # fallback: crude perl count
+    my $words = 0;
+    for my $f (@files) {
+        open(my $fh, '<', $f) or next;
+        local $/;
+        my $t = <$fh>;
+        close $fh;
+
+        $t =~ s/(?<!\\)%.*$//mg;
+        $t =~ s/\$\$.*?\$\$//gs;
+        $t =~ s/\$[^\$]*\$//gs;
+        $t =~ s/\\\[.*?\\\]//gs;
+        $t =~ s/\\begin\{(equation|align|figure|table|tikzpicture|lstlisting)\*?\}.*?\\end\{\1\*?\}//gs;
+        $t =~ s/\\[a-zA-Z\@]+\s*(\[[^\]]*\])?//g;
+        $t =~ s/[{}\[\]&~\\]/ /g;
+        $words += scalar(() = $t =~ /\b[\w'-]+\b/g);
+    }
+    return $words;
+}
+
+sub write_wordcount {
+    my $n = count_words();
+    open(my $fh, '>', 'thesis-wordcount.tex') or return;
+    print $fh "% GENERATED FILE. Do not edit it, and do not commit it.\n";
+    print $fh "% Written by latexmkrc on every build. See .gitignore.\n";
+    print $fh "\\renewcommand{\\wordcount}{$n}\n";
+    close $fh;
+    print "latexmkrc: word count = $n\n";
+}
+
+write_wordcount();
