@@ -4,3 +4,8 @@
 # Except these
 !/Report/
 !.gitignore
+!/src/
+
+# Python virtual environments and caches
+venv/
+__pycache__/
