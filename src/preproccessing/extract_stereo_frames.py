@@ -24,12 +24,19 @@ Usage (setup: python3 -m venv src/venv && src/venv/bin/pip install -r src/requir
     PY=src/venv/bin/python
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug all --step 20
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug select --gray
+    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 select --gray --name C1
 
 Viewer keys (select mode, right camera with matched left alongside):
     a/d or left/right   back/forward 1      s/w or down/up, A/D   back/forward 10
     space               mark/unmark         enter                 save pairs
     q/esc               quit (press twice if there are unsaved changes)
 Select mode starts with nothing marked; saving replaces any existing frames/ output.
+
+Labels (select mode with --name PREFIX): marking a frame asks for a label, typed
+in the viewer (letters, digits, - _ .; enter confirms, esc cancels, empty uses
+the frame number). The pair is saved as left/PREFIX_Left_LABEL.png and
+right/PREFIX_Right_LABEL.png, e.g. --name C1 and label 20mm give C1_Left_20mm.png.
+Without --name, files are numbered 0000.png, 0001.png, ...
 """
 import argparse
 import csv
@@ -52,7 +59,9 @@ KEYS = {  # waitKeyEx codes: ASCII, X11 keysyms, Qt key codes, Windows codes
 }
 SAVE_KEYS = (10, 13, 65293, 65421, 0x1000004, 0x1000005)
 QUIT_KEYS = (ord("q"), 27)
-WHITE, GREEN, RED = (255, 255, 255), (0, 255, 0), (0, 0, 255)
+BACKSPACE_KEYS = (8, 65288, 0x1000003)
+LABEL_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
+WHITE, GREEN, RED, YELLOW = (255, 255, 255), (0, 255, 0), (0, 0, 255), (0, 255, 255)
 HELP = "a/d: -1/+1   s/w: -10/+10   space: mark   enter: save   q: quit"
 
 
@@ -182,15 +191,25 @@ def pair_up(rec, right, max_dt_ms):
     return [m for m in matches if abs(m[2]) <= max_dt_ms]
 
 
-def write_pairs(rec, pairs, out, gray=False):
-    """Replace frames/ output with lossless PNG pairs named by pair index, plus pairs.csv."""
+def file_name(k, cam, prefix, label):
+    """PNG name for pair k: PREFIX_Cam_LABEL.png with --name, else the pair index."""
+    return f"{prefix}_{cam.capitalize()}_{label}.png" if prefix else f"{k:04d}.png"
+
+
+def write_pairs(rec, pairs, out, gray=False, prefix=None, labels=None):
+    """Replace frames/ output with lossless PNG pairs plus pairs.csv.
+
+    labels maps right frame index -> label; files are named by file_name().
+    """
+    labels = labels or {}
     frames = luma_frames if gray else colour_frames
     with ThreadPoolExecutor(8) as pool:
         for cam, col in (("right", 0), ("left", 1)):
             (out / cam).mkdir(parents=True, exist_ok=True)
             for p in (out / cam).glob("*.png"):
                 p.unlink()
-            name = {p[col]: f"{k:04d}.png" for k, p in enumerate(pairs)}
+            name = {p[col]: file_name(k, cam, prefix, labels.get(p[0], f"{p[0]:04d}"))
+                    for k, p in enumerate(pairs)}
             print(f"writing {cam} ({len(name)} {'gray' if gray else 'colour'} frames)...")
             jobs, ok = deque(), True  # bounded queue: don't hold every frame in memory
             for i, img in frames(rec[cam], name):
@@ -201,9 +220,13 @@ def write_pairs(rec, pairs, out, gray=False):
                 sys.exit(f"failed writing PNGs to {out / cam}")
     with open(out / "pairs.csv", "w", newline="") as f:
         wr = csv.writer(f)
-        wr.writerow(["pair", "right_frame", "left_frame", "right_pts_ns", "left_pts_ns", "dt_ms"])
+        wr.writerow(["pair", "right_frame", "left_frame", "right_pts_ns", "left_pts_ns", "dt_ms",
+                     "label", "right_file", "left_file"])
         for k, (r, l, dt) in enumerate(pairs):
-            wr.writerow([k, r, l, rec["right"]["pts"][r], rec["left"]["pts"][l], f"{dt:.3f}"])
+            label = labels.get(r, "")
+            wr.writerow([k, r, l, rec["right"]["pts"][r], rec["left"]["pts"][l], f"{dt:.3f}", label,
+                         file_name(k, "right", prefix, label or f"{r:04d}"),
+                         file_name(k, "left", prefix, label or f"{r:04d}")])
     print(f"wrote {len(pairs)} pairs to {out}")
 
 
@@ -216,8 +239,12 @@ def put_text(img, lines, x, y, color=WHITE):
         y += h + base + 8
 
 
-def render(rec, i, marks, max_dt_ms, screen, status):
-    """Matched left | right frame i, scaled to fit the screen, with overlay."""
+def render(rec, i, marks, max_dt_ms, screen, status, typing=None):
+    """Matched left | right frame i, scaled to fit the screen, with overlay.
+
+    marks maps marked right indices to their label (None without --name);
+    typing is the label being entered, or None.
+    """
     _, l, dt = match_left(rec, [i])[0]
     ok, marked, pts = abs(dt) <= max_dt_ms, i in marks, rec["right"]["pts"]
     left = read_frame(rec["left"], l) // (1 if ok else 3)  # dim a rejected match
@@ -231,8 +258,12 @@ def render(rec, i, marks, max_dt_ms, screen, status):
                    "" if ok else f"gap > {max_dt_ms:.0f} ms: pair will be skipped"],
              10, 10, WHITE if ok else RED)
     put_text(img, [f"RIGHT {i}/{len(pts) - 1}  t={(pts[i] - pts[0]) / 1e9:.3f}s"
-                   + ("  [MARKED]" if marked else ""), f"{len(marks)} marked", status],
+                   + (f"  [MARKED {marks[i]}]" if marked and marks[i] else "  [MARKED]" if marked else ""),
+                   f"{len(marks)} marked", status],
              w // 2 + 10, 10, GREEN if marked else WHITE)
+    if typing is not None:
+        put_text(img, [f"label: {typing}_", "enter: confirm (empty = frame number)   esc: cancel"],
+                 w // 2 + 10, h // 2, YELLOW)
     put_text(img, [HELP], 10, h - 40)
     return img
 
@@ -245,10 +276,13 @@ def window_open(win):
         return False
 
 
-def run_select(rec, out, max_dt_ms, screen, gray):
-    """Interactive viewer on the right camera; Enter saves the marked pairs."""
+def run_select(rec, out, max_dt_ms, screen, gray, prefix=None):
+    """Interactive viewer on the right camera; Enter saves the marked pairs.
+
+    With a prefix, marking a frame first asks for its label (typed in the window).
+    """
     n, win = len(rec["right"]["pts"]), "stereo frame select"
-    i, marks, saved, status, armed = 0, set(), set(), "", False
+    i, marks, saved, status, armed, typing = 0, {}, {}, "", False, None
     cv2.namedWindow(win, cv2.WINDOW_AUTOSIZE | cv2.WINDOW_GUI_NORMAL)
     cv2.imshow(win, render(rec, i, marks, max_dt_ms, screen, status))
     while (k := cv2.waitKeyEx(100)) != -1 or window_open(win):
@@ -256,22 +290,41 @@ def run_select(rec, out, max_dt_ms, screen, gray):
             continue
         quit_armed, armed, status = armed, False, ""
         step = next((s for s, codes in KEYS.items() if k in codes), 0)
-        if step:
+        if typing is not None:  # entering a label: keys edit the text instead of navigating
+            if k in SAVE_KEYS:
+                label = typing or f"{i:04d}"
+                if label in marks.values():
+                    status = f"label '{label}' already used"
+                else:
+                    marks[i], typing = label, None
+            elif k == 27:
+                typing, status = None, "mark cancelled"
+            elif k in BACKSPACE_KEYS:
+                typing = typing[:-1]
+            elif 0 < k < 128 and chr(k) in LABEL_CHARS:
+                typing += chr(k)
+        elif step:
             i = int(np.clip(i + step, 0, n - 1))
+        elif k == ord(" ") and i in marks:
+            del marks[i]
         elif k == ord(" "):
-            marks ^= {i}
+            if prefix:
+                typing = ""
+            else:
+                marks[i] = None
         elif k in SAVE_KEYS and not marks:
             status = "nothing marked - existing output left untouched"
         elif k in SAVE_KEYS:
             cv2.imshow(win, render(rec, i, marks, max_dt_ms, screen, "saving..."))
             cv2.waitKey(1)
-            write_pairs(rec, pair_up(rec, sorted(marks), max_dt_ms), out, gray)
-            saved, status = set(marks), f"saved {len(marks)} marked frames ({'gray' if gray else 'colour'})"
+            write_pairs(rec, pair_up(rec, sorted(marks), max_dt_ms), out, gray, prefix,
+                        {r: lab for r, lab in marks.items() if lab})
+            saved, status = dict(marks), f"saved {len(marks)} marked frames ({'gray' if gray else 'colour'})"
         elif k in QUIT_KEYS:
             if marks == saved or quit_armed:
                 break
             armed, status = True, "unsaved changes - press q again to quit"
-        cv2.imshow(win, render(rec, i, marks, max_dt_ms, screen, status))
+        cv2.imshow(win, render(rec, i, marks, max_dt_ms, screen, status, typing))
     if window_open(win):
         cv2.destroyAllWindows()
     if marks != saved:
@@ -288,7 +341,11 @@ def main():
                     help="viewer size limit WxH (default 1880x1000)")
     ap.add_argument("--overwrite", action="store_true", help="all mode: replace an existing frames/ output")
     ap.add_argument("--gray", action="store_true", help="save the luma plane (grayscale) instead of colour")
+    ap.add_argument("--name", help="file name prefix: pairs are saved as NAME_Left_LABEL.png / NAME_Right_LABEL.png, "
+                                   "with LABEL typed when marking (select mode) or the frame number (all mode)")
     args = ap.parse_args()
+    if args.name and not set(args.name) <= LABEL_CHARS:
+        sys.exit(f"--name may only contain letters, digits and - _ . (got {args.name!r})")
 
     rec, out = load_recording(args.folder), args.folder / "frames"
     n = len(rec["right"]["pts"])
@@ -297,11 +354,11 @@ def main():
         max_dt_ms = 0.25 * np.median(np.diff(rec["right"]["pts"])) / 1e6
     print(f"{n} right / {len(rec['left']['pts'])} left frames, max pair gap {max_dt_ms:.1f} ms")
     if args.mode == "select":
-        run_select(rec, out, max_dt_ms, args.screen, args.gray)
+        run_select(rec, out, max_dt_ms, args.screen, args.gray, args.name)
     elif (out / "pairs.csv").exists() and not args.overwrite:
         sys.exit(f"{out} already has output; pass --overwrite to replace it")
     else:
-        write_pairs(rec, pair_up(rec, range(0, n, max(args.step, 1)), max_dt_ms), out, args.gray)
+        write_pairs(rec, pair_up(rec, range(0, n, max(args.step, 1)), max_dt_ms), out, args.gray, args.name)
 
 
 if __name__ == "__main__":

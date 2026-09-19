@@ -72,10 +72,8 @@ cv2.waitKey(0)
 cv2.destroyAllWindows()
 
 '''
-
-
 # ====== INPUT FRAMES ======
-FRAMES_DIR = "data/Calibration/LabTesting/15 September/frames"
+FRAMES_DIR = "data/Calibration/18_Sep/C1/frames"
 CAMERAS = ("left", "right")
 
 first_image = sorted(glob.glob(os.path.join(FRAMES_DIR, "left", "*.png")))[0]
@@ -87,10 +85,24 @@ print("image size:", image_size)
 dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
 params = cv2.aruco.DetectorParameters()
 params.markerBorderBits = 2                                     # Kalibr tags have a 2-bit black border
-params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_APRILTAG # accurate corners on small/blurry tags
-params.perspectiveRemovePixelPerCell = 8                        # sample each tag bit with more pixels
-params.perspectiveRemoveIgnoredMarginPerCell = 0.33             # read bits from their centres, away from blurred edges
+params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_NONE    # refined below with cv2.cornerSubPix (see refine_corners)
+params.adaptiveThreshWinSizeMin = 3
+params.adaptiveThreshWinSizeMax = 53                            # big close-up tags need a wider threshold window
+params.adaptiveThreshWinSizeStep = 5
+params.errorCorrectionRate = 1.0                                # accept blurred tags; 36h11 codes are far apart
 detector = cv2.aruco.ArucoDetector(dictionary, params)
+
+# Corner refinement. On the 18 Sep underwater frames the built-in options were poor:
+#   CORNER_REFINE_APRILTAG  accurate corners (~0.3 px) but drops ~75% of the tags
+#   CORNER_REFINE_SUBPIX    keeps the tags but corners are off by ~1.5 px (OpenCV 5.0.0)
+# Calling cv2.cornerSubPix directly keeps every tag and gives ~0.3 px corners.
+SUBPIX_WIN = (5, 5)   # half-size of the search window, px
+SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
+
+def refine_corners(gray, corners):
+    """Sub-pixel refine every tag corner on the original image."""
+    return tuple(cv2.cornerSubPix(gray, c.reshape(4, 1, 2).copy(), SUBPIX_WIN, (-1, -1), SUBPIX_CRITERIA)
+                 .reshape(1, 4, 2) for c in corners)
 
 # ====== BOARD MODEL ======
 # Board: physical position (mm) of every tag corner
@@ -105,6 +117,32 @@ board = cv2.aruco.Board(tag_corners, dictionary, np.arange(70))
 
 # ====== DETECT TAGS IN EVERY IMAGE ======
 MIN_TAGS = 10   # ignore images where too few tags were found. Useful for too blurry, ocluded or far away
+SAVE_DETECTIONS = True   # save every image with its detections drawn on, to check which tags are seen
+
+OUTPUT_DIR = "results/calibration"
+recording = os.path.basename(os.path.dirname(FRAMES_DIR))            # "15 September"
+DETECTIONS_DIR = os.path.join(OUTPUT_DIR, recording.replace(" ", "_") + "_detections")
+
+
+def save_detections(camera, name, gray, corners, ids, rejected):
+    """Save a copy of the image with detected tags (green, with id) and rejected candidates (red)."""
+    vis = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    if rejected:
+        cv2.aruco.drawDetectedMarkers(vis, rejected, borderColor=(0, 0, 255))
+    if ids is not None:
+        cv2.aruco.drawDetectedMarkers(vis, corners, ids, borderColor=(0, 255, 0))
+    n_tags = 0 if ids is None else len(ids)
+    missing = sorted(set(range(70)) - set([] if ids is None else ids.ravel().tolist()))
+    colour = (0, 255, 0) if n_tags >= MIN_TAGS else (0, 0, 255)
+    lines = [f"{camera} {name}: {n_tags}/70 tags" + ("" if n_tags >= MIN_TAGS else "  SKIPPED"),
+             f"{len(rejected)} rejected candidates (red)"]
+    if 0 < len(missing) <= 20:
+        lines.append("missing ids: " + " ".join(map(str, missing)))
+    for k, text in enumerate(lines):
+        cv2.putText(vis, text, (10, 30 + 30 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.8, colour, 2, cv2.LINE_AA)
+    os.makedirs(os.path.join(DETECTIONS_DIR, camera), exist_ok=True)
+    cv2.imwrite(os.path.join(DETECTIONS_DIR, camera, name), vis)
+
 
 def detect_tags(camera):
     """Detect tags in every image of one camera.
@@ -114,6 +152,9 @@ def detect_tags(camera):
     for path in image_files:
         gray = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
         corners, ids, rejected = detector.detectMarkers(gray)
+        corners = refine_corners(gray, corners)
+        if SAVE_DETECTIONS:
+            save_detections(camera, os.path.basename(path), gray, corners, ids, rejected)
 
         n_tags = 0 if ids is None else len(ids)
         if n_tags < MIN_TAGS:
@@ -174,8 +215,6 @@ for camera in CAMERAS:
     intrinsics[camera] = calibrate_camera(camera, detections[camera])
 
 # ====== SAVE CALIBRATION (YAML) ======
-OUTPUT_DIR = "results/calibration"
-recording = os.path.basename(os.path.dirname(FRAMES_DIR))            # "15 September"
 output_path = os.path.join(OUTPUT_DIR, recording.replace(" ", "_") + "_stereo.yaml")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
