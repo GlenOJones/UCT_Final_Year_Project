@@ -4,11 +4,74 @@
 \chapter{Theoretical development}
 \label{ch:theory}
 %---------------------------------------------------------------------
+% TODO: ADD CMOS REFERENCE
+Modern digital use a sensor matrix to capture incoming light, captured with photosensitive. Modern cameras mostly use complentary metal-oxide semiconductor technology (CMOS) . Each phototransistor makes up a single pixel sensor,
+ with sensor matrices being NcolxNrows arrays of phototransistors \cite{klette2014concise}. This section explains the theory behind
+ how a camera projects the 3D world scene onto a 2D plane, camera-specific (intrinsic and extrinsic) paramteres affecting this projection, the effects
+ of the underwater environment on camera theory and the calibration and compensation used to correct for them.
 
 %=====================================================================
 \section{Camera models}
 \label{sec:ch3.cameramodels}
+% TODO: 23 Sep
 %=====================================================================
+Camera models do what?
+They can be split into central and non-central camera models.
+
+%---------------------------------------------------------------------
+\subsection{Central camera models}
+%---------------------------------------------------------------------
+A central camera has a single optical center that every incoming ray passes through,
+Most models are central camera models.
+
+%---------------------------------------------------------------------
+\subsection{Non-central camera models}
+%---------------------------------------------------------------------
+Non-central camera models do not have a single optical center.
+(Something about back-propjection, maybe mention later).
+\cite{sturmCameraModelsFundamental2011} breaks the non-central cameras into
+\begin{itemize}
+	\item \textbf{Oblique cameras}: no two rays ever meeet.
+	\item \textbf{Axial cameras}: have one line that every ray crosses, even if they dont share a single point.
+	\item \textbf{X-slit cameras}: axial cameras with two lines every ray crosses.
+\end{itemize}
+Important for underwater why...?
+
+%---------------------------------------------------------------------
+\subsection{Model parameters: global, local and discrete}
+%---------------------------------------------------------------------
+\cite{sturmCameraModelsFundamental2011} further seperates models into global, local and discrete
+models. This seperation regards how the model's paramters describe the image.
+Global models (e.g.\ Pinhole) have parameters for the whole image, local sperates parameters sets
+for different section of the image. Discrete models have their projection function sampled at
+different points, e.g.\ one per pixel. For discrete models, interpolation neede for back-projecting
+to non-sampled image points, essentially making them local models.
+
+%---------------------------------------------------------------------
+\subsection{Forward vs back-projection}
+%---------------------------------------------------------------------
+Forward projection maps a 3D point to a sensor pixel and back-projection does the inverse, mapping
+a pixel to a 3D ray. Within the context of this project, forward projection is used for corecting
+distorition and backwards projection for estimating a camera pose and reconstruction.
+
+Mathematically, both directions define their invers, but \cite{sturmCameraModelsFundamental2011}
+points out that back-projection is generally easier to determine\ldots
+
+The notation used in this report will follow the following notation:
+% \rayvec{<index>}: bold B with an extra-raised superscript index
+\providecommand{\rayvec}[1]{\bm{B}^{\raisebox{0.45ex}{$\scriptstyle #1$}}}
+\begin{description}[leftmargin=4em, labelsep=1em, itemsep=0.3ex]
+	\item[$\rayvec{i}$] The ray point at infinity (3-vector in homogenous coordinates).
+	\item[$\rayvec{f}$] Finite point on the ray (4-vector in homegnous 3D coordinates).
+	\item[$\rayvec{l}$] Ray written as a single $6 \times n$ vector computed from $\rayvec{i}$ and $\rayvec{f}$.
+\end{description}
+
+\subsection{Radial distortion}
+
+\subsection{Extrinsic parameters}
+
+\subsection{Intrinsic parameters}
+
 % Reinhard Klette
 Intrinsic (camera specific) and extrinsic parameters are required.
 Intrinsic: (effective) focal length, dimensions of the sensor matrix, sensor cell size or aspect ratio of sensor height to width, radial distortion parameters, coordinates of the principal point, or the scaling factor.
@@ -16,17 +79,18 @@ Extrinsic: applied affine transforms for identifying poses (location and directi
 
 Each new placement in the 3D scene defines a different world coordinate system.
 
+
 %---------------------------------------------------------------------
 \subsection{Pinhole model and coordinate projection}
 \label{subsec:ch3.pinhole}
+% TODO ADD IMAGE
+% TODO 23 Sep
 %---------------------------------------------------------------------
-\textbf{Involved Transforms:} Mention of 5 brokendown Transforms
-
-After lens distortion is removed, each camera can be viewed as a pinhole-camera model.
-
+\
 %---------------------------------------------------------------------
 \subsection{Intrinsic parameters}
 \label{subsec:ch3.intrinsics}
+% TODO 23 Sep
 %---------------------------------------------------------------------
 % Camera matrix K, f_x, f_y, c_x, c_y, skew
 % Refine the camera model: different focal length in the x and y direction,
@@ -36,6 +100,7 @@ After lens distortion is removed, each camera can be viewed as a pinhole-camera 
 %---------------------------------------------------------------------
 \subsection{Extrinsic parameters}
 \label{subsec:ch3.extrinsics}
+% TODO 23 Sep
 %---------------------------------------------------------------------
 % Rotation and translation of each camera in the world frame
 
@@ -114,7 +179,7 @@ All chosen filters take and return the 8-bit grayscale image.
 \label{sec:ch3.calibration}
 %=====================================================================
 \textbf{Designing a Calibration Method:}
-
+% Zhang mentions Three-dimensional reference object-based calibrtaion and Self-calibration seperately
 Points $(X_w, Y_w, Z_w)$ on the calibration rig (e.g. corners of the squares) or calibration marks are known by their physically measured coordinates. Determine a corresponding $(x,y)$ if possible with sub-pixel accuracy. That is the projection of $(X_w, Y_w, Z_w)$ in the world plane. E.g. 100 points, 100 equations.
 
 The equations defining our camera model contain $X_w$, $Y_w$, $Z_w$, $x$ and $y$ as known values, and the intrinsic and extrinsic camera parameters as unknowns. The resulting equation system (necessarily nonlinear due to central projection or radial distortion) needs to be solved for the specified unknowns. Over-determined situations provide stability of the numerical solution scheme.
