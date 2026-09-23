@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "Detector parameter presets for the Kalibr AprilGrid (36h11). Edit this file to add or tune a",
+    "preset; no Python changes needed. Any name here is valid for Calibration.py --preset.",
+    "Keys are cv2.aruco.DetectorParameters attribute names and are validated on load, so a typo",
+    "fails immediately instead of being silently ignored.",
+    "",
+    "board_params describe the TARGET, not the tuning, so they are merged into every preset.",
+    "Measured on 12 left frames of the 18 Sep set, omitting them is silent and severe:",
+    "markerBorderBits at its default of 1 drops tags found from 403 to 201, and errorCorrectionRate",
+    "at its default of 0.6 drops it to 350. A preset that redefined them from scratch once found zero.",
+    "A preset may still override one, but make_detector() warns when it does.",
+    "",
+    "Do not set adaptiveThreshConstant to 0 (as the UWAruco paper does) on this footage: it collapses",
+    "detection, 403 -> 43 tags on the same sample, because these tags are low-contrast rather than",
+    "dark, so subtracting nothing from the local mean thresholds most of the tag to white."
+  ],
+
+  "default": "wide",
+
+  "board_params": {
+    "markerBorderBits": 2,
+    "errorCorrectionRate": 1.0
+  },
+
+  "presets": {
+    "wide": {
+      "_why": "3..53 sweep for tags that range from tiny and far to filling the frame, plus a lowered Otsu floor for low-contrast underwater tags.",
+      "adaptiveThreshWinSizeMin": 3,
+      "adaptiveThreshWinSizeMax": 53,
+      "adaptiveThreshWinSizeStep": 5,
+      "minOtsuStdDev": 2.0
+    },
+    "uwaruco": {
+      "_why": "Window sizes from the UWAruco paper (10/20/40), without its adaptiveThreshConstant=0.",
+      "adaptiveThreshWinSizeMin": 10,
+      "adaptiveThreshWinSizeMax": 40,
+      "adaptiveThreshWinSizeStep": 10,
+      "minOtsuStdDev": 2.0
+    },
+    "opencv_default": {
+      "_why": "No thresholding tuning at all. A reference point the others have to beat."
+    }
+  }
+}

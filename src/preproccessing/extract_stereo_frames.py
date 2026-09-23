@@ -9,7 +9,8 @@ A recording folder must contain left.mkv, left_timestamps.csv, right.mkv and
 right_timestamps.csv. Each right frame is paired with the left frame whose
 pts_ns is nearest; pairs further apart than --max-dt-ms are skipped with a
 warning. Output goes to <folder>/frames/{left,right}/NNNN.png (lossless, same
-name for both halves of a pair) plus <folder>/frames/pairs.csv.
+name for both halves of a pair) plus <folder>/frames/pairs.csv; --out DIR
+replaces <folder>/frames with DIR.
 
 The format is detected from the files. --gray saves 8-bit grayscale luma
 instead of colour; use it for calibration and stereo matching, keep colour for
@@ -25,12 +26,14 @@ Usage (setup: python3 -m venv src/venv && src/venv/bin/pip install -r src/requir
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug all --step 20
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug select --gray
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 select --gray --name C1
+    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 all --out data/Calibration/18_Sep/C1_frames
 
 Viewer keys (select mode, right camera with matched left alongside):
     a/d or left/right   back/forward 1      s/w or down/up, A/D   back/forward 10
     space               mark/unmark         enter                 save pairs
     q/esc               quit (press twice if there are unsaved changes)
-Select mode starts with nothing marked; saving replaces any existing frames/ output.
+Select mode starts with nothing marked. Both modes refuse to start if the output directory
+already has frames or pairs.csv, unless --overwrite is given; saving then replaces them.
 
 Labels (select mode with --name PREFIX): marking a frame asks for a label, typed
 in the viewer (letters, digits, - _ .; enter confirms, esc cancels, empty uses
@@ -221,12 +224,13 @@ def write_pairs(rec, pairs, out, gray=False, prefix=None, labels=None):
     with open(out / "pairs.csv", "w", newline="") as f:
         wr = csv.writer(f)
         wr.writerow(["pair", "right_frame", "left_frame", "right_pts_ns", "left_pts_ns", "dt_ms",
-                     "label", "right_file", "left_file"])
+                     "label", "right_file", "left_file", "source"])
+        source = rec["left"]["video"].parent.resolve()  # recording folder holding the .mkv files
         for k, (r, l, dt) in enumerate(pairs):
             label = labels.get(r, "")
             wr.writerow([k, r, l, rec["right"]["pts"][r], rec["left"]["pts"][l], f"{dt:.3f}", label,
                          file_name(k, "right", prefix, label or f"{r:04d}"),
-                         file_name(k, "left", prefix, label or f"{r:04d}")])
+                         file_name(k, "left", prefix, label or f"{r:04d}"), source])
     print(f"wrote {len(pairs)} pairs to {out}")
 
 
@@ -339,24 +343,25 @@ def main():
     ap.add_argument("--max-dt-ms", type=float, help="max left/right time gap (default: 1/4 frame interval)")
     ap.add_argument("--screen", type=lambda s: tuple(map(int, s.split("x"))), default=(1880, 1000),
                     help="viewer size limit WxH (default 1880x1000)")
-    ap.add_argument("--overwrite", action="store_true", help="all mode: replace an existing frames/ output")
+    ap.add_argument("--overwrite", action="store_true", help="replace existing output instead of refusing to run")
     ap.add_argument("--gray", action="store_true", help="save the luma plane (grayscale) instead of colour")
     ap.add_argument("--name", help="file name prefix: pairs are saved as NAME_Left_LABEL.png / NAME_Right_LABEL.png, "
                                    "with LABEL typed when marking (select mode) or the frame number (all mode)")
+    ap.add_argument("--out", type=Path, help="output directory (default: <folder>/frames)")
     args = ap.parse_args()
     if args.name and not set(args.name) <= LABEL_CHARS:
         sys.exit(f"--name may only contain letters, digits and - _ . (got {args.name!r})")
 
-    rec, out = load_recording(args.folder), args.folder / "frames"
+    rec, out = load_recording(args.folder), args.out or args.folder / "frames"
     n = len(rec["right"]["pts"])
     max_dt_ms = args.max_dt_ms
     if max_dt_ms is None:
         max_dt_ms = 0.25 * np.median(np.diff(rec["right"]["pts"])) / 1e6
     print(f"{n} right / {len(rec['left']['pts'])} left frames, max pair gap {max_dt_ms:.1f} ms")
+    if not args.overwrite and ((out / "pairs.csv").exists() or any(out.glob("*/*.png"))):
+        sys.exit(f"{out} already has output; pass --overwrite to replace it (or choose another --out)")
     if args.mode == "select":
         run_select(rec, out, max_dt_ms, args.screen, args.gray, args.name)
-    elif (out / "pairs.csv").exists() and not args.overwrite:
-        sys.exit(f"{out} already has output; pass --overwrite to replace it")
     else:
         write_pairs(rec, pair_up(rec, range(0, n, max(args.step, 1)), max_dt_ms), out, args.gray, args.name)
 

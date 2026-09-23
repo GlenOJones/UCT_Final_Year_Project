@@ -1,10 +1,180 @@
 %*********************************************************************
-%	PROPOSED DESIGN
+%	CHAPTER 4 - PIPELINE DESIGN
 %*********************************************************************
-\chapter{Design description}
+\chapter{Pipeline design}
 \label{ch:design}
 %---------------------------------------------------------------------
 
+%=====================================================================
+\section{Pipeline overview}
+\label{sec:ch4.overview}
+%=====================================================================
+% Video -> extract frames -> Channel comparison -> Filtering (for detection) -> detection (and tuning) ->
+%                        |-> Filtering (for 3D recon) -> Compensation -> 3D reconstruction
+
+
+%=====================================================================
+\section{Hardware}
+\label{sec:ch4.hardware}
+%=====================================================================
+% https://storage.googleapis.com/docs-product-files/stellarHD-series/stellarHD/datasheets/stellarHD-datasheet.pdf
+% One of these; https://www.ovt.com/products/#image-sensor?is_technology=omnipixel3-gs
+% What lenses we have + stats
+% How they are optically calibrated, resulting in different FOV in air and in water
+
+The StellarHD cameras are paired with Aquagon lenses. These lenses compensate for ... using 7 lens elements (2 aspherical and 2 extra-low dispersion).
+
+\textbf{Aquagon Lens details:}
+ \begin{itemize}
+ 	\item Fixed Focus
+ 	\item 3.0mm Focal Length
+ 	\item f/1.6 Aperture
+ 	\item 25cm Minimum Focus distance
+ 	\item Distortion <-1.5\% (Measured how?)
+ 	\item Back Focal Length 2.05mm
+ 	\item IR Filter 650nm
+ 	\item Horizontal FOV 78 degrees
+ 	\item Vertical FOV 67 degrees
+ 	\item Diagonal FOV 93 degrees
+ \end{itemize}
+
+ \textbf{Sensor Specifications}
+ \begin{itemize}
+ 	\item 1/2.9" Omnivision OmniPixel 3-GS\texttrademark{} CMOS Sensor
+ 	\item Pixel Size 3 \textmu m (H) $\times$ 3 \textmu m (V)
+ 	\item Global Shutter
+ 	\item Max Resolution 1600x1200
+ 	\item YUY2, MJPEG Compression formats
+ \end{itemize}
+
+ HYPERFOCUS for fixed focus lens, fixed from then onwards.
+
+The Aquagon quotes its FOV values as in-water readings. While these FOV values are extracted during camera calibration, the choice of calibration method is somewhat dependent on the camera setup (i.e. is it wide-angle).
+
+Go down non-wide angle calibration mode.
+
+Compare different algorithms and which applications to use them in.
+% Comparison of software: https://www.mdpi.com/1424-8220/24/20/6595
+
+
+%=====================================================================
+\section{Calibration target design}
+\label{sec:ch4.boarddesign}
+%=====================================================================
+I'll use tag36h11 because it is standard and what they used in the report comparison.
+We want to have a 30-50mm white border to avoid merging of the background into the tag borders.
+
+Chose to go with AprilGrid.
+
+%---------------------------------------------------------------------
+\subsection{Sizing for turbidity and range}
+\label{subsec:ch4.boardsizing}
+%---------------------------------------------------------------------
+"Bio-optical sensors measuring light scattering and particulate backscatter record these temporary biological blooms as modest turbidity spikes in the range of ~1 to 3 NTU (Garcia et al., 2020; Schallenberg et al., 2019)"
+
+Design around a turbidity of 3 NTU, choosing AprilTag for the worst case scenario.
+
+The paper expresses detected marker size in pixels. At an FTU of 3.6, the detected marker size is as low as 21 pixels. In order to evaluate the capability of the marker systems to detect small markers in turbid underwater environments, the camera is centred in front of the markers and then moved further away, increasing the distance between the camera and the markers and therefore decreasing the marker size in pixels.
+
+Underwater, the required pixel count rises above the 25-pixel rule: the minimum pixel size required for reliable detection increases significantly. The 25-pixel rule used in air is an absolute lower bound; underwater, aim for 40 to 60+ pixels per tag to maintain sub-pixel corner accuracy. We are going with a minimum of 40 pixels for the maximum turbidity situation.
+
+We want to work with 1-2 metres calibrated, and the minimum focus distance is 25cm.
+
+\textbf{Pin-hole model pixel calculation.} The pixel width $p$ of a tag in the image plane depends on the tag size $S$ (metres), distance $D$ (metres), and focal length $f_x$ (pixels):
+\begin{equation}
+p = \frac{S \cdot f_x}{D}.
+\end{equation}
+For a standard camera underwater (assuming a $60^\circ$ to $70^\circ$ horizontal field of view in water due to flat-port refraction), the focal length $f_x$ typically ranges between 1200 and 1400 pixels for a 1600-pixel wide sensor. Assuming an average focal length $f_x = 1300$ pixels:
+\begin{itemize}
+	\item Option A, $65\text{ mm}$ tag size ($S = 0.065\text{ m}$): at 1 m, $p \approx 84.5$ pixels (excellent detection); at 3 m, $p \approx 28.1$ pixels (slightly low for underwater contrast).
+	\item Option B, $85\text{ mm}$ tag size ($S = 0.085\text{ m}$): at 1 m, $p \approx 110.5$ pixels (excellent detection); at 3 m, $p \approx 36.8$ pixels (safe margin for underwater blur).
+\end{itemize}
+
+The board finally used was chosen based on the commercially available option and the 50mm tag size indicated by the underwater testing:
+\begin{verbatim}
+family:       tag36h11
+tag size:     0.150 m   (black square, outer edge)
+plate size:   0.190 m   (adds 1-cell white quiet zone each side)
+IDs:          0-3 (or however many targets are needed)
+max_hamming:  0
+resolution:   1600x1200
+range:        0.3 - 2.0 m
+\end{verbatim}
+
+%---------------------------------------------------------------------
+\subsection{Board material and manufacture}
+\label{subsec:ch4.boardmaterial}
+%---------------------------------------------------------------------
+% DETERMINING BOARD SIZE AND MATERIAL
+Dibond - give reference for why, comment on shrinkage.
+Type of Dibond offered by Orms - give reference for which.
+Size - give reference for why.
+
+Do not use brushed aluminium: the aluminium shows through all white areas of the image, so the white squares are bare metal with low contrast under lights. This is bad for corner detection at an angle. Use a smooth white powder coat instead, since aluminium reflects differently at different angles.
+
+A2 (420x695) is the sweet spot, being more manageable.
+
+A custom quote is needed to avoid the wood sub-frame, which will swell and delaminate. Ask for a bare panel or drilled mounting holes.
+
+Seal the cut edges. Dibond is two aluminium skins over a polyethylene core, and seawater might cause corrosion in the aluminium/PE crevice. A bead of epoxy will do the trick.
+
+Ask about the gloss levels of the UV inks. Tend towards semi-gloss, and matte if possible. Ask about printer accuracy.
+
+
+%=====================================================================
+\section{Frame extraction and image conditioning}
+\label{sec:ch4.preprocessing}
+%=====================================================================
+% Section in literature review reference
+All chosen filters take and return the 8-bit grayscale image. A parameter sweep was done on all the different filtering options, using the metric of number of detected corners. (What is the concern regarding affecting corner values?)
+
+% Channel selection: which makes sense to choose (reference lit review),
+% analytical comparison (what metric? tags? corners?)
+
+
+%=====================================================================
+\section{Calibration stage}
+\label{sec:ch4.calibrationstage}
+%=====================================================================
+\begin{enumerate}
+	\item \texttt{build\_board()} builds a model of the board as a list of 3D points, in mm, of the corners of every tag.
+	\item Detect the tags and refine the corners. For every image, the visible tags are detected and each tag corner is found to sub-pixel accuracy. This is the "observed" set.
+\end{enumerate}
+
+The settings for the detector stages described in Section~\ref{subsec:ch3.detectionstages} are stored in \texttt{detector\_presets.json} to allow for quick changing and testing.
+
+\begin{table}[H]
+    \centering
+    \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
+    \midrule[1pt]
+    \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
+    \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
+    \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
+    \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
+    \midrule
+    \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
+    \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
+    \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch4.detectorparams}
+\end{table}
+
+
+%=====================================================================
+\section{Refraction compensation}
+\label{sec:ch4.compensationstage}
+%=====================================================================
+
+
+%=====================================================================
+\section{3D reconstruction stage}
+\label{sec:ch4.reconstructionstage}
+%=====================================================================
+
 %*********************************************************************
-% End of Design
+% END
 %*********************************************************************

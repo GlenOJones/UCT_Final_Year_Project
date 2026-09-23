@@ -5,7 +5,7 @@ Camera intrinsics are outputted to X (what type of file to store it in? I want i
 
 I want to do camera calibration + stereo calibration
 
-Run this from the 4022 parent folder
+Paths resolve from this file, so it can be run from any working directory.
 
 
 
@@ -15,12 +15,17 @@ Run this from the 4022 parent folder
 
 
 # ====== IMPORTS ======
+import argparse
 import os
 import re
+import sys
 import glob
 import numpy as np
 import cv2
 import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from detector_config import DEFAULT_PRESET, PRESETS, describe, dictionary, make_detector  # noqa: E402
 
 
 
@@ -70,27 +75,49 @@ cv2.aruco.drawDetectedMarkers(vis, [c * scale for c in corners], ids)
 cv2.imshow("AprilGrid detections", vis)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-
 '''
-# ====== INPUT FRAMES ======
-FRAMES_DIR = "data/Calibration/18_Sep/C1/frames"
+# ====== OPTIONS ======
+# Paths are relative to the project root, resolved from this file, so the script runs from anywhere
+# (src/01_Calibration/Calibration.py -> parents: 01_Calibration, src, project root).
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+_ap = argparse.ArgumentParser(description="Calibrate the stereo cameras from AprilGrid frames.")
+_ap.add_argument("--frames-dir", default=os.path.join(PROJECT_ROOT, "data/Calibration/18_Sep/Rigframes"),
+                 help="one folder per recording, each with left/ and right/ (default 18_Sep/Rigframes)")
+_ap.add_argument("--preset", default=DEFAULT_PRESET, choices=list(PRESETS),
+                 help=f"detector preset from detector_presets.json (default {DEFAULT_PRESET})")
+_ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/calibration"),
+                 help="where the YAML and detection images go")
+_ap.add_argument("--min-tags", type=int, default=10,
+                 help="tags an image needs to be used (default 10)")
+_ap.add_argument("--no-detection-images", action="store_true",
+                 help="skip writing a copy of every frame with its detections drawn on")
+args = _ap.parse_args()
+
+FRAMES_DIR = args.frames_dir
+PRESET = args.preset
 CAMERAS = ("left", "right")
 
-first_image = sorted(glob.glob(os.path.join(FRAMES_DIR, "left", "*.png")))[0]
+
+def find_images(camera):
+    """Every PNG of one camera across all recording folders under FRAMES_DIR, sorted."""
+    return sorted(glob.glob(os.path.join(FRAMES_DIR, "*", camera, "*.png")))
+
+
+for _camera in CAMERAS:
+    if not find_images(_camera):
+        raise SystemExit(f"no {_camera} PNGs under {FRAMES_DIR}/*/{_camera}/ - "
+                         f"check FRAMES_DIR, or extract frames first with preproccessing/extract_stereo_frames.py")
+
+first_image = find_images("left")[0]
 image_size = cv2.imread(first_image, cv2.IMREAD_GRAYSCALE).shape[::-1]   # (width, height)
 print("image size:", image_size)
 
 # ====== APRILTAG DETECTOR ======
-# Detector: AprilTag 36h11
-dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
-params = cv2.aruco.DetectorParameters()
-params.markerBorderBits = 2                                     # Kalibr tags have a 2-bit black border
-params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_NONE    # refined below with cv2.cornerSubPix (see refine_corners)
-params.adaptiveThreshWinSizeMin = 3
-params.adaptiveThreshWinSizeMax = 53                            # big close-up tags need a wider threshold window
-params.adaptiveThreshWinSizeStep = 5
-params.errorCorrectionRate = 1.0                                # accept blurred tags; 36h11 codes are far apart
-detector = cv2.aruco.ArucoDetector(dictionary, params)
+# Presets live in detector_presets.json; --preset picks one. The preset name and its settings go
+# into the output YAML, which is what compare_calibrations.py reads to build its table.
+print(f"detector preset: {PRESET}  ({describe(PRESET)})")
+detector = make_detector(PRESET)
 
 # Corner refinement. On the 18 Sep underwater frames the built-in options were poor:
 #   CORNER_REFINE_APRILTAG  accurate corners (~0.3 px) but drops ~75% of the tags
@@ -116,12 +143,14 @@ board = cv2.aruco.Board(tag_corners, dictionary, np.arange(70))
 
 
 # ====== DETECT TAGS IN EVERY IMAGE ======
-MIN_TAGS = 10   # ignore images where too few tags were found. Useful for too blurry, ocluded or far away
-SAVE_DETECTIONS = True   # save every image with its detections drawn on, to check which tags are seen
+MIN_TAGS = args.min_tags   # ignore images where too few tags were found: too blurry, occluded or far away
+SAVE_DETECTIONS = not args.no_detection_images   # save every image with its detections drawn on
 
-OUTPUT_DIR = "results/calibration"
-recording = os.path.basename(os.path.dirname(FRAMES_DIR))            # "15 September"
-DETECTIONS_DIR = os.path.join(OUTPUT_DIR, recording.replace(" ", "_") + "_detections")
+OUTPUT_DIR = args.out_dir
+# Runs are named by recording AND preset, so a sweep over presets does not overwrite itself and
+# compare_calibrations.py can pick the whole set up with a glob.
+RUN_NAME = f"{os.path.basename(os.path.normpath(FRAMES_DIR)).replace(' ', '_')}_{PRESET}"
+DETECTIONS_DIR = os.path.join(OUTPUT_DIR, RUN_NAME + "_detections")
 
 
 def save_detections(camera, name, gray, corners, ids, rejected):
@@ -140,28 +169,32 @@ def save_detections(camera, name, gray, corners, ids, rejected):
         lines.append("missing ids: " + " ".join(map(str, missing)))
     for k, text in enumerate(lines):
         cv2.putText(vis, text, (10, 30 + 30 * k), cv2.FONT_HERSHEY_SIMPLEX, 0.8, colour, 2, cv2.LINE_AA)
-    os.makedirs(os.path.join(DETECTIONS_DIR, camera), exist_ok=True)
-    cv2.imwrite(os.path.join(DETECTIONS_DIR, camera, name), vis)
+    out_path = os.path.join(DETECTIONS_DIR, camera, name)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    cv2.imwrite(out_path, vis)
 
 
 def detect_tags(camera):
     """Detect tags in every image of one camera.
-    Returns {filename: (corners, ids)} for the usable images only."""
-    image_files = sorted(glob.glob(os.path.join(FRAMES_DIR, camera, "*.png")))
+    Returns {"folder/filename": (corners, ids)} for the usable images only."""
+    image_files = find_images(camera)
     detections = {}
     for path in image_files:
         gray = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        if gray.shape[::-1] != image_size:
+            raise SystemExit(f"{path}: size {gray.shape[::-1]} differs from {image_size}")
+        name = os.path.relpath(path, FRAMES_DIR).replace(os.sep + camera + os.sep, "/")   # "140/C140_Left_90.png"
         corners, ids, rejected = detector.detectMarkers(gray)
         corners = refine_corners(gray, corners)
         if SAVE_DETECTIONS:
-            save_detections(camera, os.path.basename(path), gray, corners, ids, rejected)
+            save_detections(camera, name, gray, corners, ids, rejected)
 
         n_tags = 0 if ids is None else len(ids)
         if n_tags < MIN_TAGS:
-            print(f"  {camera}: skip {os.path.basename(path)}: {n_tags} tags")
+            print(f"  {camera}: skip {name}: {n_tags} tags")
             continue
 
-        detections[os.path.basename(path)] = (corners, ids)
+        detections[name] = (corners, ids)
 
     print(f"{camera}: {len(detections)} of {len(image_files)} images usable")
     return detections
@@ -215,7 +248,9 @@ for camera in CAMERAS:
     intrinsics[camera] = calibrate_camera(camera, detections[camera])
 
 # ====== SAVE CALIBRATION (YAML) ======
-output_path = os.path.join(OUTPUT_DIR, recording.replace(" ", "_") + "_stereo.yaml")
+output_path = os.path.join(OUTPUT_DIR, RUN_NAME + "_stereo.yaml")
+# Paths recorded in the YAML stay relative to the project root, so the file is portable
+REL = lambda path: os.path.relpath(path, PROJECT_ROOT)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
@@ -284,7 +319,7 @@ fs.writeComment("Generated by src/01_Calibration/Calibration.py - re-run the scr
 fs.writeComment("Units: px = pixels (image quantities), mm = millimetres (board sizes).")
 fs.writeComment("Numbers are stored at full precision; comments show rounded values for reading.")
 fs.writeComment("Load in Python:")
-fs.writeComment('  fs = cv2.FileStorage("' + output_path + '", cv2.FILE_STORAGE_READ)')
+fs.writeComment('  fs = cv2.FileStorage("' + REL(output_path) + '", cv2.FILE_STORAGE_READ)')
 fs.writeComment('  K_left = fs.getNode("left_camera").getNode("camera_matrix").mat()')
 fs.writeComment("=====================================================================")
 
@@ -292,7 +327,7 @@ fs.startWriteStruct("metadata", cv2.FileNode_MAP)
 fs.write("created", datetime.datetime.now().isoformat(timespec="seconds"))
 fs.write("script", "src/01_Calibration/Calibration.py")
 fs.write("opencv_version", cv2.__version__)
-fs.write("frames_dir", FRAMES_DIR)
+fs.write("frames_dir", REL(FRAMES_DIR))
 fs.endWriteStruct()
 
 fs.writeComment("Image size the calibration was made at; it is only valid at this resolution")
@@ -310,7 +345,12 @@ fs.write("tags_y", 7)
 fs.writeComment(f"tag size {TAG_SIZE:.2f} mm (outer black square, as printed), gap {TAG_GAP:.2f} mm")
 fs.write("tag_size_mm", TAG_SIZE)
 fs.write("tag_gap_mm", TAG_GAP)
-fs.write("corner_refinement", "APRILTAG")
+fs.writeComment("Detection: ArucoDetector with the thresholding preset named below, its own corner")
+fs.writeComment("refinement off, then cv2.cornerSubPix on the original grayscale image.")
+fs.write("detector_preset", PRESET)
+fs.writeComment("Full detector settings for this preset, so the run can be reproduced from this file alone:")
+fs.write("detector_settings", describe(PRESET))
+fs.write("corner_refinement", "cornerSubPix")
 fs.write("min_tags_per_image", MIN_TAGS)
 fs.endWriteStruct()
 
@@ -323,7 +363,7 @@ fs.write("status", "not computed")
 fs.endWriteStruct()
 
 fs.release()
-print(f"\nsaved calibration to {output_path}")
+print(f"\nsaved calibration to {REL(output_path)}")
 
 
 """

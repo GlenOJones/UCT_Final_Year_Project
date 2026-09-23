@@ -1,271 +1,311 @@
 %*********************************************************************
+%	CHAPTER 3 - THEORETICAL DEVELOPMENT
+%*********************************************************************
 \chapter{Theoretical development}
 \label{ch:theory}
-%*********************************************************************
+%---------------------------------------------------------------------
 
-\section{Camera stuff}
-\label{sec:CamCal}
+%=====================================================================
+\section{Camera models}
+\label{sec:ch3.cameramodels}
+%=====================================================================
+% Reinhard Klette
+Intrinsic (camera specific) and extrinsic parameters are required.
+Intrinsic: (effective) focal length, dimensions of the sensor matrix, sensor cell size or aspect ratio of sensor height to width, radial distortion parameters, coordinates of the principal point, or the scaling factor.
+Extrinsic: applied affine transforms for identifying poses (location and direction) of cameras in a world coordinate system.
 
+Each new placement in the 3D scene defines a different world coordinate system.
 
-% CLAUDE:
-Claude thinks its important to only calibrate with gray because of somme conversion that might happen. Must have a chat and try prove this. 
-
-
-% Reinhard Klgjgjgjgjgjjg
-for Intrinsic (cam specific) and given extrinsic 
-Ininsic: (effective) focal length, dimensions of the sensor matrix, sensor cell size or aspect ratio of sensor high to width, radial distorition paramteres, coordinates of the principal point, or the scaling factor
-Extrinsic: Applied affine transorms for identifying poses (location and direction) of cameras in a world coordiantae system
-
-Use geometric patterns on 2D or 3D accurately measered. E.g. calibration rig, 
-
-Each new placement in the 3D scene defines a different world coordinate system
-
+%---------------------------------------------------------------------
+\subsection{Pinhole model and coordinate projection}
+\label{subsec:ch3.pinhole}
+%---------------------------------------------------------------------
 \textbf{Involved Transforms:} Mention of 5 brokendown Transforms
 
-\textbf{Lens Distortion:} 3D-2D image points combines a perspective prohection (deivates from pinhole camera), caused by radial distortion
-Gives (simplified) two equatiosn to explain 
+After lens distortion is removed, each camera can be viewed as a pinhole-camera model.
 
-After lens distoriton, can view each camera as a pinhole-camera model
+%---------------------------------------------------------------------
+\subsection{Intrinsic parameters}
+\label{subsec:ch3.intrinsics}
+%---------------------------------------------------------------------
+% Camera matrix K, f_x, f_y, c_x, c_y, skew
+% Refine the camera model: different focal length in the x and y direction,
+% f_x, f_y. Can also include edge length e_x and e_y of the sensor cells used in
+% the sensor matrix in the camera.
 
+%---------------------------------------------------------------------
+\subsection{Extrinsic parameters}
+\label{subsec:ch3.extrinsics}
+%---------------------------------------------------------------------
+% Rotation and translation of each camera in the world frame
+
+%---------------------------------------------------------------------
+\subsection{Lens distortion}
+\label{subsec:ch3.distortion}
+%---------------------------------------------------------------------
+\textbf{Lens Distortion:} the 3D-2D image point mapping combines a perspective projection (deviating from the pinhole camera) caused by radial distortion.
+Gives (simplified) two equations to explain.
+
+
+%=====================================================================
+\section{Underwater image formation}
+\label{sec:ch3.underwaterimaging}
+%=====================================================================
+
+%---------------------------------------------------------------------
+\subsection{Snell's law at the water-glass interface}
+\label{subsec:ch3.snell}
+%---------------------------------------------------------------------
+
+%---------------------------------------------------------------------
+\subsection{Refraction versus radial distortion}
+\label{subsec:ch3.refraction_vs_distortion}
+%---------------------------------------------------------------------
+% Why refraction is not truly absorbable into the radial distortion terms
+
+%---------------------------------------------------------------------
+\subsection{Compensation approaches}
+\label{subsec:ch3.compensation}
+%---------------------------------------------------------------------
+% - Ignore refraction and absorb into distortion
+% - Explicit physical / ray-tracing models
+% - The Pinax model
+% - Corrective optics
+
+%---------------------------------------------------------------------
+\subsection{Wavelength-dependent attenuation and scattering}
+\label{subsec:ch3.attenuation}
+%---------------------------------------------------------------------
+% Why the red channel dies first, backscatter and forward scatter
+
+
+%=====================================================================
+\section{Image conditioning}
+\label{sec:ch3.conditioning}
+%=====================================================================
+The failed detections result from blur due to turbidity, small pixel size at long range, uneven lighting, backscatter and low contrast.
+
+Filtering before detection allows for the recovery of more tags, and more usable calibration frames.
+
+Cannot have any alteration of the geometry of the pixels as this affects the locations of the gradient corners.
+
+%---------------------------------------------------------------------
+\subsection{Colour channel selection and filtering}
+\label{subsec:ch3.channelselection}
+%---------------------------------------------------------------------
+% Which makes sense to choose (reference lit review) -> re-explain Y channel
+% Compare which channel to extract (Y, G, B, R)
+% CLAUDE: it may be important to only calibrate with gray because of some
+% conversion that might happen. Must have a chat and try prove this.
+
+All chosen filters take and return the 8-bit grayscale image.
+
+% Unsharp masking (cv2.addWeighted)
+% What it does, and basic maths behind how it does it
+
+%---------------------------------------------------------------------
+\subsection{Contrast Limited Adaptive Histogram Equalisation (CLAHE)}
+\label{subsec:ch3.clahe}
+%---------------------------------------------------------------------
+
+
+%=====================================================================
+\section{Camera calibration}
+\label{sec:ch3.calibration}
+%=====================================================================
 \textbf{Designing a Calibration Method:}
 
-Points (Xw, Yw, Zw) on the calibration rig (e.g. corders of the sequares) or calibration marks are known by their physically measured coordinats - deteremine a correspongin (x,y) if possible with sub pixel accuracy. Tat is the projection of Xy,Yw,Zw in the world plane. E.g. 100 points, 100 equations 
+Points $(X_w, Y_w, Z_w)$ on the calibration rig (e.g. corners of the squares) or calibration marks are known by their physically measured coordinates. Determine a corresponding $(x,y)$ if possible with sub-pixel accuracy. That is the projection of $(X_w, Y_w, Z_w)$ in the world plane. E.g. 100 points, 100 equations.
 
-We can refine the camera model (e.g. different focal length in the x and y direction, f\_y, f\_x). Can also include edege length e\_x and e\_y of the sensor cells used in the sensor matrix in the camera, .... and more
+The equations defining our camera model contain $X_w$, $Y_w$, $Z_w$, $x$ and $y$ as known values, and the intrinsic and extrinsic camera parameters as unknowns. The resulting equation system (necessarily nonlinear due to central projection or radial distortion) needs to be solved for the specified unknowns. Over-determined situations provide stability of the numerical solution scheme.
 
-The resulting equational systems become more complex but with more unkowns.
-
-The equations defining our camera model contain  X\_Y,Y\_W,Z\_W, x and y as known calies -> intrinsic and extrinsic camera parameters as unkowns. The resulting equation system (neccessarily nonlinear due to central projection or radial distortion) needs to be solved for the specified unkowns - over determeined situations provide stability of a used numeric solution scheme
-
+%---------------------------------------------------------------------
+\subsection{Calibration targets and AprilTag fiducials}
+\label{subsec:ch3.targets}
+%---------------------------------------------------------------------
 \textbf{Manufacturing a calibration board:}
-Rigid B\&W pattern common, atleast 7x7 squares large enough s.t. minimum size when recorded on the image is atleast 10x10 pixels (i.e. having a camera with effective focal length \textit{f}, this allows us to estimat the size of \textit{axa} for each square assuming a distance of b m between camera and board. 
+Rigid B\&W pattern common, at least 7x7 squares large enough such that the minimum size when recorded on the image is at least 10x10 pixels (i.e. having a camera with effective focal length \textit{f}, this allows us to estimate the size \textit{axa} of each square assuming a distance of $b$ m between camera and board).
 
-\textbf{Localising Corners in the Checkerboard}
- Calibration marks are the corners of squares (aprox by the intersection points of grid lines, thus defining corners potentially with sub pixel acccuracy). 
- 
- Mention of the HOugh space method for detecting line segments, requires that lens distortion has been removed from recorded images prior to applying the Hough-Space method. IMages with lens distortion will show bended lines rather than straight grid lines. 
- 
- \textbf{Localising Calibration marks}
+\textbf{Localising Corners in the Checkerboard:}
+ Calibration marks are the corners of squares (approximated by the intersection points of grid lines, thus defining corners potentially with sub-pixel accuracy).
+
+ Mention of the Hough space method for detecting line segments requires that lens distortion has been removed from recorded images prior to applying the Hough-space method. Images with lens distortion will show bended lines rather than straight grid lines.
+
+ \textbf{Localising Calibration marks:}
  Can also be defined by circular or square dots. Popular if same location, can be permanently painted on walls or other static surfaces.
- 
- Supbixel accuracy by calculating the centroid of this region (example given)
- 
- \textbf{Rectification of Stereo Image Pairs:}
- Main complexity is to identify correspoinding points in pairs of input images recorded by two cameras. (See chapter 8). Convenient to warp the image pairs so it appears they are recorded in canonical stereo (by a pair of identical cmeras) -> called geometric rectification)
- 
- \textbf{IMPORTANT STUFFA BOUT THE CAMERA MATRIX}
- - More interesting stuff on structured lighting 
- 
- 
- \textbf{STEREO MATCHING CHAPTER 8}
- \textbf{Matching, Data Cost, and Confidence}
- Stereo matching is an example of labelling approach of sec 5.3.1. 
- Labelling function\textit{f} gives label f\_p E L (a disparity) to each pixel location pE$\Omega$m applying error functions E\_{data} and E\_{smooth}... ref sec 5.30
- 
-  Accumulated costs of label .. are the combined data and adjacent smoothness error valies 
-  
-  Different types of cost function options, specified as \textit{E\_{data}}
-  
-  Interesting image showing Stereo pair crossing
-  
-  Kind of like neighbourhood of pixels as box, compared on an epipolar line (same row due to canoical stero geometry).
-  
-  \textbf{Generic Model for Matching}
-  L and R image, one is now base and othe ris match image (B,M). For pixel (x,y,B(x,y)) in base image, searh  for corresponding (x+d,y,M(M(x+d,y)) in match image). - ON same epipolar line. 
-  
-  \textbf{Base and Match Images and Search Intervals:}
-  d ends up being the diff betweeen on epipolar basically
-  
-  \textbf{Label Set for Stereo Matching}:
-  Assumes right-to-left matching to avoid +/- switching. End up with label set L={-1,0,-1,...-d\_{max}}. Using intrin and extrin of camera param, d\_{max} can be estimated by the closest objects in the scene that are "still of interest". 
-  
-  \textbf{Neighbourhoods of correspondants}
- Issues with SSD (Squared sum of differences) or SAD( Absolute differenceS), justifies 3D Cost Matrix
- \textbf{3D Data Cost Matrix}
- Some fun maths
- Compresenive repr of all the involved data costs -> can be used for further optimisation (using smoothness-cost function in the control of the \textit{stereo} matching)
 
- 
- \textbf{Data cost functions
- 	Gives list of cost functions:
+ Sub-pixel accuracy by calculating the centroid of this region (example given).
+
+Common calibration techniques implement checkerboards as explained in SECTION X. Due to the difficulties (leaning off boat) in underwater in-situ calibration, it was chosen to use calibration boards with fiducial markers. Fiducial markers are "landmarks" to aid in computer vision models. Unique IDs are "encoded in their structure following a pre-defined pattern system and provide a means to implement reliable pose estimation of the marker with respect to the camera."
+
+April tag size:
+QR tags comprise about 268 pixels (not including required headers or the payload), whereas the visual fiducials described in this paper range from about 49 to 100 pixels, including the payload.
+% https://april.eecs.umich.edu/pdfs/olson2011tags.pdf
+
+%---------------------------------------------------------------------
+\subsection{AprilTag detection stages}
+\label{subsec:ch3.detectionstages}
+%---------------------------------------------------------------------
+Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 dictionary. The detector has four stages:
+\begin{enumerate}
+	\item \textbf{Thresholding.} The grayscale image is converted to black and white with adaptive thresholding. This compares each pixel to its local neighbourhood rather than to a global level, which is particularly useful for uneven lighting across the board.
+	\item \textbf{Candidate search.} Looks for contours indicative of the outer black square of a tag (rough square, 4 sides, reasonable size).
+	\item \textbf{Decoding.} Each candidate is morphed into a square shape and the internal white/black grid is read off. Candidates without a valid code are rejected.
+	\item \textbf{Output.} For each accepted tag, the detector reports the id and the pixel positions of the corners.
+\end{enumerate}
+
+% Comparing detection algorithms
+% Compare Tuned OpenCV ArUco, pyapriltag AprilTag3 and ...
+% - ArUco3 is fast (downscales) with global thresholds
+% - AprilTag2 computes each local threshold, better for uneven lighting and low
+%   contrast, but expensive, and doesnt do board calibrations
+% Explain maths logic here (flowcharts maybe)
+% Maybe even try UWARUco attempt https://www.mdpi.com/2072-4292/11/4/459
+% (useful explanation of how it works WITH DIAGRAM)
+
+%---------------------------------------------------------------------
+\subsection{Parameter estimation and optimisation}
+\label{subsec:ch3.estimation}
+%---------------------------------------------------------------------
+% Homography initialisation, then non-linear refinement of reprojection error
+
+%---------------------------------------------------------------------
+\subsection{Stereo calibration}
+\label{subsec:ch3.stereocalibration}
+%---------------------------------------------------------------------
+% Recovering R, T between the two cameras; fixing or refining the intrinsics
+
+
+%=====================================================================
+\section{Stereo geometry}
+\label{sec:ch3.stereogeometry}
+%=====================================================================
+
+%---------------------------------------------------------------------
+\subsection{Epipolar geometry}
+\label{subsec:ch3.epipolar}
+%---------------------------------------------------------------------
+
+%---------------------------------------------------------------------
+\subsection{Rectification}
+\label{subsec:ch3.rectification}
+%---------------------------------------------------------------------
+ \textbf{Rectification of Stereo Image Pairs:}
+ The main complexity is to identify corresponding points in pairs of input images recorded by two cameras. It is convenient to warp the image pairs so that it appears they were recorded in canonical stereo (by a pair of identical cameras). This is called geometric rectification.
+
+%---------------------------------------------------------------------
+\subsection{Triangulation and depth from disparity}
+\label{subsec:ch3.triangulation}
+%---------------------------------------------------------------------
+
+
+%=====================================================================
+\section{Stereo matching}
+\label{sec:ch3.stereomatching}
+%=====================================================================
+
+%---------------------------------------------------------------------
+\subsection{The correspondence problem}
+\label{subsec:ch3.correspondence}
+%---------------------------------------------------------------------
+ Stereo matching is an example of a labelling approach.
+ The labelling function \textit{f} gives a label $f_p \in L$ (a disparity) to each pixel location $p \in \Omega$, applying error functions $E_{data}$ and $E_{smooth}$.
+
+  Accumulated costs of a label are the combined data and adjacent smoothness error values.
+
+  Kind of like a neighbourhood of pixels as a box, compared on an epipolar line (same row due to canonical stereo geometry).
+
+  \textbf{Generic Model for Matching:}
+  With a left and right image, one is now the base and the other the match image $(B, M)$. For a pixel $(x, y, B(x,y))$ in the base image, search for the corresponding $(x+d, y, M(x+d,y))$ in the match image, on the same epipolar line.
+
+  \textbf{Base and Match Images and Search Intervals:}
+  $d$ ends up being the difference along the epipolar line.
+
+  \textbf{Label Set for Stereo Matching:}
+  Assumes right-to-left matching to avoid $\pm$ switching. This ends up with the label set $L = \{-1, 0, -1, \dots, -d_{max}\}$. Using the intrinsic and extrinsic camera parameters, $d_{max}$ can be estimated from the closest objects in the scene that are "still of interest".
+
+%---------------------------------------------------------------------
+\subsection{Matching cost functions}
+\label{subsec:ch3.costfunctions}
+%---------------------------------------------------------------------
+ \textbf{Neighbourhoods of correspondents:}
+ Issues with SSD (sum of squared differences) or SAD (sum of absolute differences) justify the 3D cost matrix.
+
+ \textbf{3D Data Cost Matrix:}
+ A comprehensive representation of all the involved data costs, which can be used for further optimisation (using a smoothness-cost function in the control of the \textit{stereo} matching).
+
+ \textbf{Data cost functions:}
  	\begin{itemize}
  		\item Zero-Mean version
  		\item NCC Data Cost
  		\item The Census Data-Cost Function
  	\end{itemize}
- 	
- 	
- \textbf{From Global to Local Matching}
- INtroduces SGM which is key for openCV, easy linkage
- 
- Justification for OPENVC Over MATLAB w.r.t more SGM knobs.
- 	
- 	
- 	
- 	
-%================================
-\section{Camera Calibration}
 
- 
-% https://storage.googleapis.com/docs-product-files/stellarHD-series/stellarHD/datasheets/stellarHD-datasheet.pdf
+%---------------------------------------------------------------------
+\subsection{Local to global matching and Semi-Global Matching (SGM)}
+\label{subsec:ch3.sgm}
+%---------------------------------------------------------------------
+ \textbf{From Global to Local Matching:}
+ Introduces SGM, which is key for OpenCV.
 
+ Justification for OpenCV over MATLAB with respect to more SGM knobs.
 
-% One of these;
-% https://www.ovt.com/products/#image-sensor?is_technology=omnipixel3-gs
+%---------------------------------------------------------------------
+\subsection{Disparity refinement and filtering}
+\label{subsec:ch3.disparityrefinement}
+%---------------------------------------------------------------------
+% Left-right consistency check, speckle filtering, WLS
 
 
-% What lenses we have + Stats
-% How they are optically calibrated, results in different FOV in air and in water...
-% 
-% 
- 	
-The StellarHD cameras are paired with Aquagon lenses. These lenses compensate for .. using a 7 lense elements (2 aspherical and 2 extra-low dispersion). 
-\textbf{Aquagon Lens details:}
- \begin{itemize}
- 	\item Fixed Focus
- 	\item 3.0mm Focal Length
- 	\item f/1.6 Aperture
- 	\item 25cm Minimum Focus distance
- 	\item Distortion <-1.5\% (Measured how?)
- 	\item Back Focal Length 2.05mm
- 	\item IR Filter 650nm
- 	\item Horizontal FOV (78 degrees)
- 	\item Vertical FOV 67)
- 	\item Diadonal FOV 93
- \end{itemize} 	
- 
- \textbf{Sensor Specifications}
- \begin{itemize}
- 	\item 1/2.9” Omnivision OmniPixel 3-GS™ CMOS Sensor
- 	\item Pixel Size 3 µm (H) × 3 µm (V) 
- 	\item Global Shutter
- 	\item Max Resolution 1600x1200
- 	\item YUY2, MJPEG Compression formats
- \end{itemize}
- 	
- % COmpariso
- 
- HYPERFOCUS for fixed focus lens, foxed from then onwards
- 	
-The Aquagon quotes it's FOV values as in water readings. While these FOV values are extracted during camera calibration, the choice of calibration method is somewhat dependent on the cameras setup (i.e is it Wide-angle). 
+%=====================================================================
+\section{Point cloud reconstruction and registration}
+\label{sec:ch3.pointcloud}
+%=====================================================================
 
-Go down non-wide angle calibration mode
+%---------------------------------------------------------------------
+\subsection{Disparity to point cloud}
+\label{subsec:ch3.disparity2cloud}
+%---------------------------------------------------------------------
+% Reprojection with Q
 
-Compare different algorithms and which applications to do it in.
+%---------------------------------------------------------------------
+\subsection{Point cloud filtering}
+\label{subsec:ch3.cloudfiltering}
+%---------------------------------------------------------------------
+% Statistical outlier removal, voxel downsampling
 
-% Comparison of software: https://www.mdpi.com/1424-8220/24/20/6595
+%---------------------------------------------------------------------
+\subsection{Feature-based alignment}
+\label{subsec:ch3.featurealignment}
+%---------------------------------------------------------------------
 
-Although the Aquagon lenses have been specifically designed to adjust for underwater effects, in air calibration is still an important part of the testing process as a point of reference and to better understand the calibration process in a controlled environment. This calibration testing took place within ARU's Experimental laboratory under artificial lighting conditions.
-
-Common calibration techniques implement checkrboards as explained in SECTION X. Due to the difficulties (leaning off boat) in underwater in-situ calibration, it was chosen to use calibration boards with fiducial markers. Fudicial markers are "landmarks" to aid in computer vision models. Unique IDs are "encoded in their structure following a pre-defined pattern system and provide a means to implement reliable pose estimation of the marker with respect to the camera.". 
+%---------------------------------------------------------------------
+\subsection{Iterative Closest Point (ICP)}
+\label{subsec:ch3.icp}
+%---------------------------------------------------------------------
 
 
-% FOR LIT REVIEW:
-"degradation factors, such as lighting intensity attenuation, back scattering, forward scattering and macroscopic floating particles"
+%=====================================================================
+\section{Error metrics}
+\label{sec:ch3.errormetrics}
+%=====================================================================
 
-"Due to these effects, underwater images generally present low contrast, non-uniform lighting, blurring and noise [19]."
+%---------------------------------------------------------------------
+\subsection{Reprojection error}
+\label{subsec:ch3.reprojectionerror}
+%---------------------------------------------------------------------
+The metric of corner detections is ...
 
-\cite{dossantoscesarEvaluationArtificialFiducial2015} compared different fiducial markers in an underwater tanks across  six turbitiy ? and 2 lighting conditions. They compared ARToolKit, AprilTags, ArUco and found that AprilTags were able to detect smaller targers across all turbifiry, lighting levels aswell as at larger angles. Found to be comnputationally the slowest, not an issue here. Ideally test myself but dont have tiem.
+%---------------------------------------------------------------------
+\subsection{Triangulation and depth error}
+\label{subsec:ch3.deptherror}
+%---------------------------------------------------------------------
 
-Chose to go with AprilGrid
+%---------------------------------------------------------------------
+\subsection{Cloud-to-mesh error}
+\label{subsec:ch3.cloud2mesh}
+%---------------------------------------------------------------------
 
-"Bio-optical sensors measuring light scattering and particulate backscatter record these temporary biological blooms as modest turbidity spikes in the range of ~1 to 3 NTU (Garcia et al., 2020; Schallenberg et al., 2019)"
-
-
-DEsign around Turbidity of 3 NTU
-
-Deciding size of board: 
-Using their data collected for 3.6 FTU. 
-
-Minimum focus distance of 25cm
-
-How to determine which board size (cxc) to go withg tho. 
-
-Choosing apriltag for worst case scenario.
-
-Paper expresses detected marker size in pixels. At FTU of 3.6, detected marker size as low as 21 pixels. 
-
-After too much ua[[ing, claude gace me one:]
-family:      tag36h11
-tag size:    0.150 m   (black square, outer edge)
-plate size:  0.190 m   (adds 1-cell white quiet zone each side)
-IDs:         0-3 (or however many targets you need)
-max_hamming: 0
-resolution:  1600x1200
-range:       0.3 - 2.0 m
-
-
-
-Looking 
-
-% CLaude and paper to determnie minimum noard size.
-
-% DETERMINING CHARU BOARD SIZE AND MATERIAL
-Dibont - give reference for why, comment on shrinkage
-Type of DIbon offered by orms - give reference for which
-Size - give reference for why
-
-CLAUDES COMMENTS ON THE BOARD CHOICE:
-Dont do brushed aluminum - aluminum shows through all whire areas of the image - white squares bare metal, low contrast under lights. Bad for corner detectrion at an angle. Rather smooth white powder coated
-
-Claude thinks A2 (420x695) is the sweet spot. More managable
-
-Need a custom quore - dont want the wood sub frame , will swell and delaminate. Ask for bare panel or drill mounting holes
-
-Seal the cut edgfes - Dibond is two aluminum skins over a polyethylene core. Seawater might cause rust in the aluminum / PE vrevace. A bead of epoxy will do the tick.
-
-Ask about the gloss levels of the UV inks. Tent towards semi glossy, if we can do it matte, lets fo it.
-
-Ask about printer accuracy
-
-Use white not aluminum, aluminium reflective different at different angles
-
-
-
-
-I'll use tag36h11 because standrdand what they used in the report comparison. 
-We want to have 30-50mm white boarder to avoid merging of background into tag boardrs
-
-Underwater required picels above 25-pixel rule the minimum pixel size required for reliable detection increases significantly. Therefore, the 25-pixel rule used in air is a absolute lower bound; underwater, you should aim for 40 to 60+ pixels per tag to maintain subpixel corner accuracy.
-
-
-We want to work with 1-2 meters calirated.
-
-Pin-Hole Model Pixel CalculationThe pixel width $p$ of a tag in the image plane depends on tag size $S$ (meters), distance $D$ (meters), and focal length $f_x$ (pixels):$$p = \frac{S \cdot f_x}{D}$$For a standard camera underwater (assuming a $60^\circ$ to $70^\circ$ horizontal field of view in water due to flat-port refraction), focal length $f_x$ typically ranges between 1200 and 1400 pixels for a 1600-pixel wide sensor. Assuming an average focal length $f_x = 1300\text{ pixels}$:Option A: $65\text{ mm}$ Tag Size ($S = 0.065\text{ m}$)At 1 meter: $p = \frac{0.065 \cdot 1300}{1.0} \approx \mathbf{84.5\text{ pixels}}$ (Excellent detection)At 3 meters: $p = \frac{0.065 \cdot 1300}{3.0} \approx \mathbf{28.1\text{ pixels}}$ (Slightly low for underwater contrast)Option B: $85\text{ mm}$ Tag Size ($S = 0.085\text{ m}$)At 1 meter: $p = \frac{0.085 \cdot 1300}{1.0} \approx \mathbf{110.5\text{ pixels}}$ (Excellent detection)At 3 meters: $p = \frac{0.085 \cdot 1300}{3.0} \approx \mathbf{36.8\text{ pixels}}$ (Safe margin for underwater blur)
-
-
-
-
-% ===== ATTEMPT 2 FOR BOARD SIZE
-
-April tag size:
- QR tag comprise about
-268 pixels (not including required headers or the payload),
-whereas the visual fiducials described in this paper range
-from about 49 to 100 pixels, including the payload.
-% https://april.eecs.umich.edu/pdfs/olson2011tags.pdf
-
-
-
-Underwater turbidity:
-In order to evaluate the capability of the marker systems to detect small markers in turbid underwater environments, the camera is centered in front of the markers and then moved further away, increasing the distance between the camera and the markers and therefore decreasing the marker size in pixels
-
-We're going with minimum of 40 pixels fo rmax turbidity situation
-
-
-I ended up choosing one based on the online sold one and also 50mm size of tag from underwater testing
-
-
- 
-
- 
- 
- %============================================ 3D Reconstruction comparison ============
- 
 %*********************************************************************
- 
- 
- 
- 
- 
- 
+% END
+%*********************************************************************
