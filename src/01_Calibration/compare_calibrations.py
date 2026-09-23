@@ -17,7 +17,13 @@ that wins on the common subset but uses far fewer images has simply thrown away 
 Run (from any directory):
     src/venv/bin/python src/01_Calibration/compare_calibrations.py
     src/venv/bin/python src/01_Calibration/compare_calibrations.py --run wide uwaruco opencv_default
+    src/venv/bin/python src/01_Calibration/compare_calibrations.py --run wide uwaruco:scaled
     src/venv/bin/python src/01_Calibration/compare_calibrations.py 'results/calibration/*_stereo.yaml'
+
+A run to make is named "preset" for the default ArUco detector or "detector:preset" for another,
+so "uwaruco:scaled" calibrates with the UWARUco detector of src/UWARUco at its "scaled" preset.
+Rows are labelled the same way, so an ArUco preset and a UWARUco preset of the same name stay
+apart in the table.
 """
 import argparse
 import glob
@@ -29,7 +35,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from detector_config import PRESETS  # noqa: E402
+import Calibration  # noqa: E402
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DEFAULT_GLOB = os.path.join(PROJECT_ROOT, "results/calibration", "*_stereo.yaml")
@@ -42,8 +48,13 @@ def read_run(path):
     if not fs.isOpened():
         return None
     board = fs.getNode("calibration_board")
+    # "detector" was added when the UWARUco detector arrived; a YAML written before that is an
+    # ArUco run, so an absent field means "aruco" rather than an unreadable file.
+    detector = board.getNode("detector").string() or "aruco"
+    preset = board.getNode("detector_preset").string() or "?"
     run = {"path": path,
-           "preset": board.getNode("detector_preset").string() or "?",
+           "detector": detector,
+           "preset": preset if detector == "aruco" else f"{detector}:{preset}",
            "min_tags": int(board.getNode("min_tags_per_image").real() or 0),
            "frames_dir": fs.getNode("metadata").getNode("frames_dir").string(),
            "cameras": {}}
@@ -119,20 +130,27 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pattern", nargs="?", default=DEFAULT_GLOB,
                     help="glob of calibration YAMLs (default results/calibration/*_stereo.yaml)")
-    ap.add_argument("--run", nargs="+", metavar="PRESET", choices=list(PRESETS),
-                    help="run Calibration.py for these presets first, then compare")
+    ap.add_argument("--run", nargs="+", metavar="PRESET",
+                    help="run Calibration.py for these presets first, then compare. A name is "
+                         "\"preset\" for the default ArUco detector or \"detector:preset\" for "
+                         "another, e.g. uwaruco:scaled")
     ap.add_argument("--frames-dir", help="passed through to Calibration.py when --run is used")
     args = ap.parse_args()
 
     if args.run:
-        for preset in args.run:
+        for name in args.run:
+            detector, _, preset = name.rpartition(":")
+            detector = detector or "aruco"
+            if detector not in Calibration.DETECTORS:
+                sys.exit(f"unknown detector {detector!r} in {name!r}; "
+                         f"Calibration.py has: {', '.join(Calibration.DETECTORS)}")
             cmd = [sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "Calibration.py"),
-                   "--preset", preset, "--no-detection-images"]
+                   "--detector", detector, "--preset", preset, "--no-detection-images"]
             if args.frames_dir:
                 cmd += ["--frames-dir", args.frames_dir]
-            print(f"\n=== running Calibration.py --preset {preset} ===")
+            print(f"\n=== running Calibration.py --detector {detector} --preset {preset} ===")
             if subprocess.run(cmd).returncode:
-                sys.exit(f"Calibration.py failed for preset {preset}")
+                sys.exit(f"Calibration.py failed for {name}")
 
     paths = sorted(glob.glob(args.pattern if os.path.isabs(args.pattern)
                              else os.path.join(PROJECT_ROOT, args.pattern)))

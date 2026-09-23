@@ -1,0 +1,41 @@
+{
+  "_comment": "The example config from the spec, kept verbatim as a reference point. It does NOT set markerBorderBits or errorCorrectionRate, so both fall back to OpenCV defaults; expect noticeably fewer tags than baseline.json. calibrate.py warns about this on load.",
+
+  "name": "opencv_defaults",
+
+  "detection": {
+    "min_tags_per_image": 10,
+    "aruco_parameters": {
+      "adaptiveThreshWinSizeMin": 3,
+      "adaptiveThreshWinSizeMax": 23,
+      "adaptiveThreshWinSizeStep": 10,
+      "adaptiveThreshConstant": 7,
+      "minMarkerPerimeterRate": 0.03,
+      "polygonalApproxAccuracyRate": 0.03
+    }
+  },
+
+  "corner_refinement": { "window_half_size": 5, "max_iter": 100, "epsilon": 0.001 },
+
+  "calibration": {
+    "distortion_model": "standard",
+    "fix_k3": false,
+    "zero_tangent_dist": false,
+    "fix_aspect_ratio": false,
+    "fix_principal_point": false,
+    "max_iter": 30,
+    "epsilon": 1e-6
+  },
+
+  "outlier_rejection": { "enabled": false, "max_image_error_px": 1.0 },
+
+  "stereo": {
+    "min_common_tags": 10,
+    "refine_intrinsics": false,
+    "max_iter": 100,
+    "epsilon": 1e-6,
+    "outlier_rejection": { "enabled": false, "max_pair_error_px": 1.0 },
+    "rectify_alpha": 0,
+    "expected_baseline_mm": null
+  }
+}

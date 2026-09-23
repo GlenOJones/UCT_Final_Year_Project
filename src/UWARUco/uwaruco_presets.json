@@ -1,0 +1,95 @@
+{
+  "_comment": [
+    "Tunings for the UWARUco detector in uwaruco.py. Same idea as 01_Calibration/detector_presets.json:",
+    "a tuning is a data change, and the preset a run used is written into that run's calibration YAML.",
+    "Keys must name a field of uwaruco.Params; a typo fails at load rather than being ignored.",
+    "",
+    "markerBorderBits and errorCorrectionRate are NOT set here. They describe the printed target, not",
+    "the tuning, and are read from 01_Calibration/detector_presets.json so that the two detectors",
+    "cannot disagree about what is on the board.",
+    "",
+    "'_version' picks which of the paper's two workflows to run, 'base' (Figure 2b) or 'masked'",
+    "(Figure 2c). '_feedback' applies to the masked version only: 'self' re-runs each image with a",
+    "mask derived from its own first pass, 'sequential' carries the mask from the previous image the",
+    "way the paper does for video, and 'none' disables masking entirely.",
+    "",
+    "Measured on every fifth frame of 18_Sep/Rigframes (42 images), usable = at least 10 tags.",
+    "The incumbent, aruco 'wide', gets 17/42 usable and 808 tags. See README.md for the full table",
+    "and for why the paper's two headline choices go opposite ways on this footage:",
+    "  paper        adaptiveThreshConstant = 0    15/42 usable,  545 tags   the paper's numbers",
+    "  tuned        constant = 4, bits from Otsu  22/42 usable,  926 tags   the recommended preset",
+    "adaptiveThreshConstant = 0 collapses detection here because these tags are low-contrast rather",
+    "than dark, which is the same effect detector_presets.json records for the ArUco detector.",
+    "",
+    "About the window sizes: the paper's 10, 20 and 40 pixels were tuned on 1920x1080 footage. These",
+    "frames are 1280x720, two thirds of that in each dimension. Scaling them helps a little; sweeping",
+    "the full 3..53 range helps more, because the tags here run from a few pixels across to filling",
+    "the frame and three windows cannot cover that."
+  ],
+
+  "default": "tuned",
+
+  "presets": {
+    "tuned": {
+      "_why": "The paper's workflow with the two settings this footage disagrees with put back: a threshold constant between ARUco's 7 and the paper's 0, bits read by Otsu, and windows swept over the range the tags actually span. Best measured: 22/42 usable, 926 tags.",
+      "_version": "masked",
+      "_feedback": "self",
+      "adaptiveThreshWinSizes": [3, 8, 13, 18, 23, 28, 33, 38, 43, 48, 53],
+      "adaptiveThreshConstant": 4.0,
+      "identifyFrom": "otsu"
+    },
+
+    "tuned_mean": {
+      "_why": "A tried-and-rejected idea, kept so the result is reproducible: average the corners of the passes that agree instead of keeping the largest quad. Identical detections, but a clearly WORSE calibration (common-subset RMS 3.367/2.503 px against tuned's 2.694/1.727), because the window sizes place the border at different systematic offsets and averaging mixes biases rather than cancelling noise. Do not use; see README.md.",
+      "_version": "masked",
+      "_feedback": "self",
+      "adaptiveThreshWinSizes": [3, 8, 13, 18, 23, 28, 33, 38, 43, 48, 53],
+      "adaptiveThreshConstant": 4.0,
+      "identifyFrom": "otsu",
+      "mergeCorners": "mean"
+    },
+
+    "tuned_base": {
+      "_why": "The 'tuned' settings without the mask, so the mask's contribution is measurable on its own.",
+      "_version": "base",
+      "adaptiveThreshWinSizes": [3, 8, 13, 18, 23, 28, 33, 38, 43, 48, 53],
+      "adaptiveThreshConstant": 4.0,
+      "identifyFrom": "otsu"
+    },
+
+    "paper": {
+      "_why": "The Masked version exactly as published: windows 10/20/40, nothing subtracted from the local mean, bits read from the thresholded image. Kept so the published algorithm can be run unmodified.",
+      "_version": "masked",
+      "_feedback": "self",
+      "adaptiveThreshWinSizes": [11, 21, 41],
+      "adaptiveThreshConstant": 0.0,
+      "identifyFrom": "threshold"
+    },
+
+    "paper_base": {
+      "_why": "The Base version as published (no mask, no median filter), to show what the mask is worth.",
+      "_version": "base",
+      "adaptiveThreshWinSizes": [11, 21, 41],
+      "adaptiveThreshConstant": 0.0,
+      "identifyFrom": "threshold"
+    },
+
+    "scaled": {
+      "_why": "The paper's settings with only the windows scaled from 1920x1080 to this footage's 1280x720: 10/20/40 -> 7/13/27. Isolates the resolution difference from the footage difference.",
+      "_version": "masked",
+      "_feedback": "self",
+      "adaptiveThreshWinSizes": [7, 13, 27],
+      "adaptiveThreshConstant": 0.0,
+      "identifyFrom": "threshold"
+    },
+
+    "scaled_otsu": {
+      "_why": "Scaled windows and Otsu bits, but the paper's constant of 0. Isolates the bit source from the threshold constant.",
+      "_version": "masked",
+      "_feedback": "self",
+      "adaptiveThreshWinSizes": [7, 13, 27],
+      "adaptiveThreshConstant": 0.0,
+      "identifyFrom": "otsu"
+    }
+  }
+}

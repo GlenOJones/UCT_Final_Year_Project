@@ -1,0 +1,41 @@
+{
+  "_comment": "Reproduces the behaviour of the old Calibration.py 'wide' preset. markerBorderBits and errorCorrectionRate are NOT tuning knobs: they describe the Kalibr target, and the OpenCV defaults (1 and 0.6) silently halve the tags found. Start from this file when making a new config.",
+
+  "name": "baseline",
+
+  "detection": {
+    "min_tags_per_image": 10,
+    "aruco_parameters": {
+      "markerBorderBits": 2,
+      "errorCorrectionRate": 1.0,
+      "adaptiveThreshWinSizeMin": 3,
+      "adaptiveThreshWinSizeMax": 53,
+      "adaptiveThreshWinSizeStep": 5,
+      "minOtsuStdDev": 2.0
+    }
+  },
+
+  "corner_refinement": { "window_half_size": 5, "max_iter": 100, "epsilon": 0.001 },
+
+  "calibration": {
+    "distortion_model": "standard",
+    "fix_k3": false,
+    "zero_tangent_dist": false,
+    "fix_aspect_ratio": false,
+    "fix_principal_point": false,
+    "max_iter": 30,
+    "epsilon": 1e-6
+  },
+
+  "outlier_rejection": { "enabled": false, "max_image_error_px": 1.0 },
+
+  "stereo": {
+    "min_common_tags": 10,
+    "refine_intrinsics": false,
+    "max_iter": 100,
+    "epsilon": 1e-6,
+    "outlier_rejection": { "enabled": false, "max_pair_error_px": 1.0 },
+    "rectify_alpha": 0,
+    "expected_baseline_mm": null
+  }
+}
