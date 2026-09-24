@@ -20,7 +20,35 @@
 Initial underwater tests were done into the sun, not at full quality (oops).
 This resulted in minimal detection and an initial default detection of ...
 
+\subsection{Frame selection and blur checking}
+Frame selection and extraction is done via a extract_Stereo_frames.py. 
+The frames can be manually selected and labelled through a viewier, or autoselected at
+specified step intervals. It also allows for the storing o....
 
+XXX..py does analysis on the selected frames, looking at x,y,z metrics to ensure good??
+
+There were concerns regarding the YUYV blur and shutter time.This allows for good comparison 
+between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016.7894491
+
+
+
+\subsection{Calibration}
+The Calibration for determining the systems intrinsics and extrinsics were completed
+using calibration.py. This allowed for quick iteration of openCV detector configurations. For this
+comparison, tags detected is the metric. Outputs a png with the noted detectrions. See image below.
+add in the DetectedTags.png here
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figs/Ch5/DetectedTags.png}
+    \caption[Short caption for the List of Figures.]{\textbf{Bold lead-in sentence.}
+        Longer explanation of what the reader is looking at. Taken from \cite{key}.}
+    \label{fig:ch5.detectedtags}
+\end{figure}
+
+
+\subsubsection{Optimising for Detection}
+% Mention how to optimise through varying openCV parameters
+% Mention metrics for what is good, explained in the theoretical development
 %=====================================================================
 \section{Experiment 2: Reconstruction of known objects}
 \label{sec:ch5.exp2_knownobjects}
