@@ -20,10 +20,13 @@ The stages, each a COLMAP command unless noted:
   undistort    image_undistorter: pinhole images for dense matching, of every --dense-step'th frame
   patchmatch   patch_match_stereo with geometric consistency (needs CUDA)
   fuse         stereo_fusion into one cloud
-  export       (Python) move the fused cloud into the board frame -> results/reconstruction/
+  export       (Python) move the fused cloud into the board frame -> results/<session>/<scan>/colmap/
 
-    src/venv/bin/python src/03_Reconstruction/colmap_mvs.py
-    src/venv/bin/python src/03_Reconstruction/colmap_mvs.py --from-stage patchmatch
+    src/venv/bin/python src/03_Reconstruction/colmap_mvs.py --session Sep24 --scan mjpg_pyr_lights_2
+    src/venv/bin/python src/03_Reconstruction/colmap_mvs.py --session Sep24 --scan mjpg_pyr_lights_2 --from-stage patchmatch
+
+The working folder (database, sparse model, depth maps: gigabytes) is work/<session>/<scan>/colmap/;
+the clouds (cloud.ply, sparse.ply) go to results/<session>/<scan>/colmap/.
 
 Written against COLMAP 4.3 built with CUDA: SIFT extraction, matching and PatchMatch run on the GPU.
 Options that differ between COLMAP releases are only passed if `colmap <command> -h` lists them.
@@ -44,7 +47,8 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stereo_rig import CAMERAS, PROJECT_ROOT, RESULTS_DIR, find_frame_pairs, invert, load_rig, rel  # noqa: E402
+from stereo_rig import CAMERAS, PROJECT_ROOT, find_frame_pairs, invert, load_rig, rel  # noqa: E402
+import project_paths as paths  # noqa: E402
 
 STAGES = ("workspace", "features", "rig", "match", "map", "align", "undistort", "patchmatch", "fuse", "export")
 
@@ -53,12 +57,9 @@ COLMAP = os.environ.get("COLMAP", "colmap")
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="COLMAP SfM + PatchMatch MVS for a tag-posed stereo scan.")
-    ap.add_argument("--poses", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_tag_poses.yaml"),
-                    help="tag_poses.py output; names the frames and calibration, and anchors the board frame")
+    paths.add_scan_arguments(ap, method="colmap")
     ap.add_argument("--workspace", default=None,
-                    help="COLMAP working folder (default results/reconstruction/<recording>_colmap)")
-    ap.add_argument("--out-dir", default=RESULTS_DIR,
-                    help="where the board-frame clouds go (default results/reconstruction)")
+                    help="COLMAP working folder (default work/<session>/<scan>/<method>)")
     ap.add_argument("--from-stage", default="workspace", choices=STAGES, help="resume from this stage")
     ap.add_argument("--to-stage", default="export", choices=STAGES, help="stop after this stage")
     ap.add_argument("--all-frames", action="store_true",
@@ -93,7 +94,9 @@ def parse_args(argv=None):
                     help="GB of depth/normal maps PatchMatch and fusion keep in RAM (COLMAP default 32, "
                          "which is more than this 30 GB machine has)")
     ap.add_argument("--gpu", default="0", help="GPU index for COLMAP, or -1 for CPU where supported")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    paths.require_scan(args, ap)
+    return args
 
 
 # ====== COLMAP PLUMBING ======
@@ -489,7 +492,7 @@ def stage_align(ws, tag_poses, tags_corners, rig, with_scale, sparse_path):
 
 
 def export_sparse(ws, S, out_path):
-    """The SfM points in the board frame, as <recording>_colmap_sparse.ply next to the dense clouds:
+    """The SfM points in the board frame, as sparse.ply next to the dense cloud:
     something to look at, and to check the alignment on, long before PatchMatch finishes."""
     import open3d as o3d
     sfm_ply = os.path.join(ws, "sparse_points_sfm.ply")
@@ -602,15 +605,16 @@ def main():
     args = parse_args()
     if shutil.which(COLMAP) is None:
         raise SystemExit(f"'{COLMAP}' not found on PATH (set COLMAP=/path/to/colmap)")
-    frames_dir, calibration, tag_poses, tags_corners = load_poses(args.poses)
+    poses_file = paths.poses_path(args.session, args.scan)
+    frames_dir, calibration, tag_poses, tags_corners = load_poses(poses_file)
     rig = load_rig(calibration)
-    recording = os.path.basename(os.path.normpath(frames_dir))
-    ws = args.workspace or os.path.join(RESULTS_DIR, f"{recording}_colmap")
+    ws = args.workspace or paths.work_dir(args.session, args.scan, args.method)
     os.makedirs(ws, exist_ok=True)
-    os.makedirs(args.out_dir, exist_ok=True)
-    out_path = os.path.join(args.out_dir, f"{recording}_colmap_cloud.ply")
-    sparse_path = os.path.join(args.out_dir, f"{recording}_colmap_sparse.ply")
-    print(f"workspace {rel(ws)}; {len(tag_poses)} tag-posed frames from {rel(args.poses)}")
+    out_dir = paths.method_dir(args.session, args.scan, args.method)
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, paths.CLOUD)
+    sparse_path = os.path.join(out_dir, paths.SPARSE)
+    print(f"workspace {rel(ws)}; {len(tag_poses)} tag-posed frames from {rel(poses_file)}")
 
     run = STAGES[STAGES.index(args.from_stage):STAGES.index(args.to_stage) + 1]
     names = [n for n, _, _ in find_frame_pairs(frames_dir) if args.all_frames or n in tag_poses]

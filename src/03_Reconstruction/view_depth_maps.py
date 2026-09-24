@@ -4,8 +4,8 @@ Each depth map is shown beside the undistorted image it belongs to, near = red, 
 depth = black. The first pass writes <name>.photometric.bin (unfiltered, so noisy); the second
 writes <name>.geometric.bin (checked against the neighbouring views), and --type picks which.
 
-    src/venv/bin/python src/03_Reconstruction/view_depth_maps.py --watch          # live window
-    src/venv/bin/python src/03_Reconstruction/view_depth_maps.py --image left/0110.png
+    src/venv/bin/python src/03_Reconstruction/view_depth_maps.py --session Sep24 --scan mjpg_pyr_lights_2 --watch
+    src/venv/bin/python src/03_Reconstruction/view_depth_maps.py --session Sep24 --scan mjpg_pyr2 --image left/0110.png
 
 --watch shows the newest depth map and refreshes as new ones are written (q or Esc to quit).
 Without it, the chosen (or newest) map is saved as a PNG in the workspace's depth_previews/.
@@ -20,7 +20,8 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stereo_rig import RESULTS_DIR, rel  # noqa: E402
+from stereo_rig import rel  # noqa: E402
+import project_paths as paths  # noqa: E402
 
 DEPTH_PERCENTILES = (2, 98)   # colour range, so a few wild depths do not wash the map out
 DISPLAY_WIDTH = 1600
@@ -28,7 +29,8 @@ DISPLAY_WIDTH = 1600
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="View COLMAP PatchMatch depth maps.")
-    ap.add_argument("--workspace", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_colmap"))
+    paths.add_scan_arguments(ap, method="colmap")
+    ap.add_argument("--workspace", help="COLMAP workspace (default work/<session>/<scan>/<method>)")
     ap.add_argument("--type", default="auto", choices=("auto", "photometric", "geometric"),
                     help="which pass; auto = geometric if any exist yet, else photometric")
     ap.add_argument("--image", default=None, help='e.g. "left/0110.png" (default: the newest map)')
@@ -36,7 +38,11 @@ def parse_args(argv=None):
     ap.add_argument("--range", type=float, nargs=2, metavar=("NEAR", "FAR"), default=None,
                     help="colour range in mm, e.g. --range 350 550 to spread the board and object "
                          "over the whole colour scale (default: 2nd-98th percentile of the map)")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    if not args.workspace:
+        paths.require_scan(args, ap)
+        args.workspace = paths.work_dir(args.session, args.scan, args.method)
+    return args
 
 
 def read_colmap_array(path):

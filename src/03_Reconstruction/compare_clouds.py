@@ -9,7 +9,7 @@ postprocess_cloud.py). For each one it reports, on the same crop box:
   - how far each cloud is from the first one (nearest-neighbour distance, median and p90).
 
     src/venv/bin/python src/03_Reconstruction/compare_clouds.py \
-        results/reconstruction/mjpg_pyr2_cloud_clean.ply results/reconstruction/mjpg_pyr2_colmap_cloud_clean.ply
+        results/Sep24/mjpg_pyr_lights_2/sgbm/cloud_clean.ply results/Sep24/mjpg_pyr_lights_2/colmap/cloud_clean.ply
 """
 import argparse
 import os
@@ -20,18 +20,25 @@ import open3d as o3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from postprocess_cloud import read_tags  # noqa: E402
-from stereo_rig import RESULTS_DIR, rel  # noqa: E402
+from stereo_rig import rel  # noqa: E402
+import project_paths as paths  # noqa: E402
 
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Compare board-frame point clouds of one scan.")
     ap.add_argument("clouds", nargs="+", help="PLY files; the first is the reference for distances")
-    ap.add_argument("--poses", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_tag_poses.yaml"))
+    ap.add_argument("--poses", help="tag_poses.yaml (default: that of the first cloud's scan)")
     ap.add_argument("--object-height", type=float, default=5.0,
                     help="mm above the board that counts as object (default 5)")
     ap.add_argument("--object-radius", type=float, default=100.0,
                     help="mm around the object's centre that counts as object (default 100)")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    if not args.poses:
+        where = paths.locate(args.clouds[0])
+        if where is None:
+            ap.error("the first cloud is not under results/<session>/<scan>/: pass --poses")
+        args.poses = paths.poses_path(where[0], where[1])
+    return args
 
 
 def main():

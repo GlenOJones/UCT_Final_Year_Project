@@ -18,7 +18,7 @@ Run (from any directory):
     src/venv/bin/python src/01_Calibration/compare_calibrations.py
     src/venv/bin/python src/01_Calibration/compare_calibrations.py --run wide uwaruco opencv_default
     src/venv/bin/python src/01_Calibration/compare_calibrations.py --run wide uwaruco:scaled
-    src/venv/bin/python src/01_Calibration/compare_calibrations.py 'results/calibration/*_stereo.yaml'
+    src/venv/bin/python src/01_Calibration/compare_calibrations.py 'results/18_Sep/calibration/*_stereo.yaml'
 
 A run to make is named "preset" for the default ArUco detector or "detector:preset" for another,
 so "uwaruco:scaled" calibrates with the UWARUco detector of src/UWARUco at its "scaled" preset.
@@ -38,7 +38,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import Calibration  # noqa: E402
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-DEFAULT_GLOB = os.path.join(PROJECT_ROOT, "results/calibration", "*_stereo.yaml")
+DEFAULT_GLOB = os.path.join(PROJECT_ROOT, "results", "*", "calibration", "*_stereo.yaml")
 CAMERAS = ("left", "right")
 
 
@@ -129,7 +129,7 @@ def coverage(runs, camera, common):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("pattern", nargs="?", default=DEFAULT_GLOB,
-                    help="glob of calibration YAMLs (default results/calibration/*_stereo.yaml)")
+                    help="glob of calibration YAMLs (default results/*/calibration/*_stereo.yaml)")
     ap.add_argument("--run", nargs="+", metavar="PRESET",
                     help="run Calibration.py for these presets first, then compare. A name is "
                          "\"preset\" for the default ArUco detector or \"detector:preset\" for "

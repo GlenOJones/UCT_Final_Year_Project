@@ -5,9 +5,11 @@ Three views, all in the board frame from tag_poses.py (mm, z = height above the 
   - a thin slice through the tallest object, as a side profile, which is where the shape shows;
   - an oblique 3D view.
 
-    src/venv/bin/python src/03_Reconstruction/view_cloud.py
-    src/venv/bin/python src/03_Reconstruction/view_cloud.py --show        # rotate it (matplotlib, sampled)
-    src/venv/bin/python src/03_Reconstruction/view_cloud.py --3d          # Open3D window, every point
+    src/venv/bin/python src/03_Reconstruction/view_cloud.py --session Sep24 --scan mjpg_pyr_lights_2 --method colmap
+    ... --file cloud.ply             # the raw fused cloud instead of cloud_clean.ply (or sparse.ply)
+    ... --show                       # rotate it (matplotlib, sampled)
+    ... --3d                         # Open3D window, every point
+    src/venv/bin/python src/03_Reconstruction/view_cloud.py --cloud any.ply --poses tag_poses.yaml
 
 Writes <cloud>.png next to the PLY. For measuring or ICP against a CAD model, open the PLY in
 CloudCompare instead: it keeps the "views" field as a scalar you can filter on.
@@ -21,7 +23,8 @@ import matplotlib
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stereo_rig import RESULTS_DIR, rel  # noqa: E402
+from stereo_rig import rel  # noqa: E402
+import project_paths as paths  # noqa: E402
 
 # Sequential single-hue ramp (light -> dark blue): height is a magnitude, so one hue, no rainbow.
 HEIGHT_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
@@ -35,9 +38,7 @@ MAX_SCATTER = 150_000     # points drawn per panel; matplotlib slows badly beyon
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Render the fused point cloud.")
-    ap.add_argument("--cloud", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_cloud.ply"))
-    ap.add_argument("--poses", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_tag_poses.yaml"),
-                    help="for the tag outlines")
+    paths.add_cloud_arguments(ap, default_file="cloud_clean.ply")
     ap.add_argument("--min-views", type=int, default=0,
                     help="draw only points seen from at least this many frames (default: all in the PLY)")
     ap.add_argument("--no-crop", action="store_true",
@@ -50,7 +51,9 @@ def parse_args(argv=None):
     ap.add_argument("--3d", dest="open3d", action="store_true",
                     help="open the cloud in an Open3D window instead (all points; mouse to rotate, "
                          "scroll to zoom, +/- for point size), coloured by height, with the tags")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    args.cloud, args.poses = paths.resolve_cloud(args, ap)
+    return args
 
 
 def read_ply(path):
@@ -135,7 +138,9 @@ def main():
     plt.rcParams.update({"font.size": 9, "text.color": INK, "axes.labelcolor": INK,
                          "xtick.color": MUTED, "ytick.color": MUTED, "axes.edgecolor": MUTED})
     fig = plt.figure(figsize=(15, 5.4), facecolor=SURFACE)
-    title = os.path.splitext(os.path.basename(args.cloud))[0]
+    where = paths.locate(args.cloud)
+    title = (f"{where[0]} / {where[1]} / {where[2]} / {os.path.basename(args.cloud)}" if where
+             else os.path.basename(args.cloud))
     fig.suptitle(f"{title}: {len(xyz):,} points, board frame (mm)", x=0.01, ha="left", fontsize=11)
 
     # Top-down: draw low points first so the object sits on top of the board.

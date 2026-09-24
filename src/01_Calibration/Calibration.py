@@ -204,8 +204,9 @@ def parse_args(presets, argv=None):
                     help=f"detector preset; from detector_presets.json for --detector aruco "
                          f"(default {presets.default}), or from src/UWARUco/uwaruco_presets.json "
                          f"for --detector uwaruco")
-    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/calibration"),
-                    help="where the YAML and detection images go")
+    ap.add_argument("--out-dir", default=None,
+                    help="where the YAML and detection images go (default results/<session>/calibration, "
+                         "the session being the folder --frames-dir is in, e.g. 18_Sep)")
     ap.add_argument("--min-tags", type=int, default=10,
                     help="tags an image needs to be used (default 10)")
     ap.add_argument("--min-common-tags", type=int, default=10,
@@ -250,8 +251,11 @@ def setup(args):
     print("image size:", image_size)
     print(f"detector: {args.detector}  preset: {preset}  ({describe(preset)})")
 
+    # Outputs are filed by session (see src/project_paths.py): the folder the recording sits in.
+    session = os.path.basename(os.path.dirname(os.path.normpath(args.frames_dir)))
+    out_dir = args.out_dir or os.path.join(PROJECT_ROOT, "results", session, "calibration")
     return Run(frames_dir=args.frames_dir, detector_name=args.detector, preset=preset,
-               out_dir=args.out_dir,
+               out_dir=out_dir,
                min_tags=args.min_tags, min_common_tags=args.min_common_tags,
                save_detections=not args.no_detection_images,
                image_size=image_size, detector_settings=describe(preset),

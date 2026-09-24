@@ -14,10 +14,11 @@ Only a box around the tags is kept: the tag area plus a margin, from slightly be
 --z-max in front of it. The same box also sets each frame's disparity search range, so SGBM does
 not spend time on depths that would be cropped anyway.
 
-    src/venv/bin/python src/03_Reconstruction/dense_stereo.py
-    src/venv/bin/python src/03_Reconstruction/dense_stereo.py --step 5 --debug-every 1
+    src/venv/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2
+    src/venv/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr2 --step 5 --debug-every 1
 
-Writes results/reconstruction/<recording>_cloud.ply (binary PLY: x, y, z in mm in the board frame,
+Reads the scan's poses/tag_poses.yaml and writes results/<session>/<scan>/sgbm/cloud.ply (binary
+PLY: x, y, z in mm in the board frame,
 grey as RGB, and "views", the number of frames that saw each point). CloudCompare and MeshLab open
 it directly; view_cloud.py renders it.
 """
@@ -30,7 +31,8 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stereo_rig import PROJECT_ROOT, RESULTS_DIR, invert, load_rig, rel, transform  # noqa: E402
+from stereo_rig import PROJECT_ROOT, invert, load_rig, rel, transform  # noqa: E402
+import project_paths as paths  # noqa: E402
 
 # ====== SGBM ======
 # Matching is on grey: the frames are the single-channel luma (Y) plane that extract_stereo_frames.py
@@ -49,9 +51,9 @@ MERGE_EVERY = 10          # frames between voxel merges, which keeps memory boun
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Fuse per-frame stereo depth into one point cloud.")
-    ap.add_argument("--poses", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_tag_poses.yaml"),
-                    help="per-frame poses from tag_poses.py; also names the frames and calibration")
-    ap.add_argument("--out-dir", default=RESULTS_DIR)
+    # The method name is the output folder, so a variant run (other block size, say) can be kept
+    # beside the default as e.g. --method sgbm_block5.
+    paths.add_scan_arguments(ap, method="sgbm")
     ap.add_argument("--step", type=int, default=1, help="use every Nth posed frame (default 1)")
     ap.add_argument("--voxel", type=float, default=1.0, help="mm, fusion grid size (default 1)")
     ap.add_argument("--min-views", type=int, default=3,
@@ -63,11 +65,11 @@ def parse_args(argv=None):
     ap.add_argument("--block-size", type=int, default=9, help="SGBM window, px, odd (default 9)")
     ap.add_argument("--uniqueness", type=int, default=5,
                     help="SGBM uniqueness ratio, %%: best match must beat the next by this (default 5)")
-    ap.add_argument("--tag", default="",
-                    help="suffix for the output name, to keep runs with different settings apart")
     ap.add_argument("--debug-every", type=int, default=0,
                     help="save rectified image + disparity for every Nth used frame (0 = never)")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    paths.require_scan(args, ap)
+    return args
 
 
 # ====== INPUTS ======
@@ -238,13 +240,13 @@ def save_debug(debug_dir, name, left, disparity, disparity_range):
 
 def main():
     args = parse_args()
-    metadata, tag_corners, frames = load_poses(args.poses)
+    metadata, tag_corners, frames = load_poses(paths.poses_path(args.session, args.scan))
+    out_dir = paths.method_dir(args.session, args.scan, args.method)
     frames_dir = os.path.join(PROJECT_ROOT, metadata["frames_dir"])
     rig = load_rig(os.path.join(PROJECT_ROOT, metadata["calibration"]))
     rectifier = Rectifier(rig)
     low, high = crop_box(tag_corners, args)
-    recording = os.path.basename(os.path.normpath(frames_dir)) + (f"_{args.tag}" if args.tag else "")
-    debug_dir = os.path.join(args.out_dir, f"{recording}_disparity")
+    debug_dir = os.path.join(out_dir, "disparity")
 
     used = frames[::args.step]
     print(f"{len(used)} of {len(frames)} posed frames from {rel(frames_dir)}")
@@ -270,8 +272,8 @@ def main():
     xyz, grey, views = grid.points(args.min_views)
     print(f"\n{len(xyz)} points seen from >= {args.min_views} frames "
           f"(of {len(grid.keys)} voxels hit at all)")
-    os.makedirs(args.out_dir, exist_ok=True)
-    out_path = os.path.join(args.out_dir, f"{recording}_cloud.ply")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, paths.CLOUD)
     write_ply(out_path, xyz, grey, views)
     print(f"saved {rel(out_path)}")
     if args.debug_every:

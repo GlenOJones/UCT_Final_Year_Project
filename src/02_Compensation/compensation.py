@@ -38,8 +38,8 @@ optically, Pinax has little left to remove; that is a result worth reporting eit
 Usage (project root):
     src/venv/bin/python src/01_Calibration/compensation.py data/Calibration/18_Sep/Rigframes
     src/venv/bin/python src/01_Calibration/compensation.py data/Calibration/18_Sep/Rigframes \
-        --air-calib results/calibration/InAir_stereo.yaml --d0 8 --d1 6 --n-water 1.339
-Outputs (default results/pinax/): results.json, fig_pinax.png, and a corrected sample image per camera.
+        --air-calib results/18_Sep/calibration/InAir_stereo.yaml --d0 8 --d1 6 --n-water 1.339
+Outputs (default results/analysis/pinax/): results.json, fig_pinax.png, and a corrected sample image per camera.
 """
 import argparse
 import glob
@@ -274,7 +274,7 @@ def read_air_calib(path, camera):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("frames_dir", help="folder of extracted pairs, e.g. data/Calibration/18_Sep/Rigframes")
-    ap.add_argument("--out", default="results/pinax")
+    ap.add_argument("--out", default="results/analysis/pinax")
     ap.add_argument("--air-calib", help="in-air stereo YAML (proper Pinax workflow); omit to sweep f_air")
     ap.add_argument("--d0", type=float, default=D0_MM, help=f"camera-to-pane distance mm (default {D0_MM})")
     ap.add_argument("--d1", type=float, default=D1_MM, help=f"pane thickness mm (default {D1_MM})")

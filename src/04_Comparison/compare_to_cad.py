@@ -3,8 +3,12 @@
 Reads the clouds 03_Reconstruction saved (board frame, mm, z = height above the board) and measures
 how far every point is from the CAD surface, after placing the CAD model where the object is.
 
-    src/venv/bin/python src/04_Comparison/compare_to_cad.py results/3dRecon/Sep24/mjpg_pyr_lights_2_SGBM_reconstruction/mjpg_pyr_lights_2_cloud_clean.ply
-    src/venv/bin/python src/04_Comparison/compare_to_cad.py cloudA.ply cloudB.ply --reference data/GroundTruth/roughness_blocks_STL/PYRAMID_1.stl
+    src/venv/bin/python src/04_Comparison/compare_to_cad.py --session Sep24 --scan mjpg_pyr_lights_2
+    src/venv/bin/python src/04_Comparison/compare_to_cad.py --session Sep24 --scan mjpg_pyr2 --methods sgbm
+    src/venv/bin/python src/04_Comparison/compare_to_cad.py any_cloud.ply --out-dir some/folder
+
+With --session/--scan it compares every method of that scan that has a cloud_clean.ply (or those
+named by --methods); a cloud given by path is compared on its own.
 
 Steps, for each cloud:
   1. Reference: the STL, with duplicate vertices merged. Faces pointing down are dropped: they sit on
@@ -21,13 +25,14 @@ Steps, for each cloud:
      its bias, spread and percentiles; per face, how much of it the scan covers and the angle of a
      plane fitted through its points against the design.
 
-Outputs in results/comparison/<cloud name>/:
+Outputs in results/<session>/<scan>/comparison/<method>/:
   metrics.json                 every number, for both fits
-  <name>_distances.ply         object points in the board frame with a "scalar_signed_distance"
+  distances.ply                object points in the board frame with a "scalar_signed_distance"
                                property (and colours); CloudCompare loads it as a scalar field
-  <name>_reference_aligned.ply the CAD mesh moved into the board frame by the on-board fit
-  <name>_comparison.png        top-down error map, histogram and profiles through the apex
-and results/comparison/summary.csv, one row per cloud and fit, appended to on every run.
+  cad_aligned.ply              the CAD mesh moved into the board frame by the on-board fit
+  comparison.png               top-down error map, histogram and profiles through the apex
+and results/<session>/summary.csv, one row per scan, method and fit; a re-run replaces that
+scan and method's rows, so the table always holds the latest result of each.
 """
 import argparse
 import csv
@@ -40,11 +45,11 @@ import cv2
 import numpy as np
 import open3d as o3d
 
-# Paths are relative to the project root, resolved from this file
-# (src/04_Comparison/compare_to_cad.py -> parents: 04_Comparison, src, project root).
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import project_paths as paths  # noqa: E402
+from project_paths import PROJECT_ROOT, rel  # noqa: E402
+
 DEFAULT_REFERENCE = os.path.join(PROJECT_ROOT, "data/GroundTruth/roughness_blocks_STL/PYRAMID_1.stl")
-RESULTS_DIR = os.path.join(PROJECT_ROOT, "results/comparison")
 
 # Degrees of freedom of each fit: indices into (rx, ry, rz, tx, ty, tz).
 FITS = {"on_board": [2, 3, 4], "shape": [0, 1, 2, 3, 4, 5]}
@@ -66,15 +71,13 @@ INK = "#2b2b2a"
 MUTED = "#8a8a86"
 
 
-def rel(path):
-    return os.path.relpath(path, PROJECT_ROOT)
-
-
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Compare reconstructed clouds with a CAD mesh.")
-    ap.add_argument("clouds", nargs="+", help="board-frame PLY clouds from 03_Reconstruction")
+    ap.add_argument("clouds", nargs="*", help="board-frame PLY clouds by path (instead of --session/--scan)")
+    paths.add_scan_arguments(ap)
+    ap.add_argument("--methods", nargs="+", help="method folders to compare (default: all with a cloud_clean.ply)")
     ap.add_argument("--reference", default=DEFAULT_REFERENCE, help="ground-truth mesh, mm (STL/PLY/OBJ)")
-    ap.add_argument("--out-dir", default=RESULTS_DIR)
+    ap.add_argument("--out-dir", help="output folder for a cloud given by path outside results/<session>/<scan>/")
     ap.add_argument("--min-height", type=float, default=3.0,
                     help="mm; points below this are board, not object (default 3)")
     ap.add_argument("--margin", type=float, default=15.0,
@@ -86,7 +89,10 @@ def parse_args(argv=None):
                     help="mm; a CAD surface patch counts as covered if a point is this close (default 2)")
     ap.add_argument("--error-range", type=float, default=5.0,
                     help="mm; colour scale of the error map runs from minus to plus this (default 5)")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    if not args.clouds:
+        paths.require_scan(args, ap)
+    return args
 
 
 # ====== REFERENCE ======
@@ -259,6 +265,8 @@ def evaluate(reference, points, T_board_ref, args):
     }
 
     # Coverage: sample the visible CAD surface ~1 per mm^2 and check for a scan point nearby.
+    # Seeded, so the same inputs always give the same coverage (unseeded it moved by ~1%).
+    o3d.utility.random.seed(0)
     samples = reference.mesh.sample_points_uniformly(max(int(reference.mesh.get_surface_area()), 1000))
     sample_xyz = np.asarray(samples.points)
     _, _, sample_tri = reference.closest(sample_xyz)
@@ -388,24 +396,64 @@ def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit):
     plt.close(fig)
 
 
-def append_summary(path, name, cloud_path, reference, fits):
-    new = not os.path.exists(path)
-    with open(path, "a", newline="", encoding="utf-8") as fh:
-        writer = csv.writer(fh)
-        if new:
-            writer.writerow(["created", "cloud", "reference", "fit", "points", "coverage", "mean_signed_mm",
-                             "rms_mm", "median_abs_mm", "p95_abs_mm", "within_2mm", "reliable", "tx_mm", "ty_mm", "tz_mm",
-                             "yaw_deg", "facet_angle_errors_deg"])
-        for fit, (T, stats) in fits.items():
-            angles = np.degrees(cv2.Rodrigues(T[:3, :3])[0].ravel())
-            facet_angles = ";".join(f"{f['plane_angle_error_deg']:.2f}" if "plane_angle_error_deg" in f else "-"
-                                    for f in stats["facets"])
-            writer.writerow([datetime.datetime.now().isoformat(timespec="seconds"), rel(cloud_path),
-                             os.path.basename(reference.path), fit, stats["points"], f"{stats['coverage']:.3f}",
-                             f"{stats['mean_signed_mm']:.3f}", f"{stats['rms_mm']:.3f}",
-                             f"{stats['median_abs_mm']:.3f}", f"{stats['p95_abs_mm']:.3f}",
-                             f"{stats['within_2mm']:.3f}", stats["reliable"], *(f"{v:.2f}" for v in T[:3, 3]),
-                             f"{angles[2]:.2f}", facet_angles])
+SUMMARY_FIELDS = ["created", "session", "scan", "method", "reference", "fit", "points", "coverage",
+                  "mean_signed_mm", "rms_mm", "median_abs_mm", "p95_abs_mm", "within_2mm", "reliable",
+                  "tx_mm", "ty_mm", "tz_mm", "yaw_deg", "facet_angle_errors_deg", "cloud"]
+
+
+def update_summary(path, where, cloud_path, reference, fits):
+    """Replace this scan and method's rows in the session summary (or add them), keeping the rest."""
+    session, scan, method = where
+    rows = []
+    if os.path.exists(path):
+        with open(path, newline="", encoding="utf-8") as fh:
+            rows = [r for r in csv.DictReader(fh)
+                    if (r["session"], r["scan"], r["method"], r["reference"])
+                    != (session, scan, method, os.path.basename(reference.path))]
+    for fit, (T, stats) in fits.items():
+        angles = np.degrees(cv2.Rodrigues(T[:3, :3])[0].ravel())
+        rows.append({
+            "created": datetime.datetime.now().isoformat(timespec="seconds"),
+            "session": session, "scan": scan, "method": method,
+            "reference": os.path.basename(reference.path), "fit": fit, "points": stats["points"],
+            "coverage": f"{stats['coverage']:.3f}", "mean_signed_mm": f"{stats['mean_signed_mm']:.3f}",
+            "rms_mm": f"{stats['rms_mm']:.3f}", "median_abs_mm": f"{stats['median_abs_mm']:.3f}",
+            "p95_abs_mm": f"{stats['p95_abs_mm']:.3f}", "within_2mm": f"{stats['within_2mm']:.3f}",
+            "reliable": stats["reliable"], "tx_mm": f"{T[0, 3]:.2f}", "ty_mm": f"{T[1, 3]:.2f}",
+            "tz_mm": f"{T[2, 3]:.2f}", "yaw_deg": f"{angles[2]:.2f}",
+            "facet_angle_errors_deg": ";".join(f"{f['plane_angle_error_deg']:.2f}" if "plane_angle_error_deg" in f
+                                               else "-" for f in stats["facets"]),
+            "cloud": rel(cloud_path)})
+    rows.sort(key=lambda r: (r["session"], r["scan"], r["method"], r["fit"]))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=SUMMARY_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def jobs(args):
+    """(cloud path, (session, scan, method) or None, output folder) for every cloud to compare."""
+    if args.clouds:
+        for cloud in args.clouds:
+            where = paths.locate(cloud)
+            if where:
+                yield cloud, where, paths.comparison_dir(*where)
+            elif args.out_dir:
+                yield cloud, None, os.path.join(args.out_dir, os.path.splitext(os.path.basename(cloud))[0])
+            else:
+                raise SystemExit(f"{cloud} is not under results/<session>/<scan>/<method>/: pass --out-dir")
+        return
+    scan = paths.scan_dir(args.session, args.scan)
+    methods = args.methods or sorted(m for m in os.listdir(scan)
+                                     if os.path.exists(os.path.join(scan, m, paths.CLOUD_CLEAN)))
+    if not methods:
+        raise SystemExit(f"no <method>/{paths.CLOUD_CLEAN} under {rel(scan)}: run postprocess_cloud.py first")
+    for method in methods:
+        cloud = os.path.join(paths.method_dir(args.session, args.scan, method), paths.CLOUD_CLEAN)
+        if not os.path.exists(cloud):
+            raise SystemExit(f"no {rel(cloud)}")
+        yield cloud, (args.session, args.scan, method), paths.comparison_dir(args.session, args.scan, method)
 
 
 def report(name, fits):
@@ -431,11 +479,9 @@ def main():
     print(f"reference {rel(args.reference)}: {len(reference.mesh.triangles)} visible triangles in "
           f"{reference.facet.max() + 1} faces, footprint {np.ptp(np.array(reference.footprint), 0).round(1).tolist()} mm, "
           f"height {reference.height:.1f} mm")
-    os.makedirs(args.out_dir, exist_ok=True)
-
-    for cloud_path in args.clouds:
+    for cloud_path, where, out_dir in jobs(args):
         xyz = np.asarray(o3d.io.read_point_cloud(cloud_path).points, np.float64)
-        name = os.path.splitext(os.path.basename(cloud_path))[0]
+        name = " / ".join(where) if where else os.path.splitext(os.path.basename(cloud_path))[0]
         points = object_points(xyz, args.min_height, reference.height)
         print(f"\n{rel(cloud_path)}: {len(xyz)} points, {len(points)} on the object")
 
@@ -447,24 +493,26 @@ def main():
             stats["reliable"] = bool(stats["coverage"] >= MIN_RELIABLE_COVERAGE)
             fits[fit] = (T, stats)
 
-        out_dir = os.path.join(args.out_dir, name)
         os.makedirs(out_dir, exist_ok=True)
         T, stats = fits["on_board"]
         _, _, signed, keep = evaluate(reference, points, T, args)
-        write_distance_ply(os.path.join(out_dir, f"{name}_distances.ply"), points[keep], signed, args.error_range)
+        write_distance_ply(os.path.join(out_dir, "distances.ply"), points[keep], signed, args.error_range)
         placed = o3d.geometry.TriangleMesh(reference.full)
         placed.transform(T)
         placed.compute_vertex_normals()
-        o3d.io.write_triangle_mesh(os.path.join(out_dir, f"{name}_reference_aligned.ply"), placed)
-        plot(os.path.join(out_dir, f"{name}_comparison.png"), name, reference, points[keep], signed, T, stats,
+        o3d.io.write_triangle_mesh(os.path.join(out_dir, "cad_aligned.ply"), placed)
+        plot(os.path.join(out_dir, "comparison.png"), name, reference, points[keep], signed, T, stats,
              args.error_range)
         with open(os.path.join(out_dir, "metrics.json"), "w", encoding="utf-8") as fh:
             json.dump({"created": datetime.datetime.now().isoformat(timespec="seconds"),
                        "cloud": rel(cloud_path), "reference": rel(args.reference),
+                       "session": where[0] if where else None, "scan": where[1] if where else None,
+                       "method": where[2] if where else None,
                        "settings": {k: v for k, v in vars(args).items() if k not in ("clouds",)},
                        "fits": {fit: {"transform_board_from_cad": describe_transform(T), **s}
                                 for fit, (T, s) in fits.items()}}, fh, indent=2, default=str)
-        append_summary(os.path.join(args.out_dir, "summary.csv"), name, cloud_path, reference, fits)
+        if where:
+            update_summary(paths.summary_path(where[0]), where, cloud_path, reference, fits)
         report(name, fits)
         print(f"  -> {rel(out_dir)}/")
 

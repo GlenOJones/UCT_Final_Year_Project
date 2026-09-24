@@ -29,7 +29,7 @@ a tag read as the wrong id lands in the fit at the wrong board position and is i
 More tags is still not the same as a better calibration: run Calibration.py with the winning preset
 and compare the reprojection error against the preset you started from.
 
-Every evaluation is cached to results/detector_sweep/<frames>_evaluations.jsonl as it finishes, so
+Every evaluation is cached to results/analysis/detector_sweep/<frames>_evaluations.jsonl as it finishes, so
 a sweep that is interrupted, or one re-run after SWEEP_AXES grows, only computes what is new. Pass
 --fresh to throw that cache away.
 
@@ -147,7 +147,7 @@ def parse_args(argv=None):
     ap.add_argument("--fresh", action="store_true",
                     help="ignore and overwrite the cached evaluations from earlier runs, "
                          "recomputing every candidate from scratch")
-    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/detector_sweep"),
+    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/analysis/detector_sweep"),
                     help="where the JSON record of the search goes")
     ap.add_argument("--save-preset", metavar="NAME",
                     help="add the winning settings to detector_presets.json under this name. "

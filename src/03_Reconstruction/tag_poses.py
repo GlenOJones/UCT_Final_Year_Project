@@ -20,10 +20,11 @@ stereo scale is left untouched and the printed size becomes a CHECK: a tag edge 
 81 mm on an 80 mm print means the calibration scale is 1.3% off, and every reconstructed distance
 carries the same error. (Sep24: 80.79 mm, so ~1.0% high.)
 
-    src/venv/bin/python src/03_Reconstruction/tag_poses.py
-    src/venv/bin/python src/03_Reconstruction/tag_poses.py --frames-dir results/3dRecon/Sep24/mjpg_pyr2
+    src/venv/bin/python src/03_Reconstruction/tag_poses.py --session Sep24 --scan mjpg_pyr_lights_2
 
-Writes results/reconstruction/<recording>_tag_poses.yaml, which dense_stereo.py reads.
+Reads the scan's frames from data/.../<session>/<scan>/frames and the session's calibration from
+results/<session>/calibration/; writes results/<session>/<scan>/poses/tag_poses.yaml, which every
+later stage reads (see src/project_paths.py for the layout).
 """
 import argparse
 import collections
@@ -35,8 +36,9 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stereo_rig import (CAMERAS, PROJECT_ROOT, RESULTS_DIR, find_frame_pairs, invert,  # noqa: E402
-                        load_rig, mean_rotation, rel, rigid_fit, transform)
+from stereo_rig import (CAMERAS, find_frame_pairs, invert, load_rig, mean_rotation, rel,  # noqa: E402
+                        rigid_fit, transform)
+import project_paths as paths  # noqa: E402
 
 # ====== REFERENCE TAGS ======
 # Edge of the outer black square as printed, mm. Used to seed the layout and as the scale check;
@@ -59,11 +61,10 @@ LAYOUT_ITERATIONS = 10
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Per-frame rig pose from stereo-triangulated AprilTags.")
-    ap.add_argument("--frames-dir", default=os.path.join(PROJECT_ROOT, "results/3dRecon/Sep24/mjpg_pyr2"),
-                    help="one recording, with left/ and right/ folders of paired frames")
-    ap.add_argument("--calibration", default=os.path.join(PROJECT_ROOT, "results/calibration/Sep24_wide_stereo.yaml"),
-                    help="stereo calibration YAML from src/01_Calibration/Calibration.py")
-    ap.add_argument("--out-dir", default=RESULTS_DIR)
+    paths.add_scan_arguments(ap)
+    ap.add_argument("--calibration", default=None,
+                    help="stereo calibration YAML from src/01_Calibration/Calibration.py "
+                         "(default: the one in results/<session>/calibration/)")
     # The gate matters more than it looks. On Sep24/mjpg_pyr2, tags near the image centre triangulate
     # to 80.5-80.9 mm edges at ~0.35 px, but in the right camera's left 200 px they come out at 86 mm
     # with ~1.0 px: the calibration is weak at the periphery. At 2.0 px those tags stay in, and the
@@ -72,7 +73,11 @@ def parse_args(argv=None):
     ap.add_argument("--max-reprojection", type=float, default=0.8,
                     help="px; a triangulated tag whose corners reproject worse than this is dropped "
                          "from that frame (default 0.8)")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    paths.require_scan(args, ap)
+    args.frames_dir = paths.frames_dir(args.session, args.scan)
+    args.calibration = args.calibration or paths.default_calibration(args.session)
+    return args
 
 
 # ====== DETECTION + TRIANGULATION ======
@@ -261,6 +266,8 @@ def write_yaml(path, args, rig, reference, layout, frames):
     fs.write("created", datetime.datetime.now().isoformat(timespec="seconds"))
     fs.write("script", "src/03_Reconstruction/tag_poses.py")
     fs.write("opencv_version", cv2.__version__)
+    fs.write("session", args.session)
+    fs.write("scan", args.scan)
     fs.write("frames_dir", rel(args.frames_dir))
     fs.write("calibration", rel(args.calibration))
     fs.write("baseline_mm", rig.baseline_mm)
@@ -333,9 +340,8 @@ def main():
                        "reprojection_px": float(np.mean(list(tag_errors.values()))) if tag_errors else None})
     report(layout, frames, observations)
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    recording = os.path.basename(os.path.normpath(args.frames_dir))
-    out_path = os.path.join(args.out_dir, f"{recording}_tag_poses.yaml")
+    out_path = paths.poses_path(args.session, args.scan)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
     write_yaml(out_path, args, rig, reference, layout, frames)
     print(f"\nsaved poses to {rel(out_path)}")
 

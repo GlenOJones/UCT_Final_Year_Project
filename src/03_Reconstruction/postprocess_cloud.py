@@ -8,10 +8,10 @@ Takes any cloud already in the board frame (dense_stereo.py's or colmap_mvs.py's
   4. meshes it with screened Poisson reconstruction, then trims the triangles Poisson invented
      where there were no points (low-density vertices) - otherwise the mesh balloons over the gaps.
 
-    src/venv/bin/python src/03_Reconstruction/postprocess_cloud.py --cloud results/reconstruction/mjpg_pyr2_colmap_cloud.ply
-    src/venv/bin/python src/03_Reconstruction/postprocess_cloud.py --show
+    src/venv/bin/python src/03_Reconstruction/postprocess_cloud.py --session Sep24 --scan mjpg_pyr_lights_2 --method colmap
+    src/venv/bin/python src/03_Reconstruction/postprocess_cloud.py --cloud path/to/cloud.ply --poses path/to/tag_poses.yaml --show
 
-Writes <cloud>_clean.ply, <cloud>_mesh.ply and a shaded render <cloud>_mesh.png beside the input. The clean cloud is what to align to
+Writes cloud_clean.ply, mesh.ply and a shaded render mesh.png beside the input. The clean cloud is what to align to
 the CAD model; the mesh is for looking at and for cloud-to-mesh distances the other way round.
 """
 import argparse
@@ -23,7 +23,8 @@ import numpy as np
 import open3d as o3d
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from stereo_rig import RESULTS_DIR, rel  # noqa: E402
+from stereo_rig import rel  # noqa: E402
+import project_paths as paths  # noqa: E402
 
 # Same light -> dark blue height ramp as view_cloud.py.
 HEIGHT_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
@@ -35,9 +36,7 @@ RENDER_SIZE = (1400, 900)
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Crop, de-noise and mesh a board-frame point cloud.")
-    ap.add_argument("--cloud", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_cloud.ply"))
-    ap.add_argument("--poses", default=os.path.join(RESULTS_DIR, "mjpg_pyr2_tag_poses.yaml"),
-                    help="tag_poses.py output, for the crop box and tag outlines")
+    paths.add_cloud_arguments(ap)
     ap.add_argument("--margin", type=float, default=60.0, help="mm kept around the tags (default 60)")
     ap.add_argument("--z-min", type=float, default=-15.0, help="mm (default -15)")
     ap.add_argument("--z-max", type=float, default=150.0, help="mm (default 150)")
@@ -49,7 +48,9 @@ def parse_args(argv=None):
     ap.add_argument("--density-quantile", type=float, default=0.05,
                     help="trim mesh vertices below this quantile of Poisson density (default 0.05)")
     ap.add_argument("--show", action="store_true", help="open an interactive Open3D window")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    args.cloud, args.poses = paths.resolve_cloud(args, ap)
+    return args
 
 
 def read_tags(path):
@@ -136,12 +137,14 @@ def main():
     cleaned, box = clean(cloud, tags, args)
     surface = mesh(cleaned, box, args)
 
-    stem = os.path.splitext(args.cloud)[0]
-    o3d.io.write_point_cloud(stem + "_clean.ply", cleaned)
-    o3d.io.write_triangle_mesh(stem + "_mesh.ply", surface)
+    folder = os.path.dirname(os.path.abspath(args.cloud))
+    clean_path, mesh_path = os.path.join(folder, paths.CLOUD_CLEAN), os.path.join(folder, paths.MESH)
+    render_path = os.path.splitext(mesh_path)[0] + ".png"
+    o3d.io.write_point_cloud(clean_path, cleaned)
+    o3d.io.write_triangle_mesh(mesh_path, surface)
     z = np.asarray(cleaned.points)[:, 2]
-    render(surface, stem + "_mesh.png", (max(np.percentile(z, 1), -5.0), max(np.percentile(z, 99.9), 10.0)))
-    print(f"saved {rel(stem + '_clean.ply')}, {rel(stem + '_mesh.ply')} and {rel(stem + '_mesh.png')}")
+    render(surface, render_path, (max(np.percentile(z, 1), -5.0), max(np.percentile(z, 99.9), 10.0)))
+    print(f"saved {rel(clean_path)}, {rel(mesh_path)} and {rel(render_path)}")
 
     if args.show:
         o3d.visualization.draw_geometries([cleaned, tag_outlines(tags)], window_name="cleaned cloud")

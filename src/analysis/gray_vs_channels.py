@@ -20,7 +20,7 @@ comparison), the mono calibration of each camera and how far each condition's co
 
 Usage (project root):
     src/venv/bin/python src/analysis/gray_vs_channels.py data/Calibration/18_Sep/Rigframes
-Outputs (default results/gray_vs_channels/): results.json, fig_gray_vs_channels.png
+Outputs (default results/analysis/gray_vs_channels/): results.json, fig_gray_vs_channels.png
 """
 import argparse
 import csv
@@ -163,7 +163,7 @@ def main():
     global frames_dir_global
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("frames_dir", type=Path, help="folder of extracted pairs, e.g. data/Calibration/18_Sep/Rigframes")
-    ap.add_argument("--out", type=Path, default=Path("results/gray_vs_channels"))
+    ap.add_argument("--out", type=Path, default=Path("results/analysis/gray_vs_channels"))
     args = ap.parse_args()
     frames_dir_global = args.frames_dir
     args.out.mkdir(parents=True, exist_ok=True)

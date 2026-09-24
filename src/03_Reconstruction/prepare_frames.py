@@ -79,9 +79,9 @@ def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Prepare frame pairs as a COLMAP workspace.")
     ap.add_argument("--frames-dir", default=os.path.join(PROJECT_ROOT, "data/Calibration/18_Sep/Rigframes"),
                     help="one folder per recording, each with left/ and right/ (default 18_Sep/Rigframes)")
-    ap.add_argument("--calibration", default=os.path.join(PROJECT_ROOT, "results/calibration/Rigframes_wide_stereo.yaml"),
+    ap.add_argument("--calibration", default=os.path.join(PROJECT_ROOT, "results/18_Sep/calibration/Rigframes_wide_stereo.yaml"),
                     help="calibration YAML from 01_Calibration/Calibration.py")
-    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/reconstruction"),
+    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "work/18_Sep/Rigframes/prepare_frames"),
                     help="where the COLMAP workspace is written")
     ap.add_argument("--camera-model", default="OPENCV", choices=list(CAMERA_MODELS),
                     help="COLMAP camera model; OPENCV drops k3, FULL_OPENCV keeps it (default OPENCV)")

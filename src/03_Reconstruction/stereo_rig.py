@@ -14,17 +14,12 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-# Paths are relative to the project root, resolved from this file
-# (src/03_Reconstruction/stereo_rig.py -> parents: 03_Reconstruction, src, project root).
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RESULTS_DIR = os.path.join(PROJECT_ROOT, "results/reconstruction")
+# Where everything lives is defined once, in src/project_paths.py.
+import sys  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from project_paths import PROJECT_ROOT, rel  # noqa: E402,F401
 
 CAMERAS = ("left", "right")
-
-
-def rel(path):
-    """Project-relative form of a path, so what is printed or recorded stays portable."""
-    return os.path.relpath(path, PROJECT_ROOT)
 
 
 @dataclass

@@ -24,7 +24,7 @@ Stages:
 
 Usage:
     src/venv/bin/python src/analysis/gray_vs_rgb_calibration.py data/Calibration/LabTesting/26Aug
-Outputs (default results/gray_vs_rgb/): results.json, per_frame_cv.csv,
+Outputs (default results/analysis/gray_vs_rgb/): results.json, per_frame_cv.csv,
 table_*.tex (booktabs), fig_*.pdf (+ .png previews).
 """
 import argparse
@@ -489,7 +489,7 @@ def fig_precision(out, prec, unit):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("folder", type=Path, help="recording folder (as for extract_stereo_frames.py)")
-    ap.add_argument("--out", type=Path, default=Path("results/gray_vs_rgb"))
+    ap.add_argument("--out", type=Path, default=Path("results/analysis/gray_vs_rgb"))
     ap.add_argument("--board", default="5x5", help="ChArUco squares WxH (default 5x5)")
     ap.add_argument("--dict", default="DICT_6X6_250")
     ap.add_argument("--first-id", type=int, default=24, help="id of the board's first marker (default 24)")
