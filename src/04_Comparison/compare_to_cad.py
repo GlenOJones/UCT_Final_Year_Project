@@ -16,10 +16,14 @@ Steps, for each cloud:
   2. Object points: points above --min-height (lower ones are board), in the largest connected
      cluster, which removes stray points floating over the board.
   3. Alignment: robust point-to-plane ICP against the exact CAD triangles (not a sampled copy),
-     started from a set of rotations about z, keeping the best. Two fits are made:
+     started from a set of rotations about z, keeping the best. Three fits are made:
        on-board (default 3 DOF: x, y, yaw) - the object sits flat on the board, and the board frame
            already fixes height and tilt. This is the absolute accuracy of the reconstruction: a
            height or tilt error shows up in the distances instead of being fitted away.
+       on_local_board (3 DOF) - as on_board, but after levelling the board in a ring 10-40 mm around
+           the object. The tags that define the board frame are 150-250 mm away, and the board near
+           the object can sit a mm or two off their plane; this fit takes that frame error out, so
+           what remains is the error of the object's own reconstruction.
        shape (6 DOF) - the best rigid fit, for the accuracy of the shape alone.
   4. Metrics per fit: signed distance of every object point to the surface (positive = outside),
      its bias, spread and percentiles; per face, how much of it the scan covers and the angle of a
@@ -31,6 +35,7 @@ Outputs in results/<session>/<scan>/comparison/<method>/:
                                property (and colours); CloudCompare loads it as a scalar field
   cad_aligned.ply              the CAD mesh moved into the board frame by the on-board fit
   comparison.png               top-down error map, histogram and profiles through the apex
+  comparison_local_board.png   the same for the on_local_board fit
 and results/<session>/summary.csv, one row per scan, method and fit; a re-run replaces that
 scan and method's rows, so the table always holds the latest result of each.
 """
@@ -53,6 +58,9 @@ DEFAULT_REFERENCE = os.path.join(PROJECT_ROOT, "data/GroundTruth/roughness_block
 
 # Degrees of freedom of each fit: indices into (rx, ry, rz, tx, ty, tz).
 FITS = {"on_board": [2, 3, 4], "shape": [0, 1, 2, 3, 4, 5]}
+
+# The local board: a ring this far outside the object's footprint (mm), used by the on_local_board fit.
+LOCAL_BOARD_RING = (10.0, 40.0)
 
 ICP_ITERATIONS = 60
 ICP_START_DISTANCE = 20.0     # mm; residuals above this are ignored in the first iteration...
@@ -217,6 +225,41 @@ def inside_footprint(reference, local, margin):
     return np.all((local[:, :2] >= low - margin) & (local[:, :2] <= high + margin), axis=1)
 
 
+def local_board_levelling(reference, xyz, T_board_ref):
+    """Transform C (board -> levelled) making the board AROUND the object z = 0, plus the ring's
+    height offset (mm) and tilt (deg) before levelling.
+
+    The board frame comes from the tags 150-250 mm away. On Sep24/mjpg_pyr_lights_2 the board just
+    around the pyramid read +1.5 mm (RAFT), +2.5 mm (SGBM) and -1.8 mm (COLMAP) in it: frame error
+    and board bow, not object error, yet the on_board fit counts it against the object. Levelling on
+    a ring of board around the object separates the two."""
+    T_ref_board = np.linalg.inv(T_board_ref)
+    local = transform(T_ref_board, xyz)
+    low, high = reference.footprint
+    outside = np.maximum.reduce([low[0] - local[:, 0], local[:, 0] - high[0],
+                                 low[1] - local[:, 1], local[:, 1] - high[1]])
+    ring = (outside > LOCAL_BOARD_RING[0]) & (outside < LOCAL_BOARD_RING[1]) & (np.abs(local[:, 2]) < 8)
+    board = xyz[ring]
+    if len(board) < 100:
+        return None, None, None
+    keep = np.ones(len(board), bool)
+    for _ in range(5):
+        a, b, c = np.linalg.lstsq(np.c_[board[keep, :2], np.ones(keep.sum())], board[keep, 2], rcond=None)[0]
+        r = board[:, 2] - (a * board[:, 0] + b * board[:, 1] + c)
+        keep = np.abs(r) < 3 * 1.4826 * np.median(np.abs(r[keep])) + 1e-6
+    normal = np.array([-a, -b, 1.0]) / np.linalg.norm([-a, -b, 1.0])
+    axis = np.cross(normal, [0.0, 0.0, 1.0])
+    angle = np.arcsin(np.linalg.norm(axis))
+    R = cv2.Rodrigues(axis / np.linalg.norm(axis) * angle)[0] if angle > 1e-12 else np.eye(3)
+    centre = board[keep].mean(0)
+    on_plane = np.array([centre[0], centre[1], a * centre[0] + b * centre[1] + c])
+    C = np.eye(4)
+    C[:3, :3], C[:3, 3] = R, np.array([centre[0], centre[1], 0.0]) - R @ on_plane
+    object_xy = transform(T_board_ref, np.array([[reference.centre_xy[0], reference.centre_xy[1], 0.0]]))[0]
+    offset = float(a * object_xy[0] + b * object_xy[1] + c)
+    return C, offset, float(np.degrees(angle))
+
+
 def align(reference, points, dof, min_height, margin, start=None):
     """Best ICP result over starting yaws about the object's centre (or from `start`)."""
     if start is not None:
@@ -290,10 +333,23 @@ def evaluate(reference, points, T_board_ref, args):
             fitted = np.linalg.svd(p - p.mean(0))[2][2]
             fitted = fitted if fitted @ design > 0 else -fitted
             entry["plane_angle_error_deg"] = float(np.degrees(np.arccos(np.clip(fitted @ design, -1, 1))))
+        entry["board_direction"] = board_direction(T_board_ref[:3, :3] @ design)
         facets.append(entry)
     stats["coverage"] = float(np.mean(covered))
-    stats["facets"] = facets
+    # Faces are labelled by where they point on the board, not by their index in the CAD file: fits
+    # rotate the CAD differently (a square pyramid fits equally at 90 deg steps), so the same index
+    # is a different physical face in different fits, and only the board direction compares.
+    order = {d: i for i, d in enumerate(("+x", "+y", "-x", "-y"))}
+    stats["facets"] = sorted(facets, key=lambda f: order.get(f["board_direction"], 9))
     return stats, local, signed, keep
+
+
+def board_direction(normal):
+    """'+x', '+y', '-x' or '-y' (the board axis a face points along), or 'up' for a top face."""
+    if abs(normal[2]) > 0.95:
+        return "up"
+    azimuth = np.degrees(np.arctan2(normal[1], normal[0]))
+    return ("+x", "+y", "-x", "-y")[int(np.round(azimuth / 90)) % 4]
 
 
 def describe_transform(T):
@@ -328,7 +384,7 @@ def write_distance_ply(path, xyz, signed, limit):
         fh.write(data.tobytes())
 
 
-def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit):
+def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit, fit="on_board"):
     """Top-down error map with the placed CAD outline, histogram, and profiles through the apex."""
     import matplotlib
     matplotlib.use("Agg")
@@ -341,7 +397,7 @@ def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit):
     fig = plt.figure(figsize=(15, 5.2), facecolor=SURFACE)
     fig.suptitle(f"{name} vs {os.path.basename(reference.path)}: RMS {stats['rms_mm']:.2f} mm, "
                  f"bias {stats['mean_signed_mm']:+.2f} mm, coverage {100 * stats['coverage']:.0f}% "
-                 f"(on-board fit)", x=0.01, ha="left", fontsize=11)
+                 f"({fit} fit)", x=0.01, ha="left", fontsize=11)
 
     ref_vertices = transform(T_board_ref, np.asarray(reference.full.vertices))
     triangles = np.asarray(reference.full.triangles)
@@ -398,7 +454,7 @@ def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit):
 
 SUMMARY_FIELDS = ["created", "session", "scan", "method", "reference", "fit", "points", "coverage",
                   "mean_signed_mm", "rms_mm", "median_abs_mm", "p95_abs_mm", "within_2mm", "reliable",
-                  "tx_mm", "ty_mm", "tz_mm", "yaw_deg", "facet_angle_errors_deg", "cloud"]
+                  "tx_mm", "ty_mm", "tz_mm", "yaw_deg", "face_coverage", "face_slope_errors_deg", "cloud"]
 
 
 def update_summary(path, where, cloud_path, reference, fits):
@@ -421,13 +477,16 @@ def update_summary(path, where, cloud_path, reference, fits):
             "p95_abs_mm": f"{stats['p95_abs_mm']:.3f}", "within_2mm": f"{stats['within_2mm']:.3f}",
             "reliable": stats["reliable"], "tx_mm": f"{T[0, 3]:.2f}", "ty_mm": f"{T[1, 3]:.2f}",
             "tz_mm": f"{T[2, 3]:.2f}", "yaw_deg": f"{angles[2]:.2f}",
-            "facet_angle_errors_deg": ";".join(f"{f['plane_angle_error_deg']:.2f}" if "plane_angle_error_deg" in f
-                                               else "-" for f in stats["facets"]),
+            # Per face, labelled by the board direction it faces: "+x:0.93;+y:0.94;...".
+            "face_coverage": ";".join(f"{f['board_direction']}:{f['coverage']:.2f}" for f in stats["facets"]),
+            "face_slope_errors_deg": ";".join(
+                f"{f['board_direction']}:" + (f"{f['plane_angle_error_deg']:.2f}" if "plane_angle_error_deg" in f else "-")
+                for f in stats["facets"]),
             "cloud": rel(cloud_path)})
     rows.sort(key=lambda r: (r["session"], r["scan"], r["method"], r["fit"]))
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=SUMMARY_FIELDS)
+        writer = csv.DictWriter(fh, fieldnames=SUMMARY_FIELDS, extrasaction="ignore", restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -460,17 +519,20 @@ def report(name, fits):
     print(f"\n{name}")
     print(f"  scored inside the CAD footprint; {fits['on_board'][1]['points_outside_footprint']} raised points "
           f"just outside it (board noise) not scored")
-    print(f"  {'fit':9s} {'points':>7s} {'cover':>6s} {'bias':>7s} {'RMS':>6s} {'med|d|':>7s} {'p95':>6s} "
+    print(f"  {'fit':14s} {'points':>7s} {'cover':>6s} {'bias':>7s} {'RMS':>6s} {'med|d|':>7s} {'p95':>6s} "
           f"{'<2mm':>5s}   placement (x, y, z mm; yaw deg)")
     for fit, (T, s) in fits.items():
         yaw = np.degrees(cv2.Rodrigues(T[:3, :3])[0].ravel())[2]
-        print(f"  {fit:9s} {s['points']:7d} {100 * s['coverage']:5.0f}% {s['mean_signed_mm']:+7.2f} "
+        print(f"  {fit:14s} {s['points']:7d} {100 * s['coverage']:5.0f}% {s['mean_signed_mm']:+7.2f} "
               f"{s['rms_mm']:6.2f} {s['median_abs_mm']:7.2f} {s['p95_abs_mm']:6.2f} {100 * s['within_2mm']:4.0f}%   "
               f"({T[0, 3]:.1f}, {T[1, 3]:.1f}, {T[2, 3]:.2f}; {yaw:.1f})"
               + ("" if s["reliable"] else f"   UNRELIABLE: covers under {100 * MIN_RELIABLE_COVERAGE:.0f}% of the surface"))
-        faces = ", ".join(f"{100 * f['coverage']:.0f}%" + (f"/{f['plane_angle_error_deg']:.1f}deg"
+        faces = ", ".join(f"{f['board_direction']} {100 * f['coverage']:.0f}%" + (f"/{f['plane_angle_error_deg']:.1f}deg"
                           if "plane_angle_error_deg" in f else "") for f in s["facets"])
-        print(f"  {'':9s} per face (coverage/slope error): {faces}")
+        print(f"  {'':14s} per face (coverage/slope error): {faces}")
+        if "local_board_offset_mm" in s:
+            print(f"  {'':14s} board around the object was {s['local_board_offset_mm']:+.2f} mm off z = 0 and "
+                  f"tilted {s['local_board_tilt_deg']:.2f} deg in the tag frame (levelled out for this fit)")
 
 
 def main():
@@ -492,6 +554,15 @@ def main():
             stats, _, _, _ = evaluate(reference, points, T, args)
             stats["reliable"] = bool(stats["coverage"] >= MIN_RELIABLE_COVERAGE)
             fits[fit] = (T, stats)
+        # on_local_board: the same 3-DOF fit after levelling the board around the object.
+        C, ring_offset, ring_tilt = local_board_levelling(reference, xyz, T_on_board)
+        if C is not None:
+            levelled = transform(C, points)
+            T_local, _, _ = align(reference, levelled, FITS["on_board"], args.min_height, args.margin, start=T_on_board)
+            stats, _, _, _ = evaluate(reference, levelled, T_local, args)
+            stats["reliable"] = bool(stats["coverage"] >= MIN_RELIABLE_COVERAGE)
+            stats["local_board_offset_mm"], stats["local_board_tilt_deg"] = ring_offset, ring_tilt
+            fits["on_local_board"] = (np.linalg.inv(C) @ T_local, stats)
 
         os.makedirs(out_dir, exist_ok=True)
         T, stats = fits["on_board"]
@@ -503,6 +574,11 @@ def main():
         o3d.io.write_triangle_mesh(os.path.join(out_dir, "cad_aligned.ply"), placed)
         plot(os.path.join(out_dir, "comparison.png"), name, reference, points[keep], signed, T, stats,
              args.error_range)
+        if "on_local_board" in fits:
+            T_local, stats_local = fits["on_local_board"]
+            _, _, signed_local, keep_local = evaluate(reference, points, T_local, args)
+            plot(os.path.join(out_dir, "comparison_local_board.png"), name, reference, points[keep_local],
+                 signed_local, T_local, stats_local, args.error_range, fit="on_local_board")
         with open(os.path.join(out_dir, "metrics.json"), "w", encoding="utf-8") as fh:
             json.dump({"created": datetime.datetime.now().isoformat(timespec="seconds"),
                        "cloud": rel(cloud_path), "reference": rel(args.reference),

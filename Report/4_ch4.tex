@@ -175,6 +175,19 @@ The settings for the detector stages described in Section~\ref{subsec:ch3.detect
 \label{sec:ch4.reconstructionstage}
 %=====================================================================
 
+AI:
+2. Underwater-specific stereo models
+StereoAdapter-2
+Adapts the Depth Anything 3 model to underwater stereo using lightweight fine-tuning (LoRA).
+Trained on a new 80,000-pair synthetic underwater dataset with 20–50 cm camera baselines, and tested on a real BlueROV2.
+Code: https://github.com/AIGeeksGroup/StereoAdapter-2
+AquaStereo (ECCV 2026)
+Designed specifically for underwater colour loss, turbidity and low texture, which is exactly your problem.
+Code and pretrained weights (ViT-B and ViT-S) are on Hugging Face.
+UWStereo (dataset, not a model)
+29,568 synthetic underwater stereo pairs with exact depth.
+Its authors found that current models still generalise poorly to new underwater scenes, which is a good reason to test several models on your target.
+
 %*********************************************************************
 % END
 %*********************************************************************

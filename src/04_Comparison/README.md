@@ -16,10 +16,11 @@ With `--session/--scan` it compares every method folder of the scan that has a `
 2. **Object points.** It keeps points more than 3 mm above the board, in the connected cluster that reaches highest.
 3. **Two fits of the CAD model onto the scan.** Both use robust point-to-plane ICP against the exact CAD triangles, started from 24 rotations about z:
    - **on_board** (x, y, yaw): the object sits flat on the board, and the board frame already fixes its height and tilt. Height and tilt errors in the reconstruction therefore show up in the numbers. **Use this one for the absolute accuracy.**
+   - **on_local_board** (x, y, yaw): the same after levelling the board in a ring 10–40 mm around the object. The tags that define the board frame are 150–250 mm away, and the board next to the object can sit a mm or two off their plane; this fit keeps that frame error out of the object's accuracy, and reports the offset. **Use it for dense-stereo methods** (SGBM, RAFT). COLMAP reconstructs too little of a plain board for the ring to be reliable.
    - **shape** (6 DOF): the best rigid fit, so it measures the accuracy of the shape alone.
 4. **Scoring,** over the CAD footprint plus 2 mm:
    - the signed distance of each point to the surface (positive = outside), with its bias, RMS, median and 95th percentile;
-   - per face, how much of it the scan covers, and the angle between a plane fitted through its points and the designed face.
+   - per face, how much of it the scan covers, and the angle between a plane fitted through its points and the designed face. Faces are labelled by the board direction they face (+x, +y, −x, −y), because fits can rotate a symmetric CAD model by 90° and the face numbering in the file would then name different physical faces.
 
    If a fit covers less than 15% of the surface, it is flagged **UNRELIABLE**.
 
@@ -27,7 +28,8 @@ With `--session/--scan` it compares every method folder of the scan that has a `
 | File | Contents |
 |---|---|
 | `metrics.json` | Every number for both fits, the transforms, and the settings used |
-| `comparison.png` | Top-down error map, histogram, and profiles through the apex |
+| `comparison.png` | Top-down error map, histogram, and profiles through the apex (on_board fit) |
+| `comparison_local_board.png` | The same for the on_local_board fit |
 | `distances.ply` | Object points coloured by error, with a `signed_distance` scalar field |
 | `cad_aligned.ply` | The CAD mesh placed by the on_board fit, in the board frame |
 
@@ -43,6 +45,14 @@ flatpak run org.cloudcompare.CloudCompare $D/distances.ply $D/cad_aligned.ply
 - **Cross-sections.** The *Cross Section* tool cuts slices through the apex.
 - **Check in CloudCompare's own code.** Run *Cloud/Mesh Dist* (under *Distances*) with the aligned reference as the mesh. It should reproduce `signed_distance`, since both are already in the same frame.
 - **Measuring.** *Point picking* measures a point, a distance or an angle by hand.
+
+## Plotting a session
+`plot_summary.py` draws accuracy against coverage for every method of a session from its `summary.csv`. Variants that differ only in voting threshold (`<method>_v<k>`) are joined into one curve:
+```
+src/venv/bin/python src/04_Comparison/plot_summary.py --session Sep24            # on_local_board fit
+src/venv/bin/python src/04_Comparison/plot_summary.py --session Sep24 --all      # include one-off experiments
+```
+It writes `results/<session>/accuracy_vs_coverage_<fit>.png`.
 
 ## Results
 See `results/<session>/summary.csv` and the session README (for example `results/Sep24/README.md`).

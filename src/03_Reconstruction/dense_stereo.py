@@ -51,9 +51,14 @@ MERGE_EVERY = 10          # frames between voxel merges, which keeps memory boun
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Fuse per-frame stereo depth into one point cloud.")
+    paths.add_scan_arguments(ap)
+    ap.add_argument("--matcher", default="sgbm", choices=("sgbm", "raft", "aquastereo"),
+                    help="sgbm (OpenCV semi-global block matching); raft (RAFT-Stereo, learned; run with "
+                         "envs/raft, see raft_matcher.py); aquastereo (AquaStereo, learned for underwater "
+                         "images; run with envs/aquastereo, see aquastereo_matcher.py)")
     # The method name is the output folder, so a variant run (other block size, say) can be kept
     # beside the default as e.g. --method sgbm_block5.
-    paths.add_scan_arguments(ap, method="sgbm")
+    ap.add_argument("--method", default=None, help="output folder name (default: the matcher's name)")
     ap.add_argument("--step", type=int, default=1, help="use every Nth posed frame (default 1)")
     ap.add_argument("--voxel", type=float, default=1.0, help="mm, fusion grid size (default 1)")
     ap.add_argument("--min-views", type=int, default=3,
@@ -65,10 +70,22 @@ def parse_args(argv=None):
     ap.add_argument("--block-size", type=int, default=9, help="SGBM window, px, odd (default 9)")
     ap.add_argument("--uniqueness", type=int, default=5,
                     help="SGBM uniqueness ratio, %%: best match must beat the next by this (default 5)")
+    ap.add_argument("--raft-model", default="middlebury", choices=("middlebury", "eth3d", "rvc"),
+                    help="which published RAFT-Stereo weights (default middlebury)")
+    ap.add_argument("--aqua-model", default="vitb", choices=("vitb", "vits"),
+                    help="AquaStereo checkpoint: DINOv2 ViT-B or the lighter ViT-S (default vitb)")
+    # Settings shared by the learned matchers (--raft-* names kept as aliases for older commands).
+    ap.add_argument("--net-iters", "--raft-iters", dest="net_iters", type=int, default=32,
+                    help="update iterations of a learned matcher (default 32)")
+    ap.add_argument("--net-scale", "--raft-scale", dest="net_scale", type=float, default=1.0,
+                    help="image scale fed to a learned matcher, e.g. 0.5 for speed or memory (default 1)")
+    ap.add_argument("--lr-tolerance", "--raft-lr-tolerance", dest="lr_tolerance", type=float, default=1.0,
+                    help="px; left-right consistency check for a learned matcher, 0 to switch it off (default 1)")
     ap.add_argument("--debug-every", type=int, default=0,
                     help="save rectified image + disparity for every Nth used frame (0 = never)")
     args = ap.parse_args(argv)
     paths.require_scan(args, ap)
+    args.method = args.method or args.matcher
     return args
 
 
@@ -152,13 +169,19 @@ def match(left, right, minimum, count, block_size, uniqueness):
     return disparity
 
 
-def frame_points(rectifier, left_path, right_path, T_cam_board, low, high, args):
+def frame_points(rectifier, left_path, right_path, T_cam_board, low, high, args, network=None):
     """Board-frame points and grey values for one pair, cropped to the box. Also returns the
     rectified left image and disparity for debugging."""
     left, right = rectifier.rectify("left", left_path), rectifier.rectify("right", right_path)
     minimum, count = rectifier.disparity_range(T_cam_board, low, high)
-    disparity = match(left, right, minimum, count, args.block_size, args.uniqueness)
-    valid = disparity >= minimum   # SGBM marks unmatched pixels minimum - 1
+    if network is None:
+        disparity = match(left, right, minimum, count, args.block_size, args.uniqueness)
+    else:
+        # A learned matcher searches every disparity by itself; the box's range only decides what
+        # is kept.
+        disparity = network.disparity(left, right)
+        disparity[disparity < minimum] = minimum - 1
+    valid = disparity >= minimum   # unmatched pixels are minimum - 1, as SGBM marks them
     xyz_rect = cv2.reprojectImageTo3D(disparity, rectifier.rig.Q)[valid]
     T_board_rect = invert(T_cam_board) @ rectifier.T_cam_rect
     xyz = transform(T_board_rect, xyz_rect.astype(np.float64))
@@ -251,15 +274,30 @@ def main():
     used = frames[::args.step]
     print(f"{len(used)} of {len(frames)} posed frames from {rel(frames_dir)}")
     print(f"box (board frame, mm): x {low[0]:.0f}..{high[0]:.0f}, y {low[1]:.0f}..{high[1]:.0f}, "
-          f"z {low[2]:.0f}..{high[2]:.0f}; voxel {args.voxel} mm; "
-          f"SGBM block {args.block_size}, uniqueness {args.uniqueness}")
+          f"z {low[2]:.0f}..{high[2]:.0f}; voxel {args.voxel} mm")
+    network = None
+    if args.matcher == "raft":
+        from raft_matcher import RaftMatcher   # needs PyTorch: run with envs/raft/bin/python
+        network = RaftMatcher(model=args.raft_model, iterations=args.net_iters, scale=args.net_scale,
+                              lr_tolerance=args.lr_tolerance)
+        name = f"RAFT-Stereo ({args.raft_model})"
+    elif args.matcher == "aquastereo":
+        from aquastereo_matcher import AquaStereoMatcher   # run with envs/aquastereo/bin/python
+        network = AquaStereoMatcher(model=args.aqua_model, iterations=args.net_iters, scale=args.net_scale,
+                                    lr_tolerance=args.lr_tolerance)
+        name = f"AquaStereo ({args.aqua_model})"
+    if network is not None:
+        print(f"matcher {name}: {args.net_iters} iterations, scale {args.net_scale}, "
+              f"left-right check {args.lr_tolerance} px")
+    else:
+        print(f"matcher SGBM: block {args.block_size}, uniqueness {args.uniqueness}")
 
     grid = VoxelGrid(args.voxel)
     start = time.time()
     for k, (name, T_cam_board) in enumerate(used):
         xyz, grey, left, disparity, disparity_range = frame_points(
             rectifier, os.path.join(frames_dir, "left", name), os.path.join(frames_dir, "right", name),
-            T_cam_board, low, high, args)
+            T_cam_board, low, high, args, network)
         grid.add(xyz, grey)
         if args.debug_every and k % args.debug_every == 0:
             save_debug(debug_dir, name, left, disparity, disparity_range)

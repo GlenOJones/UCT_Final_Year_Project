@@ -65,6 +65,7 @@ QUIT_KEYS = (ord("q"), 27)
 BACKSPACE_KEYS = (8, 65288, 0x1000003)
 LABEL_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 WHITE, GREEN, RED, YELLOW = (255, 255, 255), (0, 255, 0), (0, 0, 255), (0, 255, 255)
+MAX_DT_MS = 10.0  # default max left/right gap: just above the ~8.75 ms offset of our free-running cameras
 HELP = "a/d: -1/+1   s/w: -10/+10   space: mark   enter: save   q: quit"
 
 
@@ -340,7 +341,7 @@ def main():
     ap.add_argument("folder", type=Path, help="recording folder with left/right .mkv and _timestamps.csv")
     ap.add_argument("mode", choices=["all", "select"])
     ap.add_argument("--step", type=int, default=1, help="all mode: take every Nth right frame")
-    ap.add_argument("--max-dt-ms", type=float, help="max left/right time gap (default: 1/4 frame interval)")
+    ap.add_argument("--max-dt-ms", type=float, default=MAX_DT_MS, help=f"max left/right time gap (default: {MAX_DT_MS:g})")
     ap.add_argument("--screen", type=lambda s: tuple(map(int, s.split("x"))), default=(1880, 1000),
                     help="viewer size limit WxH (default 1880x1000)")
     ap.add_argument("--overwrite", action="store_true", help="replace existing output instead of refusing to run")
@@ -355,8 +356,6 @@ def main():
     rec, out = load_recording(args.folder), args.out or args.folder / "frames"
     n = len(rec["right"]["pts"])
     max_dt_ms = args.max_dt_ms
-    if max_dt_ms is None:
-        max_dt_ms = 0.25 * np.median(np.diff(rec["right"]["pts"])) / 1e6
     print(f"{n} right / {len(rec['left']['pts'])} left frames, max pair gap {max_dt_ms:.1f} ms")
     if not args.overwrite and ((out / "pairs.csv").exists() or any(out.glob("*/*.png"))):
         sys.exit(f"{out} already has output; pass --overwrite to replace it (or choose another --out)")

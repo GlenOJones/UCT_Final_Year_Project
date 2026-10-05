@@ -57,7 +57,18 @@ CAMERAS = ("left", "right")
 #   CORNER_REFINE_SUBPIX    keeps the tags but corners are off by ~1.5 px (OpenCV 5.0.0)
 # Calling cv2.cornerSubPix directly keeps every tag and gives ~0.3 px corners, so the detector's own
 # refinement is left off (forced in Presets.make_detector).
-SUBPIX_WIN = (5, 5)   # half-size of the search window, px
+#
+# The search window scales with each tag instead of being fixed. Every tag corner of the AprilGrid
+# touches a small black square, so the true corner is an X-junction, and the detector's starting point
+# sits a few px inside the tag - further for large, soft tags close to the camera. The window must:
+#   - reach from that starting point to the junction, or cornerSubPix sees only flat dark pixels and
+#     stays put. A fixed 5 px half-window left 40-60 cm frames 4-6 px off, pulled into the tag;
+#   - stay inside the white gap (TAG_GAP = 30% of the tag side), or it also sees the far corner of the
+#     small square and is pulled towards it. With 5 px this broke the 20-25 px tags at 1-1.3 m in air.
+# 15% of the tag side does both: 0.22-0.30 px at every distance from 0.2 to 1.3 m, in air (5 Oct) and in
+# water (30 Sep), against 1.5-2.2 px with 5 px. 20% was marginal and 25% failed (it reaches the square).
+SUBPIX_WIN_FRACTION = 0.15   # half-size of the search window, as a fraction of the tag side
+SUBPIX_WIN_MIN = 2           # px, floor for very small tags
 SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
 
 
@@ -263,9 +274,17 @@ def setup(args):
 
 
 # ====== DETECTION ======
+def subpix_window(tag_corners):
+    """cornerSubPix half-window for one tag: SUBPIX_WIN_FRACTION of its mean side length in the image."""
+    quad = tag_corners.reshape(4, 2)
+    side = np.mean(np.linalg.norm(quad - np.roll(quad, 1, axis=0), axis=1))
+    half = max(SUBPIX_WIN_MIN, int(round(SUBPIX_WIN_FRACTION * side)))
+    return half, half
+
+
 def refine_corners(gray, corners):
-    """Sub-pixel refine every tag corner on the original image."""
-    return tuple(cv2.cornerSubPix(gray, c.reshape(4, 1, 2).copy(), SUBPIX_WIN, (-1, -1), SUBPIX_CRITERIA)
+    """Sub-pixel refine every tag corner on the original image, with a window sized to its tag."""
+    return tuple(cv2.cornerSubPix(gray, c.reshape(4, 1, 2).copy(), subpix_window(c), (-1, -1), SUBPIX_CRITERIA)
                  .reshape(1, 4, 2) for c in corners)
 
 
@@ -290,9 +309,11 @@ def save_detection_image(run, camera, name, gray, corners, ids, rejected):
     cv2.imwrite(out_path, vis)
 
 
-def detect_tags(run, camera):
+def detect_tags(run, camera, found=None):
     """Detect tags in every image of one camera.
-    Returns {"folder/filename": (corners, ids)} for the usable images only."""
+    Returns {"folder/filename": (corners, ids)} for the usable images only. If `found` is a dict, it
+    is filled with {"folder/filename": sorted tag ids} for EVERY image, usable or not, so the
+    detection rate can be reported from the run itself."""
     image_files = find_images(run.frames_dir, camera)
     detections = {}
     for path in image_files:
@@ -306,6 +327,8 @@ def detect_tags(run, camera):
             save_detection_image(run, camera, name, gray, corners, ids, rejected)
 
         n_tags = 0 if ids is None else len(ids)
+        if found is not None:
+            found[name] = [] if ids is None else sorted(int(i) for i in ids.ravel())
         if n_tags < run.min_tags:
             print(f"  {camera}: skip {name}: {n_tags} tags")
             continue
@@ -557,7 +580,48 @@ def write_stereo(fs, stereo, run):
     fs.endWriteStruct()
 
 
-def write_yaml(run, intrinsics, stereo):
+def write_detection(fs, run, found):
+    """Tags found per image and per tag id, for every image of each camera (usable or not)."""
+    fs.writeComment("---- Detection: how many of the board's tags were found, in every image ----")
+    fs.startWriteStruct("detection", cv2.FileNode_MAP)
+    for camera in CAMERAS:
+        names = sorted(found[camera])
+        # Ids outside the board's 0..N_TAGS-1 are false detections (the calibration ignores them:
+        # matchImagePoints only knows the board's ids). Underwater caustics produce them.
+        on_board = {n: [i for i in found[camera][n] if 0 <= i < N_TAGS] for n in names}
+        counts = np.array([len(on_board[n]) for n in names])
+        false = np.array([len(found[camera][n]) - len(on_board[n]) for n in names])
+        per_id = np.zeros(N_TAGS, int)
+        for n in names:
+            per_id[on_board[n]] += 1
+        fs.writeComment(f"{camera}: {len(names)} images, median {np.median(counts):.0f} of {N_TAGS} tags, "
+                        f"{np.sum(counts >= run.min_tags)} usable (>= {run.min_tags} tags), "
+                        f"{np.sum(counts == 0)} with none, {false.sum()} false detections (ids not on the board)")
+        fs.startWriteStruct(camera, cv2.FileNode_MAP)
+        fs.startWriteStruct("images", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
+        for n in names:
+            fs.write("", n)
+        fs.endWriteStruct()
+        fs.writeComment("tags_found[i] is the number of board tags detected in images[i]")
+        fs.startWriteStruct("tags_found", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
+        for c in counts:
+            fs.write("", int(c))
+        fs.endWriteStruct()
+        fs.writeComment("false_found[i] is the number of detections in images[i] with an id not on the board")
+        fs.startWriteStruct("false_found", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
+        for c in false:
+            fs.write("", int(c))
+        fs.endWriteStruct()
+        fs.writeComment(f"images_per_tag_id[k] is the number of images in which tag id k was found (ids 0..{N_TAGS - 1})")
+        fs.startWriteStruct("images_per_tag_id", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
+        for c in per_id:
+            fs.write("", int(c))
+        fs.endWriteStruct()
+        fs.endWriteStruct()
+    fs.endWriteStruct()
+
+
+def write_yaml(run, intrinsics, stereo, found=None):
     """Write the whole calibration, with the comments that make it readable on its own."""
     os.makedirs(run.out_dir, exist_ok=True)
     fs = cv2.FileStorage(run.yaml_path, cv2.FILE_STORAGE_WRITE)
@@ -603,6 +667,9 @@ def write_yaml(run, intrinsics, stereo):
     fs.writeComment("Full detector settings for this preset, so the run can be reproduced from this file alone:")
     fs.write("detector_settings", run.detector_settings)
     fs.write("corner_refinement", "cornerSubPix")
+    fs.writeComment(f"cornerSubPix half-window = {SUBPIX_WIN_FRACTION:g} x tag side in px (at least {SUBPIX_WIN_MIN} px)")
+    fs.write("corner_window_fraction", SUBPIX_WIN_FRACTION)
+    fs.write("corner_window_min_px", SUBPIX_WIN_MIN)
     fs.write("min_tags_per_image", run.min_tags)
     fs.endWriteStruct()
 
@@ -610,6 +677,9 @@ def write_yaml(run, intrinsics, stereo):
         write_camera(fs, camera, intrinsics[camera], run.image_size)
 
     write_stereo(fs, stereo, run)
+
+    if found is not None:
+        write_detection(fs, run, found)
 
     fs.release()
 
@@ -622,10 +692,11 @@ def calibrate(argv=None):
     """
     presets = load_presets()
     run = setup(parse_args(presets, argv))
-    detections = {camera: detect_tags(run, camera) for camera in CAMERAS}
+    found = {camera: {} for camera in CAMERAS}
+    detections = {camera: detect_tags(run, camera, found[camera]) for camera in CAMERAS}
     intrinsics = {camera: calibrate_camera(run, camera, detections[camera]) for camera in CAMERAS}
     stereo = calibrate_stereo(run, detections, intrinsics)
-    write_yaml(run, intrinsics, stereo)
+    write_yaml(run, intrinsics, stereo, found)
     print(f"\nsaved calibration to {rel(run.yaml_path)}")
     return run, intrinsics, stereo
 
