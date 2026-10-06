@@ -41,8 +41,8 @@ from stereo_rig import (CAMERAS, find_frame_pairs, invert, load_rig, mean_rotati
 import project_paths as paths  # noqa: E402
 
 # ====== REFERENCE TAGS ======
-# Edge of the outer black square as printed, mm. Used to seed the layout and as the scale check;
-# the layout itself is refined from the triangulated corners.
+# Edge of the outer black square as printed, mm (Sep24: 80; Sep30: 50). Used to seed the layout and
+# as the scale check; the layout itself is refined from the triangulated corners. --tag-size sets it.
 TAG_SIZE = 80.0
 
 # The reference tags are ordinary AprilTags: 1-bit border, unlike the Kalibr calibration board (2).
@@ -73,6 +73,8 @@ def parse_args(argv=None):
     ap.add_argument("--max-reprojection", type=float, default=0.8,
                     help="px; a triangulated tag whose corners reproject worse than this is dropped "
                          "from that frame (default 0.8)")
+    ap.add_argument("--tag-size", type=float, default=TAG_SIZE,
+                    help=f"mm, printed edge of the reference tags' outer black square (default {TAG_SIZE:g})")
     args = ap.parse_args(argv)
     paths.require_scan(args, ap)
     args.frames_dir = paths.frames_dir(args.session, args.scan)
@@ -312,7 +314,10 @@ def write_yaml(path, args, rig, reference, layout, frames):
 
 
 def main():
+    global TAG_SIZE, TAG_MODEL
     args = parse_args()
+    TAG_MODEL = TAG_MODEL * args.tag_size / TAG_SIZE
+    TAG_SIZE = args.tag_size
     rig = load_rig(args.calibration)
     pairs = find_frame_pairs(args.frames_dir)
     detector = make_detector()

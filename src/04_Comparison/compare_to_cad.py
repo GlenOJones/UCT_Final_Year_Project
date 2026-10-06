@@ -97,6 +97,8 @@ def parse_args(argv=None):
                     help="mm; a CAD surface patch counts as covered if a point is this close (default 2)")
     ap.add_argument("--error-range", type=float, default=5.0,
                     help="mm; colour scale of the error map runs from minus to plus this (default 5)")
+    ap.add_argument("--no-summary", action="store_true",
+                    help="leave results/<session>/summary.csv alone (score_objects.py keeps its own table)")
     args = ap.parse_args(argv)
     if not args.clouds:
         paths.require_scan(args, ap)
@@ -330,7 +332,8 @@ def evaluate(reference, points, T_board_ref, args):
             # Plane through this facet's points; its tilt from the design face is a slope error
             # that does not depend on how much of the face was covered.
             p = local[mine]
-            fitted = np.linalg.svd(p - p.mean(0))[2][2]
+            # full_matrices=False: the default also builds the N x N U, ~7 GB for a 30k-point face.
+            fitted = np.linalg.svd(p - p.mean(0), full_matrices=False)[2][2]
             fitted = fitted if fitted @ design > 0 else -fitted
             entry["plane_angle_error_deg"] = float(np.degrees(np.arccos(np.clip(fitted @ design, -1, 1))))
         entry["board_direction"] = board_direction(T_board_ref[:3, :3] @ design)
@@ -496,10 +499,10 @@ def jobs(args):
     if args.clouds:
         for cloud in args.clouds:
             where = paths.locate(cloud)
-            if where:
+            if args.out_dir:
+                yield cloud, where, os.path.join(args.out_dir, os.path.splitext(os.path.basename(cloud))[0])
+            elif where:
                 yield cloud, where, paths.comparison_dir(*where)
-            elif args.out_dir:
-                yield cloud, None, os.path.join(args.out_dir, os.path.splitext(os.path.basename(cloud))[0])
             else:
                 raise SystemExit(f"{cloud} is not under results/<session>/<scan>/<method>/: pass --out-dir")
         return
@@ -587,7 +590,7 @@ def main():
                        "settings": {k: v for k, v in vars(args).items() if k not in ("clouds",)},
                        "fits": {fit: {"transform_board_from_cad": describe_transform(T), **s}
                                 for fit, (T, s) in fits.items()}}, fh, indent=2, default=str)
-        if where:
+        if where and not args.no_summary:
             update_summary(paths.summary_path(where[0]), where, cloud_path, reference, fits)
         report(name, fits)
         print(f"  -> {rel(out_dir)}/")

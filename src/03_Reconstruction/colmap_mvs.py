@@ -539,6 +539,9 @@ def write_source_lists(ws, n_sources):
     partner first, then the views whose triangulation angle at a point TARGET_DEPTH_MM in front of the
     reference is closest to SOURCE_TARGET_ANGLE, among those that see that point near their centre."""
     poses = read_model_images(ws, os.path.join(ws, "dense", "sparse"))
+    # The undistorted model lists every image even when --dense-step undistorted only some of them;
+    # a reference or source without an image makes patch_match_stereo abort.
+    poses = {n: T for n, T in poses.items() if os.path.exists(os.path.join(ws, "dense", "images", n))}
     names = sorted(poses)
     centre = {n: invert(T)[:3, 3] for n, T in poses.items()}
     axis = {n: invert(T)[:3, 2] for n, T in poses.items()}
