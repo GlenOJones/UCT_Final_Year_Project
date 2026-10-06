@@ -86,7 +86,86 @@ Each new placement in the 3D scene defines a different world coordinate system.
 % TODO ADD IMAGE
 % TODO 23 Sep
 %---------------------------------------------------------------------
-\
+Before working with images, it is important to undestand the basic working of cameras by looking at a simple camera model. 
+. A modern camera sensor captures incoming light inn each point in a 3D image (or object) sends out light in multiple directions.
+ This means that every point on the sensor recieves light from every point of the objdct, resulting in a blur across the sensor. This can be fixed with a barrier 
+ and a tiny hole (aperture). The barrier means that from each 3D point, only one or a small number of rays get through the aperture to the film. Each 
+ point therefore only lands on a single sensor point, allowing for a clear image and a mapping from the 3D object to the 2D sensor. This is known as the pinhole camera model.
+ Figure x below shows a basic version of this pinhole model.
+\cite{hataCS231ACourseNotes}
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_model2.png}
+	\caption[PLaceholder Example]{\textbf{Lead-in.} Description.}
+	\label{fig:ch3.pinhole_model}
+\end{figure}
+
+The standard terminlogy for a pinhole camera model is:
+- Image plane: $\Pi'$: the sensor
+- Pinhole (Camera center), O: the point (aperture) through which all rays pass
+- Focal length, f: distance from O to the image plance.
+- Virtual image plane: imaginary plane placed at a distance f in front of O between the pinhole and object.The image 
+of the object in this plane is identical scaled and not flipped.
+
+Coordinate frame (i,j,k) with origin at the pinhole O. K axis is perpendicular towards teh image plane, pointing towards it. Ths is 
+called the camera coordinate system,
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_detailed2.png}
+	\caption[short caption]{\textbf{Lead-in.} Description.}
+	\label{fig:Ch3.pinhole_detailed}
+\end{figure}
+
+Projecting a 3D point
+Suppose P is a point in the 3D world visible to the camera, Po = (x, y, z)ᵀ. Its projection onto the image plane is:
+P′ = (x′, y′)ᵀ. To understand how the 3D world maps into the image, we need the relationship between P and P'.
+
+
+<< CLAUDE
+
+This can be done using similar triangles. Triagnle P',C' and O is similar to triangle P,O and the point (0,0,z) on the optical axos
+Corresponding sides of simlar triangles mean:
+
+Attempt 2: https://www.youtube.com/watch?v=_EhY31MSbNM
+f: effective focal length
+$r_0$(vector) $= (x_0, y_0, z_0)$
+$r_i$(vector) $= (x_i, y_i, z_i)$
+
+Using similar triangles, we get:
+
+\begin{equation}
+\frac{\vec{r}_{0}}{f} = \frac{\vec{r}_{i}}{z_0} 
+\end{equation}
+
+broken down into its components we get:
+
+\[
+\frac{x_i}{f} = \frac{x_o}{z_o}, \qquad \frac{y_i}{f} = \frac{y_o}{z_o}
+\]
+
+These are teh equations of prospecite projection. 
+
+
+This shows that a 3D image's coordianates are its x and y coordinates scaled by f/z. This is however with the assumption
+that all rays pass through a signular point. In reality, the aperture needs to be sufficiently large to allow for a brighter image
+This brings about blur due to X?. Modern cameras use lense to fix this. A lens gathers a group of rays from a 3D point and bends it so
+that all the rays hit the sensor at a sigular point. This works for a set distace, further or closer the incoming rays form a 
+small disc instead of a point, causing blur. This is known as being 'in focus' or 'out of focus'.
+
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_lens.png}
+	\caption[short caption]{\textbf{Lead-in.} Description.}
+	\label{fig:ch3.pinhole_lens}
+\end{figure}
+
+focus point
+
+Camera lenses also focus
+
+
+\subsubsection{Distortion}
 %---------------------------------------------------------------------
 \subsection{Intrinsic parameters}
 \label{subsec:ch3.intrinsics}
@@ -104,7 +183,7 @@ Each new placement in the 3D scene defines a different world coordinate system.
 %---------------------------------------------------------------------
 % Rotation and translation of each camera in the world frame
 
-%---------------------------------------------------------------------
+%------------------------------------------IMG---------------------------
 \subsection{Lens distortion}
 \label{subsec:ch3.distortion}
 %---------------------------------------------------------------------
@@ -255,8 +334,7 @@ Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 
 \subsection{Rectification}
 \label{subsec:ch3.rectification}
 %---------------------------------------------------------------------
- \textbf{Rectification of Stereo Image Pairs:}
- The main complexity is to identify corresponding points in pairs of input images recorded by two cameras. It is convenient to warp the image pairs so that it appears they were recorded in canonical stereo (by a pair of identical cameras). This is called geometric rectification.
+
 
 %---------------------------------------------------------------------
 \subsection{Triangulation and depth from disparity}
@@ -273,38 +351,12 @@ Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 
 \subsection{The correspondence problem}
 \label{subsec:ch3.correspondence}
 %---------------------------------------------------------------------
- Stereo matching is an example of a labelling approach.
- The labelling function \textit{f} gives a label $f_p \in L$ (a disparity) to each pixel location $p \in \Omega$, applying error functions $E_{data}$ and $E_{smooth}$.
-
-  Accumulated costs of a label are the combined data and adjacent smoothness error values.
-
-  Kind of like a neighbourhood of pixels as a box, compared on an epipolar line (same row due to canonical stereo geometry).
-
-  \textbf{Generic Model for Matching:}
-  With a left and right image, one is now the base and the other the match image $(B, M)$. For a pixel $(x, y, B(x,y))$ in the base image, search for the corresponding $(x+d, y, M(x+d,y))$ in the match image, on the same epipolar line.
-
-  \textbf{Base and Match Images and Search Intervals:}
-  $d$ ends up being the difference along the epipolar line.
-
-  \textbf{Label Set for Stereo Matching:}
-  Assumes right-to-left matching to avoid $\pm$ switching. This ends up with the label set $L = \{-1, 0, -1, \dots, -d_{max}\}$. Using the intrinsic and extrinsic camera parameters, $d_{max}$ can be estimated from the closest objects in the scene that are "still of interest".
 
 %---------------------------------------------------------------------
 \subsection{Matching cost functions}
 \label{subsec:ch3.costfunctions}
 %---------------------------------------------------------------------
- \textbf{Neighbourhoods of correspondents:}
- Issues with SSD (sum of squared differences) or SAD (sum of absolute differences) justify the 3D cost matrix.
 
- \textbf{3D Data Cost Matrix:}
- A comprehensive representation of all the involved data costs, which can be used for further optimisation (using a smoothness-cost function in the control of the \textit{stereo} matching).
-
- \textbf{Data cost functions:}
- 	\begin{itemize}
- 		\item Zero-Mean version
- 		\item NCC Data Cost
- 		\item The Census Data-Cost Function
- 	\end{itemize}
 
 %---------------------------------------------------------------------
 \subsection{Local to global matching and Semi-Global Matching (SGM)}
@@ -356,12 +408,75 @@ Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 
 %=====================================================================
 
 %---------------------------------------------------------------------
-\subsection{Reprojection error}
+\subsection{OpenCV Calibration and Reprojection error}
 \label{subsec:ch3.reprojectionerror}
+% "OpenCV's cv::calibrateCamera() returns the RMS of all lengths"
+% https://calib.io/blogs/knowledge-base/understanding-reprojection-errors
+
+Chain of evidence (How Im calculating it): - Claude explanation
+\begin{enumerate}
+	\item Every image: \texttt{board.matchImagePoints(corners, ids)} pairs the detected AprilgRID CONER PIXELS
+	WITH THE KNOWN 3D board position in mm.
+	\item \texttt{cv2.CalibrateCameraExtended()} calculates the intrinsics (K, 5 distortion coeficients) and one pose
+	(rvec, tvec) per image (Uses Lvenberg-Marquardt). Then it projects each 3D boar coner back onto the
+	image with the fitted model and measures how far it lands from the detected corner.
+\end{enumerate}
+
+For imate i with ni corners: detected coprners xij and reprojected corenrs x\^{}ij, OpenCV returns:
+\begin{itemize}
+	\item Per image error (per\_View\_error): e\_i = sqrt(sum of difference between) NB - RMS COMMON
+	\item Overall RMS (sum of sum \quad NB - RMS AL;L
+\end{itemize}
+
+||.|| is the 3D Euclidean distance in picels, so each corner adds dx\^{}2 + dy\^{}2. The overall RMS pools
+every corner from every image, so images with more detected tags count for more.
+
 
 %---------------------------------------------------------------------
-To determine the accuracy of camera calibration, we need to have accuracy measurements.
+% INTORDUCE REPROJECTION ERROR
+To determine the accuracy of camera calibration, we need to have accuracy measurements. For camera calibration,
+this can be done with RMS (Root Mean Square) reprojection error. 
 
+OpenCV's calibration functions both produce a Reprojection error output 
+
+OpenCV provides \texttt{calibrateCamera, calibrateCameraExtended, stereoCalibrate}. 
+
+\texttt{calibcalibrateCamera, calibrateCameraExtended} applies Zhang's method for a given calibration target. 
+IT takes the following input arguments:
+\begin{itemize}
+	\item \texttt{objectPoints}: 3D position of each detected corner on the AprilGrid.
+	\item \texttt{imagePoints}: The 2D pixel positions of each of the corners, in the same order
+	\item \texttt{imageSize}: Width and height
+	\item \texttt{cameraMatrix}, \texttt{distCoeffs} (initial guess)
+	\item \texttt{flags}, \texttt{criteria} (not used).
+\end{itemize}
+
+Process
+% CLAUDE:
+\begin{enumerate}
+	\item It follows Zhangs method.
+	Starting guess for intrinsics\ldots
+	\item Starting guess for image pose.
+	\item Optimisation (Levenberg-Marquardt). refines all the parameters togeth.
+\end{enumerate}
+
+Minimises the total squared reprojection error *insert)...
+
+Output:
+\begin{itemize}
+	\item \texttt{retval}: RMS reprojection error over all corners (px)
+	\item \texttt{camera\_matrix}: $3 \times 3$ matrix
+	\item \texttt{rvecs}, \texttt{tvecs}: Board pose rotation vectors in mm
+	\item \texttt{stDeviationIntrinsics}: 1$\sigma$ for each intrinsic output
+	\item \texttt{perViewError}: RMS error reprojection error for each image (px)
+\end{itemize}
+
+  % SHORTCOMINGS
+
+% HOW I APPPLIED IT
+
+% Equivalent error at distances
+% Risk of overfitting
 
 %---------------------------------------------------------------------
 \subsection{Triangulation and depth error}

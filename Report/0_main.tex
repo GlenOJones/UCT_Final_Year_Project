@@ -28,6 +28,10 @@
 %	Paragraph spacing:	10pt
 %	Paragraph indent:	0pt
 %=====================================================================
+% xcolor is loaded by another package before line ~79, so options given
+% there are ignored ("already been loaded" warning). Passing them here,
+% before anything loads it, makes dvipsnames/table/xcdraw actually apply.
+\PassOptionsToPackage{dvipsnames,table,xcdraw}{xcolor}
 \documentclass[a4paper,11pt,oneside]{book}
 %---------------------------------------------------------------------
 %	PACKAGES
@@ -76,9 +80,29 @@
 %---------------------------------------------------------------------
 \usepackage{fix-cm}                  % Enable scalable font sizes
 \usepackage{color}                   % Basic colour support
-\usepackage[dvipsnames,table,xcdraw]{xcolor} % Extended colours
+\usepackage{xcolor}                  % Extended colours (options set by \PassOptionsToPackage above \documentclass)
 \usepackage{gensymb}                 % Generic symbols (e.g. °)
 \usepackage{ebgaramond}    % Use EB Garamond font
+
+% Unicode symbols pasted straight into the text (e.g. from notes or PDFs).
+% pdfLaTeX stops with "Unicode character ... not set up" on these, so map
+% each one to its maths equivalent. Add a line here for any new one.
+\DeclareUnicodeCharacter{03B1}{\ensuremath{\alpha}}
+\DeclareUnicodeCharacter{03B2}{\ensuremath{\beta}}
+\DeclareUnicodeCharacter{03B3}{\ensuremath{\gamma}}
+\DeclareUnicodeCharacter{03B8}{\ensuremath{\theta}}
+\DeclareUnicodeCharacter{03BB}{\ensuremath{\lambda}}
+\DeclareUnicodeCharacter{03C0}{\ensuremath{\pi}}
+\DeclareUnicodeCharacter{03C3}{\ensuremath{\sigma}}
+\DeclareUnicodeCharacter{03A0}{\ensuremath{\Pi}}
+\DeclareUnicodeCharacter{03A3}{\ensuremath{\Sigma}}
+\DeclareUnicodeCharacter{0394}{\ensuremath{\Delta}}
+\DeclareUnicodeCharacter{2032}{\ensuremath{'}}         % prime
+\DeclareUnicodeCharacter{1D40}{\ensuremath{^{\mathsf{T}}}} % superscript T (transpose)
+\DeclareUnicodeCharacter{2248}{\ensuremath{\approx}}
+\DeclareUnicodeCharacter{2264}{\ensuremath{\leq}}
+\DeclareUnicodeCharacter{2265}{\ensuremath{\geq}}
+\DeclareUnicodeCharacter{2192}{\ensuremath{\rightarrow}}
 
 %---------------------------------------------------------------------
 % GRAPHICS AND VISUALS

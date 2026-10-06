@@ -525,7 +525,6 @@ def write_camera(fs, camera, result, image_size):
 
     fs.endWriteStruct()
 
-
 def write_stereo(fs, stereo, run):
     """Write the extrinsics and the rectification transforms derived from them."""
     fs.writeComment("---- Stereo extrinsics: where the right camera sits relative to the left ----")

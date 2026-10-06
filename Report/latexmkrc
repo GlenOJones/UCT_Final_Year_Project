@@ -24,8 +24,16 @@ $pdf_mode = 1;
 #   without LaTeX raising a warning it recognises. Rather than depend on
 #   that, run the engine twice every time. It costs a few seconds and it
 #   cannot be got wrong.
+#
+#   Done as a perl sub, not 'pdflatex %O %S ; pdflatex %O %S': latexmk
+#   only fills in the FIRST %O, so the second run lost -interaction=nonstopmode
+#   and sat waiting for keyboard input on any error, hanging the build.
 # ---------------------------------------------------------------------
-$pdflatex = 'pdflatex %O %S ; pdflatex %O %S';
+$pdflatex = 'internal pdflatex_twice %O %S';
+sub pdflatex_twice {
+    system('pdflatex', @_);
+    return system('pdflatex', @_);
+}
 $clean_ext = 'synctex.gz run.xml bbl fdb_latexmk fls glo gls glg ist acn acr alg thesis-wordcount.tex';
 
 # ---------------------------------------------------------------------
