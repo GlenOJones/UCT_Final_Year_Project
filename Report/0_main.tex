@@ -267,6 +267,11 @@
 %   v_glossary.tex only prints the list; it defines nothing.
 %---------------------------------------------------------------------
 \input{0_glossaryentries}
+
+% CLAUDE: fast preview -- only typeset chapter 3. Other chapters keep their
+% numbering/refs from their .aux files. Comment out for a full build.
+% 0_documentproperties must stay listed: it defines \titl, \auth, etc.
+\includeonly{0_documentproperties,3_ch3}
 %---------------------------------------------------------------------
 %	DOCUMENT
 %---------------------------------------------------------------------

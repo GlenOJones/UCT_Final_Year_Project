@@ -5,9 +5,9 @@
 \label{ch:theory}
 %---------------------------------------------------------------------
 % TODO: ADD CMOS REFERENCE
-Modern digital use a sensor matrix to capture incoming light, captured with photosensitive. Modern cameras mostly use complentary metal-oxide semiconductor technology (CMOS) . Each phototransistor makes up a single pixel sensor,
+Modern digital use a sensor matrix to capture incoming light, captured with photosensitive. Modern cameras mostly use complementary metal-oxide semiconductor technology (CMOS) . Each phototransistor makes up a single pixel sensor,
  with sensor matrices being NcolxNrows arrays of phototransistors \cite{klette2014concise}. This section explains the theory behind
- how a camera projects the 3D world scene onto a 2D plane, camera-specific (intrinsic and extrinsic) paramteres affecting this projection, the effects
+ how a camera projects the 3D world scene onto a 2D plane, camera-specific (intrinsic and extrinsic) parameters affecting this projection, the effects
  of the underwater environment on camera theory and the calibration and compensation used to correct for them.
 
 %=====================================================================
@@ -21,18 +21,18 @@ They can be split into central and non-central camera models.
 %---------------------------------------------------------------------
 \subsection{Central camera models}
 %---------------------------------------------------------------------
-A central camera has a single optical center that every incoming ray passes through,
+A central camera has a single optical center that every incoming ray passes through.
 Most models are central camera models.
 
 %---------------------------------------------------------------------
 \subsection{Non-central camera models}
 %---------------------------------------------------------------------
 Non-central camera models do not have a single optical center.
-(Something about back-propjection, maybe mention later).
+(Something about back-projection, maybe mention later).
 \cite{sturmCameraModelsFundamental2011} breaks the non-central cameras into
 \begin{itemize}
-	\item \textbf{Oblique cameras}: no two rays ever meeet.
-	\item \textbf{Axial cameras}: have one line that every ray crosses, even if they dont share a single point.
+	\item \textbf{Oblique cameras}: no two rays ever meet.
+	\item \textbf{Axial cameras}: have one line that every ray crosses, even if they don't share a single point.
 	\item \textbf{X-slit cameras}: axial cameras with two lines every ray crosses.
 \end{itemize}
 Important for underwater why...?
@@ -40,29 +40,29 @@ Important for underwater why...?
 %---------------------------------------------------------------------
 \subsection{Model parameters: global, local and discrete}
 %---------------------------------------------------------------------
-\cite{sturmCameraModelsFundamental2011} further seperates models into global, local and discrete
-models. This seperation regards how the model's paramters describe the image.
-Global models (e.g.\ Pinhole) have parameters for the whole image, local sperates parameters sets
+\cite{sturmCameraModelsFundamental2011} further separates models into global, local and discrete
+models. This separation regards how the model's parameters describe the image.
+Global models (e.g.\ Pinhole) have parameters for the whole image, local separates parameters sets
 for different section of the image. Discrete models have their projection function sampled at
-different points, e.g.\ one per pixel. For discrete models, interpolation neede for back-projecting
+different points, e.g.\ one per pixel. For discrete models, interpolation needed for back-projecting
 to non-sampled image points, essentially making them local models.
 
 %---------------------------------------------------------------------
 \subsection{Forward vs back-projection}
 %---------------------------------------------------------------------
 Forward projection maps a 3D point to a sensor pixel and back-projection does the inverse, mapping
-a pixel to a 3D ray. Within the context of this project, forward projection is used for corecting
-distorition and backwards projection for estimating a camera pose and reconstruction.
+a pixel to a 3D ray. Within the context of this project, forward projection is used for correcting
+distortion and backwards projection for estimating a camera pose and reconstruction.
 
-Mathematically, both directions define their invers, but \cite{sturmCameraModelsFundamental2011}
+Mathematically, both directions define their inverse, but \cite{sturmCameraModelsFundamental2011}
 points out that back-projection is generally easier to determine\ldots
 
 The notation used in this report will follow the following notation:
 % \rayvec{<index>}: bold B with an extra-raised superscript index
 \providecommand{\rayvec}[1]{\bm{B}^{\raisebox{0.45ex}{$\scriptstyle #1$}}}
 \begin{description}[leftmargin=4em, labelsep=1em, itemsep=0.3ex]
-	\item[$\rayvec{i}$] The ray point at infinity (3-vector in homogenous coordinates).
-	\item[$\rayvec{f}$] Finite point on the ray (4-vector in homegnous 3D coordinates).
+	\item[$\rayvec{i}$] The ray point at infinity (3-vector in homogeneous coordinates).
+	\item[$\rayvec{f}$] Finite point on the ray (4-vector in homogeneous 3D coordinates).
 	\item[$\rayvec{l}$] Ray written as a single $6 \times n$ vector computed from $\rayvec{i}$ and $\rayvec{f}$.
 \end{description}
 
@@ -86,51 +86,38 @@ Each new placement in the 3D scene defines a different world coordinate system.
 % TODO ADD IMAGE
 % TODO 23 Sep
 %---------------------------------------------------------------------
-Before working with images, it is important to undestand the basic working of cameras by looking at a simple camera model. 
-. A modern camera sensor captures incoming light inn each point in a 3D image (or object) sends out light in multiple directions.
- This means that every point on the sensor recieves light from every point of the objdct, resulting in a blur across the sensor. This can be fixed with a barrier 
- and a tiny hole (aperture). The barrier means that from each 3D point, only one or a small number of rays get through the aperture to the film. Each 
- point therefore only lands on a single sensor point, allowing for a clear image and a mapping from the 3D object to the 2D sensor. This is known as the pinhole camera model.
- Figure x below shows a basic version of this pinhole model.
-\cite{hataCS231ACourseNotes}
-\begin{figure}[htbp]
+Before working with images, it is important to understand the basic working of cameras by looking at a simple camera model. 
+Each point on a 3D image emits light in multiple directions. For a sensor receiving this light, each point on the sensor receives light from every point of the object, resulting in a blur 
+across the sensor. This can be fixed with a barrier and a tiny hole (aperture). The barrier means that from each 3D point, only one or a small number of rays get through the aperture to the
+film. Each point's rays therefore only land on a single sensor point, allowing for a clear image and a mapping from the 3D object to the 2D sensor. 
+This is known as the pinhole camera model \citep{hataCS231ACourseNotes}.
+\autoref{fig:ch3.pinhole_model} below shows a basic version of this pinhole model showing the flipped image on the sensor.
+
+\begin{figure}[H]
 	\centering
 	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_model2.png}
-	\caption[PLaceholder Example]{\textbf{Lead-in.} Description.}
+	\caption[Placeholder Example]{\textbf{Pinhole Model.} Incoming rays with aperture and barrier.}
 	\label{fig:ch3.pinhole_model}
 \end{figure}
-
-The standard terminlogy for a pinhole camera model is:
-- Image plane: $\Pi'$: the sensor
-- Pinhole (Camera center), O: the point (aperture) through which all rays pass
-- Focal length, f: distance from O to the image plance.
-- Virtual image plane: imaginary plane placed at a distance f in front of O between the pinhole and object.The image 
-of the object in this plane is identical scaled and not flipped.
-
-Coordinate frame (i,j,k) with origin at the pinhole O. K axis is perpendicular towards teh image plane, pointing towards it. Ths is 
-called the camera coordinate system,
-
-\begin{figure}[htbp]
-	\centering
-	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_detailed2.png}
-	\caption[short caption]{\textbf{Lead-in.} Description.}
-	\label{fig:Ch3.pinhole_detailed}
-\end{figure}
-
-Projecting a 3D point
-Suppose P is a point in the 3D world visible to the camera, Po = (x, y, z)ᵀ. Its projection onto the image plane is:
-P′ = (x′, y′)ᵀ. To understand how the 3D world maps into the image, we need the relationship between P and P'.
+\
 
 
-<< CLAUDE
 
-This can be done using similar triangles. Triagnle P',C' and O is similar to triangle P,O and the point (0,0,z) on the optical axos
-Corresponding sides of simlar triangles mean:
+[INSERT 2D Diagram of the setup]
+Suppose P is a point in the 3D world visible to the camera, Po = (x, y, z). Its projection onto the 2D image plane is:
+P′ = (x′, y′). To understand how the 3D world maps into the image, we need the relationship between P and P'.
 
-Attempt 2: https://www.youtube.com/watch?v=_EhY31MSbNM
-f: effective focal length
-$r_0$(vector) $= (x_0, y_0, z_0)$
-$r_i$(vector) $= (x_i, y_i, z_i)$
+
+This can be done using similar triangles. Triangle P',C' ,and O is similar to triangle P,O and the point (0,0,z) on the optical axis.
+Similar triangles have equal ratios between corresponding sides, meaning:
+
+% EXPLAIN RO AND RI meaning in this context
+% Attempt 2: https://www.youtube.com/watch?v=_EhY31MSbNM
+\begin{align*}
+    \bm{r}_0 &= (x_0, y_0, z_0) \\
+    \bm{r}_i &= (x_i, y_i, z_i)
+\end{align*}
+
 
 Using similar triangles, we get:
 
@@ -144,13 +131,13 @@ broken down into its components we get:
 \frac{x_i}{f} = \frac{x_o}{z_o}, \qquad \frac{y_i}{f} = \frac{y_o}{z_o}
 \]
 
-These are teh equations of prospecite projection. 
+These are the equations of perspective projection. 
 
 
-This shows that a 3D image's coordianates are its x and y coordinates scaled by f/z. This is however with the assumption
-that all rays pass through a signular point. In reality, the aperture needs to be sufficiently large to allow for a brighter image
-This brings about blur due to X?. Modern cameras use lense to fix this. A lens gathers a group of rays from a 3D point and bends it so
-that all the rays hit the sensor at a sigular point. This works for a set distace, further or closer the incoming rays form a 
+This shows that a 3D image's coordinates are its x and y coordinates scaled by f/z. This is however with the assumption
+that all rays pass through a singular point. In reality, the aperture needs to be sufficiently large to allow for a brighter image.
+This brings about blur due to X?. Modern cameras use lenses to fix this. A lens gathers a group of rays from a 3D point and bends it so
+that all the rays hit the sensor at a singular point. This works for a set distance, further or closer the incoming rays form a 
 small disc instead of a point, causing blur. This is known as being 'in focus' or 'out of focus'.
 
 \begin{figure}[htbp]
@@ -163,6 +150,49 @@ small disc instead of a point, causing blur. This is known as being 'in focus' o
 focus point
 
 Camera lenses also focus
+
+
+===============ROUND 2 USING ZHANGS NOTATION ===============================
+\subsection{Pinhole camera model and coordinate projection}
+This section uses theory from standford notres, Textbook and zhangs calibration to explain. Zhangs notation use used.
+
+Before working with images, it is important to understand how a camera forms an image. This is done using a simple camera model, called the pinhole camera.
+Every point on a 3D object reflect or emits light in multiple directions. For an open sensor infront of the object, each point on the sensor receives light 
+from every point of the object, resulting in a uniform blur across the image(REF FIG 1A)
+ This can be fixed by placing a barrier with a tiny hole, \textit{aperture} between the object and the sensor. From each 3D point, only one or a small number 
+ of rays pass through the aperture and reach the sensor. Each point's rays therefore only land on a single sensor point, creating a one-to-one mapping from the 
+ 3D object to the 2D sensor. The rays cross at the rays cross at the aperture, resulting in an upside down image (REF FIG 1B).
+ This is known as the pinhole camera model \citep{hataCS231ACourseNotes}.
+
+
+
+ (INSERT ORIGINAL PHOTO OF PENGUIN DIAGRAM, ONE WITH NO BARRIER AND ONE WITH). ADAPTED FROM STANFORD COURSE NOTES
+
+ %---------------------------------------------
+\subsubsection{Projecting a 3D point to a 2D image plane}
+The standard terminology for a pinhole camera model used in this report is as follows:
+\begin{itemize}
+	\item \textbf{Camera center} $O$: the pinhole, the single point through which all rays pass.
+    \item \textbf{Focal length}, $f$: distance from $O$ to the image plane.
+	\item \textbf{Object plane}, $\Pi$: The plane containing the object
+    \item \textbf{Image plane}, $\Pi'$: the sensor, on which the image is inverted.
+    \item \textbf{Virtual image plane}, $\Pi'_v$: imaginary plane placed at a distance $f$ \textit{in front} of $O$, between the pinhole and object. 
+		The image formed on this plane is identical to the real sensor iamge, except not inverted. 
+    \item \textbf{Camera Coordinate system $(i,j,k)$:} a $3D$ coordinate frame with its origin at $O$. The $k$ axis is perpendicular to the image plane, 
+	pointing along the viewing direction. Coordinates within this frame have are written (Xc, Yc, Zc).
+\end{itemize}
+
+Figure X expressed a $2D$ cross section alogng the X plane showing incoming rays.
+Suppose $M_c = [X_c, Y_c, Z_c]^T$ is a object point in the 3D world expressed in the camera coordinate frame. This point's projection onto the 2D virtual
+in the image plane is $\textbf{m'}=[x',y']^T$. To understand this mapping between the 3D world and the sensor image, we need to define the relationship between
+ $\textbf{M}_c$ and $m'$.
+
+(explain Mc)
+Explain projection onto 2D
+Explain similar triangles with equal to
+
+ % \subsubsection % CLAUDE: commented out -- no title given, which broke the build. Add your title in {} and uncomment.
+
 
 
 \subsubsection{Distortion}
@@ -258,7 +288,7 @@ All chosen filters take and return the 8-bit grayscale image.
 \label{sec:ch3.calibration}
 %=====================================================================
 \textbf{Designing a Calibration Method:}
-% Zhang mentions Three-dimensional reference object-based calibrtaion and Self-calibration seperately
+% Zhang mentions Three-dimensional reference object-based calibration and Self-calibration separately
 Points $(X_w, Y_w, Z_w)$ on the calibration rig (e.g. corners of the squares) or calibration marks are known by their physically measured coordinates. Determine a corresponding $(x,y)$ if possible with sub-pixel accuracy. That is the projection of $(X_w, Y_w, Z_w)$ in the world plane. E.g. 100 points, 100 equations.
 
 The equations defining our camera model contain $X_w$, $Y_w$, $Z_w$, $x$ and $y$ as known values, and the intrinsic and extrinsic camera parameters as unknowns. The resulting equation system (necessarily nonlinear due to central projection or radial distortion) needs to be solved for the specified unknowns. Over-determined situations provide stability of the numerical solution scheme.
@@ -273,7 +303,7 @@ Rigid B\&W pattern common, at least 7x7 squares large enough such that the minim
 \textbf{Localising Corners in the Checkerboard:}
  Calibration marks are the corners of squares (approximated by the intersection points of grid lines, thus defining corners potentially with sub-pixel accuracy).
 
- Mention of the Hough space method for detecting line segments requires that lens distortion has been removed from recorded images prior to applying the Hough-space method. Images with lens distortion will show bended lines rather than straight grid lines.
+ Mention of the Hough space method for detecting line segments requires that lens distortion has been removed from recorded images prior to applying the Hough-space method. Images with lens distortion will show bent lines rather than straight grid lines.
 
  \textbf{Localising Calibration marks:}
  Can also be defined by circular or square dots. Popular if same location, can be permanently painted on walls or other static surfaces.
@@ -302,7 +332,7 @@ Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 
 % Compare Tuned OpenCV ArUco, pyapriltag AprilTag3 and ...
 % - ArUco3 is fast (downscales) with global thresholds
 % - AprilTag2 computes each local threshold, better for uneven lighting and low
-%   contrast, but expensive, and doesnt do board calibrations
+%   contrast, but expensive, and doesn't do board calibrations
 % Explain maths logic here (flowcharts maybe)
 % Maybe even try UWARUco attempt https://www.mdpi.com/2072-4292/11/4/459
 % (useful explanation of how it works WITH DIAGRAM)
@@ -415,25 +445,25 @@ Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 
 
 Chain of evidence (How Im calculating it): - Claude explanation
 \begin{enumerate}
-	\item Every image: \texttt{board.matchImagePoints(corners, ids)} pairs the detected AprilgRID CONER PIXELS
-	WITH THE KNOWN 3D board position in mm.
-	\item \texttt{cv2.CalibrateCameraExtended()} calculates the intrinsics (K, 5 distortion coeficients) and one pose
-	(rvec, tvec) per image (Uses Lvenberg-Marquardt). Then it projects each 3D boar coner back onto the
+	\item Every image: \texttt{board.matchImagePoints(corners, ids)} pairs the detected AprilGrid corner pixels
+	with the known 3D board position in mm.
+	\item \texttt{cv2.calibrateCameraExtended()} calculates the intrinsics (K, 5 distortion coefficients) and one pose
+	(rvec, tvec) per image (Uses Levenberg-Marquardt). Then it projects each 3D board corner back onto the
 	image with the fitted model and measures how far it lands from the detected corner.
 \end{enumerate}
 
-For imate i with ni corners: detected coprners xij and reprojected corenrs x\^{}ij, OpenCV returns:
+For image i with ni corners: detected corners xij and reprojected corners x\^{}ij, OpenCV returns:
 \begin{itemize}
 	\item Per image error (per\_View\_error): e\_i = sqrt(sum of difference between) NB - RMS COMMON
-	\item Overall RMS (sum of sum \quad NB - RMS AL;L
+	\item Overall RMS (sum of sum \quad NB - RMS ALL
 \end{itemize}
 
-||.|| is the 3D Euclidean distance in picels, so each corner adds dx\^{}2 + dy\^{}2. The overall RMS pools
+||.|| is the 3D Euclidean distance in pixels, so each corner adds dx\^{}2 + dy\^{}2. The overall RMS pools
 every corner from every image, so images with more detected tags count for more.
 
 
 %---------------------------------------------------------------------
-% INTORDUCE REPROJECTION ERROR
+% INTRODUCE REPROJECTION ERROR
 To determine the accuracy of camera calibration, we need to have accuracy measurements. For camera calibration,
 this can be done with RMS (Root Mean Square) reprojection error. 
 
@@ -441,8 +471,8 @@ OpenCV's calibration functions both produce a Reprojection error output
 
 OpenCV provides \texttt{calibrateCamera, calibrateCameraExtended, stereoCalibrate}. 
 
-\texttt{calibcalibrateCamera, calibrateCameraExtended} applies Zhang's method for a given calibration target. 
-IT takes the following input arguments:
+\texttt{calibrateCamera, calibrateCameraExtended} applies Zhang's method for a given calibration target. 
+It takes the following input arguments:
 \begin{itemize}
 	\item \texttt{objectPoints}: 3D position of each detected corner on the AprilGrid.
 	\item \texttt{imagePoints}: The 2D pixel positions of each of the corners, in the same order
@@ -454,10 +484,10 @@ IT takes the following input arguments:
 Process
 % CLAUDE:
 \begin{enumerate}
-	\item It follows Zhangs method.
+	\item It follows Zhang's method.
 	Starting guess for intrinsics\ldots
 	\item Starting guess for image pose.
-	\item Optimisation (Levenberg-Marquardt). refines all the parameters togeth.
+	\item Optimisation (Levenberg-Marquardt). refines all the parameters together.
 \end{enumerate}
 
 Minimises the total squared reprojection error *insert)...
@@ -473,7 +503,7 @@ Output:
 
   % SHORTCOMINGS
 
-% HOW I APPPLIED IT
+% HOW I APPLIED IT
 
 % Equivalent error at distances
 % Risk of overfitting
