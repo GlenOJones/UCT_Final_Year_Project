@@ -173,7 +173,10 @@ from every point of the object, resulting in a uniform blur across the image(REF
 The standard terminology for a pinhole camera model used in this report is as follows:
 \begin{itemize}
 	\item \textbf{Camera center} $O$: the pinhole, the single point through which all rays pass.
-    \item \textbf{Focal length}, $f$: distance from $O$ to the image plane.
+    \item \textbf{Focal length}, $f$: distance from $O$ to the image plane. % Check difference with effective and actual
+    \item \textbf{Optical axis}: 
+    \item \textbf{Virtual Principal point}: 
+    \item \textbf{Principal point}: 
 	\item \textbf{Object plane}, $\Pi$: The plane containing the object
     \item \textbf{Image plane}, $\Pi'$: the sensor, on which the image is inverted.
     \item \textbf{Virtual image plane}, $\Pi'_v$: imaginary plane placed at a distance $f$ \textit{in front} of $O$, between the pinhole and object. 
@@ -182,24 +185,79 @@ The standard terminology for a pinhole camera model used in this report is as fo
 	pointing along the viewing direction. Coordinates within this frame have are written (Xc, Yc, Zc).
 \end{itemize}
 
+% MAYBE COMMENT ON 2D AND 3D PROJECTION AND BACKPROJECTION
+
 Figure X expressed a $2D$ cross section alogng the X plane showing incoming rays.
 Suppose $M_c = [X_c, Y_c, Z_c]^T$ is a object point in the 3D world expressed in the camera coordinate frame. This point's projection onto the 2D virtual
 in the image plane is $\textbf{m'}=[x',y']^T$. To understand this mapping between the 3D world and the sensor image, we need to define the relationship between
  $\textbf{M}_c$ and $m'$.
 
-(explain Mc)
-Explain projection onto 2D
-Explain similar triangles with equal to
+ To determine this relationship, we can use the properties of similar triangles. 
+\autoref{fig:ch3.pinhole_detailed} shows the two similar triangles. The smaller  triangle is formed by the camera centre $O$, 
+the point $(0, 0, f)$ where the  optical axis meets the virtual image plane, and the projected point $\mathbf{m}'$. 
+The larger triangle is formed by $O$, the point $(0, 0, Z_c)$ on the optical axis, and the 3D point $\mathbf{M}_c$. These triangles are both right angled
+triangles with a common angle, making them similar. Similar triangles have equal ratios between corresponding sides meaning
+
+\begin{equation}
+	\frac{x'}{f} = \frac{X_c}{Z_c}, \qquad \frac{y'}{f} = \frac{Y_c}{Z_c}
+	\qquad\Longrightarrow\qquad
+	x' = f\,\frac{X_c}{Z_c}, \qquad y' = f\,\frac{Y_c}{Z_c}.
+	\label{eq:ch3.persp}
+\end{equation}
+
+These make the equations of \textit{perspective projection} \citep{hataCS231ACourseNotes}. They show how the $2D$ image coordinates of a 3D point can be
+defined by its $X_c$ and $Y_c$ coordinates scald by $\frac{f}{Z_c}$. This has two direct consequneces:
+\begin{itemize}
+	\item The further away an object is (increased $Z_c$), the smaller it appears in the image as $x'$ and $y'$ shrink towards the center of the image
+	\item Depth is lost when the image is formed. The projection takes $(X_c,Y_c,Z_c)$ and outputs $(x'.y')$. The pixel only tells you the ray the point lands on,
+	 not where on the ray. TO do this you ned two cameras (see section X, maybe take this into stereo camera justification section).
+\end{itemize}
+
+These equations can be simplified setting $f=1$ to produce the \textit{normalised image coordinates}:
+\begin{equation}
+	x = \frac{X_c}{Z_c}, \qquad y = \frac{Y_c}{Z_c}
+	\label{eq:ch3.normcoord}
+\end{equation}
+
 
  % \subsubsection % CLAUDE: commented out -- no title given, which broke the build. Add your title in {} and uncomment.
 
+% Next up - lenses and approximate model for focal length (Zhangs must get adjusted or explain effective focal length)
+\subsubsection{Camera lenses}
+The pinhole model assumes that all rays pass through a singular point. In reality the aperture must be large enough to let enough light in
+for a usable bright image. This larger aperture however, result in multiple incoming rays from a single point and blurring as noted in (SEC REF). 
+The solution to this is a lens. 
+
+A lens refracts the multiple rays from a single $3D$ point so that they converge to a single point on the sensor. This converging only works for a set 
+distance from the camera, meaning further or closer points appear to be "out of focus" \citet{hataCS231ACourseNotes}. 
+
+A thin lens follows the same prospective projection equations as \autoref{eq:ch3.persp}, with \textit{f} being the distance between the lens and the sensor
+\citet{hataCS231ACourseNotes}. Real non-ideal lenses howver produce magnification that varies with distance from the optical axis. This bends 
+bends straight lines in the image, producin radial distortion. (REF HERE SOMEWHERE?)
 
 
-\subsubsection{Distortion}
+
+\subsection{The Camera Matrix}
+\autoref{eq:ch3.persp} provides the points on the camera's sensor in millimeters measured from the principal point. An image however uses pixels to define positions.
+To join the two, we need additional paramters which compined with the position and orientation of the camera in the world provide us 
+the \textit{camera matrix} \cite{szeliskiComputerVisionAlgorithmsa}. 
+
+
+
 %---------------------------------------------------------------------
 \subsection{Intrinsic parameters}
 \label{subsec:ch3.intrinsics}
 % TODO 23 Sep
+There are three differences between the image plane and the digital image captured by the sensor:
+\begin{enumerate}
+	\item \textbf{Units.} The sensor has $k_u$ and $k_v$ pixels per mm horizontally and vertically. By multiplying the (effective) focal length by this pixel count,
+		we get the focal length in pixels, $\alpha = fk_u$ and $\beta=fk_v$. (TODO: EXPLAIN WHY RELAVENT)
+	\item \textbf{Origin}: Image coordinates are measured form the principal point, usually the image center $(u_0,v_0)$ while Pixel coordinates $(u,v)$ are measured from
+		top left corner of the image.
+	\item \textbf{Skew}: 
+\end{enumerate}
+
+% MAYBE MOVE TOWARDS USING X,Y HER ENOT U,V
 %---------------------------------------------------------------------
 % Camera matrix K, f_x, f_y, c_x, c_y, skew
 % Refine the camera model: different focal length in the x and y direction,
@@ -276,6 +334,9 @@ All chosen filters take and return the 8-bit grayscale image.
 
 % Unsharp masking (cv2.addWeighted)
 % What it does, and basic maths behind how it does it
+
+
+\\
 
 %---------------------------------------------------------------------
 \subsection{Contrast Limited Adaptive Histogram Equalisation (CLAHE)}
