@@ -22,17 +22,46 @@
 Initial underwater tests were done into the sun, not at full quality (oops).
 This resulted in minimal detection and an initial default detection of ...
 
+Discussion about how the data set was collected
+Challenges with Data set (Here look at the FOV changes in water, show close up crop and long distance crop for board, showing floating debri and or bubbles)
+Accuracy discussion, tried to be accurate on railing
 
-\subsection{Frame selection and blur checking}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.665\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../results/analysis/channel_selection_colour_defaults/fig_air_vs_water_C1_right_60.png}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.air_water_comp}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.315\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{../results/analysis/air_vs_water_crops/fig_single_tag_close_far.png}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.dist_comp}
+    \end{subfigure}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.air_vs_water}
+\end{figure}
+
+
+\subsection{Frame selection}
 Frame selection and extraction is done via a extract\_Stereo\_frames.py. 
 The frames can be manually selected and labelled through a viewier, or autoselected at
-specified step intervals. It also allows for the storing o....
+specified step intervals. The script matches left and write pairs and writes them to a specified output
+directory to be processsed. Due to the (prev mentioned) lack of timesync between cameras, the script also checks
+the difference between the two stereo pairs nd rejects above a reconfigurable difference (1defualt 10ms).
 
 XXX..py does analysis on the selected frames, looking at x,y,z metrics to ensure good??
 
+
+
+
+
 There were concerns regarding the YUYV blur and shutter time.This allows for good comparison 
 between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016.7894491
-
 
 
 
@@ -96,47 +125,102 @@ First: Standard OpenCV setup, full colour
 Second: Comparing the Gray, RGB colours 
 Third: 
 
-WRITEUP:
+WRITEUP:\\
+\subsubsection{Calibraion analysis metrics}
+Optimising for calibration requires careful consideration to avoid degrading the quality and coverage
+of the calibration. Selectivly choosing frames to reduce RMS error results in losing what might be better 
+calibration coverage. The harder to detect tags may increase RMS errors due to higher noise with their 
+detections, resulting in worse RMS error therefore punishing the algortihms for an improved output.
+To avoid this, four metrics are used to evaluate the calibration's algorithm's effectiveness:
+\begin{enumerate}
+    \item \textbf{Tag detection rate:} number of AprilTags detected, as a fraction of the total board tags.
+    \item \textbf{Mean per-image RMS:} reprojection error computed separately for each image, then averaged over all images.
+    \item \textbf{Overall RMS:} reprojection error over all detected corners, as returned by \texttt{calibrateCameraExtended}.
+    \item \textbf{Parameter uncertainty:} standard deviations of the intrinsic parameters, as returned by \texttt{calibrateCameraExtended}.
+    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a separate AprilTag target at distances of 50--250\,cm.
+    \item \textbf{Matched-tag RMS:} reprojection error computed only over tags detected in all of the compared calibrations.
+\end{enumerate}
+
+\subsubsection{Comparing channels for tag detection}
+
 % Intro to the colour comparison
-The first part was choice was to compare the how aprilgrid detection works for the different channels. OpenCV's apriltag
-detection only takes a single colour input channel Due to underwater different absorption, the tag's contrast differes depending
-on colour channel The analyse this comparison, five inputs: grayscale converted using? , the camera's JPEG luma (Y), and the red, 
+The first comparison examined how AprilgGrid detection works for the different channels. OpenCV's ArUco  detector
+detection takes single-channel image. Water attenuates light differently depending on its wavelength, meaning the contrast
+of the tags will vary between channels. Five inputs were compared: greyscale (converted using OpenCV's \texttt{cvtColor}), 
+the camera's JPEG luma (Y), and the red, green and blue channels individually.
+ The analyse this comparison, five inputs: grayscale converted using? , the camera's JPEG luma (Y), and the red, 
 green and blue channels. 
 
-Each run was done using the OpenCV calibration defaults, using the same set of calibration frames. Each run is judged on tag detection amount
-(as a fraction of the 70 board frames),  false detection rate, and the RMS reprojection error over the images that are common to all the runs.
+Each run used OpenCV's defualt detector and calibration settings on the same set of calibration frames. Runs were compared on 
+tag detection rate, false detection rate and matched-tag RMS error.
+
+When looking at which detections were made for each channel, an intersting observatoin was made. Although they had a similar detection rate,
+not all the projections were the same tags. \autoref{fig:ch5.channel_overlap} below shows the different tags detected by different colours..
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8 \textwidth]{../results/analysis/channel_selection_opencv_default/fig_channel_overlap_L3.png}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
+
+The calibrtaion.py script was subsequently adapted to also take a mergerd option, joining the detected tag across all channels.
 
 
-% analysing the coloour comparioson
+% analysing the coloour comparioson'
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.9\textwidth]{../results/analysis/channel_selection_colour_defaults/fig_recall_mean_by_medium.png}
+    \caption[short caption]{\textbf{Lead-in.} Description. Left: air. Right: water.}
+    \label{fig:ch5.recall_mean}
+\end{figure}
 Grayscale and Y gave the same results, a mean recall of X and Y RMS for the ledt camera. This is expected as the JPEG luma uses the same RBG weigths as
 grayscale. Red and green ach found X less, with Blue the clear worse with X and Y error. Likely blue half resoluition (research).
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{../results/analysis/channel_selection_opencv_default/fig_recall_mean.png}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch1.name}
-\end{figure}
-
 % Joining the different detections for maximum number of detections
 
-It was noted by (HOW DID I DETECT THIS) that some of the tags being detected by the grayscale
-did not fully overlap with th ose detected byu tohers (i.e. red got some grey did not). This is shwon in 
-figure X below
-TO maximise tag detection, they were run seperately and merged to maximise usable images. 
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8\textwidth]{../results/analysis/channel_selection_opencv_defualt/gih_channel_overlap_L3.png}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch1.name}
-\end{figure}
+An interesting note was that the air detection rate was worse across all detections. While this appears confusing, it is 
+likely due to the angle affecting nature of the water. The apparent FOV chanes from in air to in water. This can be seen visually and 
+in the (where can I get the 1.33 ish from).  Figure X shows comparative right images between the two.
 
 
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Colour channel comparison. Detection rate: distinct board tags per image $\div$ 70, mean over all images. Matched-tag RMS and median: corner reprojection error over only the tags every input detected.}
+\label{tab:channel_summary}
+\begin{tabular}{llrrrr}
+\toprule
+Medium & Input & Detection rate & False det. (\%) & Matched-tag RMS L/R (px) & Matched-tag median L/R (px) \\
+\midrule
+Air & Gray (computed) & 0.162 & 0.08 & 0.212 / 0.272 & 0.172 / 0.184 \\
+ & Y (JPEG luma) & 0.162 & 0.08 & 0.215 / 0.269 & 0.175 / 0.184 \\
+ & Red & 0.128 & 0.10 & 0.368 / 0.330 & 0.208 / 0.198 \\
+ & Green & 0.170 & 0.08 & 0.235 / 0.254 & 0.176 / 0.184 \\
+ & Blue & 0.144 & 0.00 & 1.506 / 0.381 & 0.214 / 0.266 \\
+ & Merged (gray+R+G+B) & 0.237 & 0.09 & 0.526 / 0.282 & 0.177 / 0.184 \\
+\midrule
+Water & Gray (computed) & 0.358 & 0.00 & 0.491 / 0.852 & 0.207 / 0.220 \\
+ & Y (JPEG luma) & 0.358 & 0.00 & 0.512 / 0.852 & 0.207 / 0.220 \\
+ & Red & 0.344 & 0.00 & 0.561 / 0.952 & 0.226 / 0.237 \\
+ & Green & 0.350 & 0.02 & 0.521 / 0.899 & 0.211 / 0.223 \\
+ & Blue & 0.302 & 0.02 & 0.583 / 0.878 & 0.218 / 0.256 \\
+ & Merged (gray+R+G+B) & 0.437 & 0.03 & 0.543 / 0.896 & 0.210 / 0.217 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsubsection{Tuning OpenCV detector parameters}
 
 % OpenCV parameter adjustments, what, why, ,how (educated guess, followed by paramtere sweep), improved detection results
-The next thing to do was to play / adjust opencv's calibration method's parameters. A parameter sweep was 
+% CLAUDE ADAPTED TO THIS:
+The next step was to tune the parameters of OpenCV's ArUco marker detector. To do this, a parameter sweep was run using \texttt{sweep\_detector.py} to find the configuration that detects the most
+AprilGrid tags within accuracay metrics. Thirteen \texttt{DetectorParameters} were varied, covering thresholding, contour
+filtering and the decoding of each tag's bits. Any configuration producing more than 0.5\% false identifications or duplicate tag detections was rejected.
 
+% MAYBE MOVE TO THEORETICAL DEVELOPMENT
 
 \begin{table}[H]
     \centering
@@ -155,18 +239,25 @@ The next thing to do was to play / adjust opencv's calibration method's paramete
     \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
     \bottomrule[2.25pt]
     \end{tabularx}
-    \label{table:ch4.detectorparams}
+    \label{table:ch5.detectorparams}
 \end{table}
 
+% Went wrong at first
+The first round of the sweep broke the calibration with 5-8px RMS. This was due to loose corner approximations ((polygonalApproxAccuracyRate = 0.08)
+misplacing the courners and three? tag misreads in the higher angle frames. THi sresulted in up 20 78 per image RMS error.
 
+% What the fix was
+Thi swas fixed with outlier rejection in calibration.py. A tax is drupped if the worst corner is either 2 pixels or 5X the median from the board model.
+An image is dropped if its tags corner RMS exceed 1-x or 3x median or if it has fewer than 10 tags. These are both giving the vibes
+of cancelling out the error which is dangerous. This is why the accuracy comparisons are still made? Note how many were cancelled.
+
+% Results with the fix
+This was fixed by rersetting it to 0.03 and adding misplaced 
+tag rejection and badly fitting images. This resulted in a a final 75\% more tags than the original setup (9302 vs 5323). This coverage
+is important for charicuraisation across th full frame.
 % Which I adjusted and why
 
-% Reslts of parameter sweep.
 
-
-
-
-% ACCURACY CHECK, OVERLAPPING
 
 \section{Experiment 2: Reconstruction of known objects}
 \label{sec:ch5.exp2_knownobjects}

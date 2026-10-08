@@ -142,7 +142,7 @@ All chosen filters take and return the 8-bit grayscale image. A parameter sweep 
 \end{enumerate}
 kg
 The settings for the detector stages described in Section~\ref{subsec:ch3.detectionstages} are stored in \texttt{detector\_presets.json} to allow for quick changing and testing.
-
+These configs are stored in a JSON for future use
 \begin{table}[H]
     \centering
     \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
@@ -164,6 +164,16 @@ The settings for the detector stages described in Section~\ref{subsec:ch3.detect
 \end{table}
 
 
+
+% ACCURACY CHECK:
+
+% FOR THE ORIGINAL DEFAULT SETTINGS - GRAYSCALE, OPENCV DEFUALT AND THEN THIS CHANNEL MERGING, OPENCV OPTIMISED VERSION CALCULATE AND COMPARE:
+% COMPARING RMS ERROR metrics (mean, max, median) provided by opencv calaibrataion function 
+% 		- HELPED IDENTIFY FRAMES THAT WERE MAKING IT WORSE - MISALIGNED CAUSED BY WHAT:
+%															FALSE DETECTION - 
+% STANDARD DEVIATION IN CAMERA MATRIX VALUES provided by opencv calaibrataion function
+% COMPARING MEASUREMENT ACCURACY TO THE WATERCOMPARISON ONE (DO CENTER OF FRAME, LEFT FRAME, RIGHT FRAME)
+polygonalApproxAccuracyRate = 0.08 resulted in improved detection but bad accuracy (how we know? what metric)
 %=====================================================================
 \section{Refraction compensation}
 \label{sec:ch4.compensationstage}

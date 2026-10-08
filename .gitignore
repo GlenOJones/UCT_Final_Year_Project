@@ -5,9 +5,22 @@
 !/Report/
 !.gitignore
 !/src/
+# results/ is generated output and is not tracked, except the files the report includes.
+# Each parent folder has to be re-included before a file inside it can be.
 !/results/
 /results/*
 !/results/analysis/
+/results/analysis/*
+!/results/analysis/channel_selection_colour_defaults/
+/results/analysis/channel_selection_colour_defaults/*
+!/results/analysis/channel_selection_colour_defaults/fig_air_vs_water_C1_right_60.png
+!/results/analysis/channel_selection_colour_defaults/fig_recall_mean_by_medium.png
+!/results/analysis/air_vs_water_crops/
+/results/analysis/air_vs_water_crops/*
+!/results/analysis/air_vs_water_crops/fig_single_tag_close_far.png
+!/results/analysis/channel_selection_opencv_default/
+/results/analysis/channel_selection_opencv_default/*
+!/results/analysis/channel_selection_opencv_default/fig_channel_overlap_L3.png
 # Python virtual environments and caches
 venv/
 __pycache__/
