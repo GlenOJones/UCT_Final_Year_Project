@@ -60,6 +60,16 @@ def parse_args(argv=None):
     # beside the default as e.g. --method sgbm_block5.
     ap.add_argument("--method", default=None, help="output folder name (default: the matcher's name)")
     ap.add_argument("--step", type=int, default=1, help="use every Nth posed frame (default 1)")
+    ap.add_argument("--step-offset", type=int, default=0,
+                    help="start --step at this frame, e.g. --step 2 --step-offset 1 for the frames --step 2 skips")
+    # Frame selection for free-moving scans (Oct1/cub2: 1855 posed frames at 490-950 mm, 438 of
+    # them posed from a single tag). Depth error grows with the square of range, and a one-tag pose
+    # pins rotation with only four corners 50 mm apart, so near, multi-tag frames are worth more.
+    ap.add_argument("--min-tags", type=int, default=1, help="use only frames posed from at least this many tags (default 1)")
+    ap.add_argument("--max-range", type=float, default=None,
+                    help="mm; use only frames whose camera is within this distance of --focus (default: all)")
+    ap.add_argument("--focus", type=float, nargs=2, default=(0.0, 0.0), metavar=("X", "Y"),
+                    help="board-frame point (mm) --max-range is measured to (default 0 0, the tags' centre)")
     ap.add_argument("--voxel", type=float, default=1.0, help="mm, fusion grid size (default 1)")
     ap.add_argument("--min-views", type=int, default=3,
                     help="frames that must put a point in a voxel for it to be kept (default 3)")
@@ -81,6 +91,9 @@ def parse_args(argv=None):
                     help="image scale fed to a learned matcher, e.g. 0.5 for speed or memory (default 1)")
     ap.add_argument("--lr-tolerance", "--raft-lr-tolerance", dest="lr_tolerance", type=float, default=1.0,
                     help="px; left-right consistency check for a learned matcher, 0 to switch it off (default 1)")
+    ap.add_argument("--save-frames", action="store_true",
+                    help="also keep each frame's points (1 mm voxels, board frame) and pose in frames/, "
+                         "for refine_frames.py to re-align and re-fuse without re-running the matcher")
     ap.add_argument("--debug-every", type=int, default=0,
                     help="save rectified image + disparity for every Nth used frame (0 = never)")
     args = ap.parse_args(argv)
@@ -92,7 +105,7 @@ def parse_args(argv=None):
 # ====== INPUTS ======
 def load_poses(path):
     """Poses YAML from tag_poses.py -> (metadata dict, tag corners (N, 3) in the board frame,
-    [(name, T_cam_board)] for the frames that have a pose)."""
+    [(name, T_cam_board, number of tags it was posed from)] for the frames that have a pose)."""
     if not os.path.exists(path):
         raise SystemExit(f"no poses at {rel(path)} - run src/03_Reconstruction/tag_poses.py first")
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
@@ -105,9 +118,25 @@ def load_poses(path):
     for i in range(frames_node.size()):
         node = frames_node.at(i)
         if not node.getNode("T_cam_board").isNone():
-            frames.append((node.getNode("name").string(), node.getNode("T_cam_board").mat()))
+            frames.append((node.getNode("name").string(), node.getNode("T_cam_board").mat(),
+                           node.getNode("tags").size()))
     fs.release()
     return metadata, tag_corners, frames
+
+
+def select_frames(frames, args):
+    """The posed frames that pass --min-tags and --max-range."""
+    focus = np.r_[args.focus, 0.0]
+    keep = []
+    for name, T_cam_board, n_tags in frames:
+        centre = -T_cam_board[:3, :3].T @ T_cam_board[:3, 3]      # camera centre in the board frame
+        if n_tags >= args.min_tags and (args.max_range is None or np.linalg.norm(centre - focus) <= args.max_range):
+            keep.append((name, T_cam_board, n_tags))
+    if len(keep) < len(frames):
+        print(f"frame selection: {len(keep)} of {len(frames)} posed frames have >= {args.min_tags} tags"
+              + (f" and the camera within {args.max_range:.0f} mm of ({args.focus[0]:.0f}, {args.focus[1]:.0f})"
+                 if args.max_range is not None else ""))
+    return keep
 
 
 def crop_box(tag_corners, args):
@@ -232,6 +261,19 @@ class VoxelGrid:
         return sums[:, :3] / sums[:, 4:5], sums[:, 3] / sums[:, 4], self.views[keep]
 
 
+def save_frame(folder, name, xyz, grey, T_cam_board, voxel):
+    """One frame's points, collapsed to one per voxel, and the pose they were placed with."""
+    os.makedirs(folder, exist_ok=True)
+    keys = np.floor(xyz / voxel).astype(np.int64)
+    _, first, inverse = np.unique(keys, axis=0, return_index=True, return_inverse=True)
+    inverse = inverse.ravel()
+    counts = np.bincount(inverse)
+    mean_xyz = np.stack([np.bincount(inverse, xyz[:, i]) for i in range(3)], 1) / counts[:, None]
+    mean_grey = np.bincount(inverse, grey) / counts
+    np.savez(os.path.join(folder, os.path.splitext(name)[0] + ".npz"), xyz=mean_xyz.astype(np.float32),
+             grey=mean_grey.astype(np.uint8), T_cam_board=T_cam_board)
+
+
 def write_ply(path, xyz, grey, views):
     """Binary little-endian PLY: float x y z, uchar red green blue, ushort views."""
     record = np.dtype([("x", "<f4"), ("y", "<f4"), ("z", "<f4"),
@@ -271,7 +313,7 @@ def main():
     low, high = crop_box(tag_corners, args)
     debug_dir = os.path.join(out_dir, "disparity")
 
-    used = frames[::args.step]
+    used = select_frames(frames, args)[args.step_offset::args.step]
     print(f"{len(used)} of {len(frames)} posed frames from {rel(frames_dir)}")
     print(f"box (board frame, mm): x {low[0]:.0f}..{high[0]:.0f}, y {low[1]:.0f}..{high[1]:.0f}, "
           f"z {low[2]:.0f}..{high[2]:.0f}; voxel {args.voxel} mm")
@@ -294,11 +336,13 @@ def main():
 
     grid = VoxelGrid(args.voxel)
     start = time.time()
-    for k, (name, T_cam_board) in enumerate(used):
+    for k, (name, T_cam_board, _) in enumerate(used):
         xyz, grey, left, disparity, disparity_range = frame_points(
             rectifier, os.path.join(frames_dir, "left", name), os.path.join(frames_dir, "right", name),
             T_cam_board, low, high, args, network)
         grid.add(xyz, grey)
+        if args.save_frames:
+            save_frame(os.path.join(out_dir, "frames"), name, xyz, grey, T_cam_board, args.voxel)
         if args.debug_every and k % args.debug_every == 0:
             save_debug(debug_dir, name, left, disparity, disparity_range)
         if (k + 1) % MERGE_EVERY == 0:

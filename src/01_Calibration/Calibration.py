@@ -72,6 +72,17 @@ SUBPIX_WIN_MIN = 2           # px, floor for very small tags
 SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
 
 
+# ====== IMAGE CHANNEL ======
+# Which single-channel image the detector and cornerSubPix work on. Frames are saved in colour and this
+# picks what is made of them, so comparing channels is a set of ordinary calibration runs.
+#   gray     cv2.cvtColor BGR2GRAY (0.299R + 0.587G + 0.114B) of the colour PNG; on a grayscale PNG
+#            this is the file itself, so runs made before colour frames existed are unchanged
+#   y        the camera's own JPEG luma, read from the gray/ copy that extract_stereo_frames.py --gray
+#            writes beside left/ and right/: <recording>/gray/<camera>/<file>
+#   r, g, b  one colour channel. Water absorbs red first, so r should fade fastest with range.
+CHANNELS = ("gray", "y", "r", "g", "b")
+
+
 # ====== DETECTOR PRESETS ======
 # Tag family printed on the board: AprilTag 36h11.
 dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
@@ -163,6 +174,17 @@ DETECTORS = {"aruco": aruco_backend, "uwaruco": uwaruco_backend}
 
 
 # ====== RUN SETTINGS ======
+def run_name(frames_dir, detector_name, preset, channel="gray"):
+    """Runs are named by recording, detector, preset and channel, so a sweep over any of them does not
+    overwrite itself and compare_calibrations.py can pick the whole set up with a glob."""
+    recording = os.path.basename(os.path.normpath(frames_dir)).replace(" ", "_")
+    # The default detector is left unlabelled so that the ArUco runs made before UWARUco existed
+    # keep their filenames and stay comparable with new ones.
+    label = preset if detector_name == "aruco" else f"{detector_name}-{preset}"
+    # Likewise the default channel, so gray runs keep the names they had before --channel.
+    return f"{recording}_{label}" + ("" if channel == "gray" else f"_{channel}")
+
+
 @dataclass
 class Run:
     """Everything one calibration run needs, resolved once so no function reads a global."""
@@ -177,16 +199,11 @@ class Run:
     detector_settings: str    # merged settings of the preset, recorded in the YAML
     detector: cv2.aruco.ArucoDetector
     board: cv2.aruco.Board
+    channel: str = "gray"     # which image the detector sees, one of CHANNELS
 
     @property
     def name(self):
-        """Runs are named by recording, detector and preset, so a sweep over either does not
-        overwrite itself and compare_calibrations.py can pick the whole set up with a glob."""
-        recording = os.path.basename(os.path.normpath(self.frames_dir)).replace(" ", "_")
-        # The default detector is left unlabelled so that the ArUco runs made before UWARUco existed
-        # keep their filenames and stay comparable with new ones.
-        label = self.preset if self.detector_name == "aruco" else f"{self.detector_name}-{self.preset}"
-        return f"{recording}_{label}"
+        return run_name(self.frames_dir, self.detector_name, self.preset, self.channel)
 
     @property
     def yaml_path(self):
@@ -195,6 +212,10 @@ class Run:
     @property
     def detections_dir(self):
         return os.path.join(self.out_dir, self.name + "_detections")
+
+    @property
+    def corners_path(self):
+        return os.path.join(self.out_dir, self.name + "_corners.json")
 
 
 def rel(path):
@@ -218,6 +239,9 @@ def parse_args(presets, argv=None):
     ap.add_argument("--out-dir", default=None,
                     help="where the YAML and detection images go (default results/<session>/calibration, "
                          "the session being the folder --frames-dir is in, e.g. 18_Sep)")
+    ap.add_argument("--channel", default="gray", choices=CHANNELS,
+                    help="image the detector sees: gray (computed from colour), y (the camera's JPEG "
+                         "luma, from <recording>/gray/), or one colour channel r, g, b (default gray)")
     ap.add_argument("--min-tags", type=int, default=10,
                     help="tags an image needs to be used (default 10)")
     ap.add_argument("--min-common-tags", type=int, default=10,
@@ -258,7 +282,7 @@ def setup(args):
                              f"preproccessing/extract_stereo_frames.py")
 
     first_image = find_images(args.frames_dir, "left")[0]
-    image_size = cv2.imread(first_image, cv2.IMREAD_GRAYSCALE).shape[::-1]   # (width, height)
+    image_size = cv2.imread(first_image, cv2.IMREAD_COLOR).shape[1::-1]   # (width, height)
     print("image size:", image_size)
     print(f"detector: {args.detector}  preset: {preset}  ({describe(preset)})")
 
@@ -270,10 +294,29 @@ def setup(args):
                min_tags=args.min_tags, min_common_tags=args.min_common_tags,
                save_detections=not args.no_detection_images,
                image_size=image_size, detector_settings=describe(preset),
-               detector=make_detector(preset), board=build_board())
+               detector=make_detector(preset), board=build_board(), channel=args.channel)
 
 
 # ====== DETECTION ======
+def load_image(path, channel="gray"):
+    """Read a frame as (BGR image for drawing on, single-channel image for detection); see CHANNELS.
+    Works for colour and grayscale PNGs alike: a grayscale file loads as three equal channels."""
+    if channel == "y":
+        folder, name = os.path.split(path)
+        luma_path = os.path.join(os.path.dirname(folder), "gray", os.path.basename(folder), name)
+        luma = cv2.imread(luma_path, cv2.IMREAD_GRAYSCALE)
+        if luma is None:
+            raise SystemExit(f"{luma_path}: no luma copy for --channel y; extract one with "
+                             f"preproccessing/extract_stereo_frames.py --gray")
+        return cv2.cvtColor(luma, cv2.COLOR_GRAY2BGR), luma
+    image = cv2.imread(path, cv2.IMREAD_COLOR)
+    if image is None:
+        raise SystemExit(f"{path}: could not read image")
+    if channel == "gray":
+        return image, cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return image, np.ascontiguousarray(image[..., "bgr".index(channel)])
+
+
 def subpix_window(tag_corners):
     """cornerSubPix half-window for one tag: SUBPIX_WIN_FRACTION of its mean side length in the image."""
     quad = tag_corners.reshape(4, 2)
@@ -288,9 +331,9 @@ def refine_corners(gray, corners):
                  .reshape(1, 4, 2) for c in corners)
 
 
-def save_detection_image(run, camera, name, gray, corners, ids, rejected):
+def save_detection_image(run, camera, name, image, corners, ids, rejected):
     """Save a copy of the image with detected tags (green, with id) and rejected candidates (red)."""
-    vis = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    vis = image.copy()
     if rejected:
         cv2.aruco.drawDetectedMarkers(vis, rejected, borderColor=(0, 0, 255))
     if ids is not None:
@@ -312,23 +355,25 @@ def save_detection_image(run, camera, name, gray, corners, ids, rejected):
 def detect_tags(run, camera, found=None):
     """Detect tags in every image of one camera.
     Returns {"folder/filename": (corners, ids)} for the usable images only. If `found` is a dict, it
-    is filled with {"folder/filename": sorted tag ids} for EVERY image, usable or not, so the
-    detection rate can be reported from the run itself."""
+    is filled with {"folder/filename": {"ids": [...], "corners": [4x2 per id]}} for EVERY image,
+    usable or not, and every detection including false ids and repeats, so the detection rate can be
+    reported and the corners re-used from the run itself."""
     image_files = find_images(run.frames_dir, camera)
     detections = {}
     for path in image_files:
-        gray = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        image, gray = load_image(path, run.channel)
         if gray.shape[::-1] != run.image_size:
             raise SystemExit(f"{path}: size {gray.shape[::-1]} differs from {run.image_size}")
         name = os.path.relpath(path, run.frames_dir).replace(os.sep + camera + os.sep, "/")   # "140/C140_Left_90.png"
         corners, ids, rejected = run.detector.detectMarkers(gray)
         corners = refine_corners(gray, corners)
         if run.save_detections:
-            save_detection_image(run, camera, name, gray, corners, ids, rejected)
+            save_detection_image(run, camera, name, image, corners, ids, rejected)
 
         n_tags = 0 if ids is None else len(ids)
         if found is not None:
-            found[name] = [] if ids is None else sorted(int(i) for i in ids.ravel())
+            found[name] = {"ids": [] if ids is None else [int(i) for i in ids.ravel()],
+                           "corners": [c.reshape(4, 2).tolist() for c in corners]}
         if n_tags < run.min_tags:
             print(f"  {camera}: skip {name}: {n_tags} tags")
             continue
@@ -587,21 +632,26 @@ def write_detection(fs, run, found):
         names = sorted(found[camera])
         # Ids outside the board's 0..N_TAGS-1 are false detections (the calibration ignores them:
         # matchImagePoints only knows the board's ids). Underwater caustics produce them.
-        on_board = {n: [i for i in found[camera][n] if 0 <= i < N_TAGS] for n in names}
+        # A board id reported twice in one image is a duplicate: one tag can only be seen once, so at
+        # least one of the two is a misread. Counts are of DISTINCT ids, or duplicates would inflate them.
+        ids = {n: found[camera][n]["ids"] for n in names}
+        on_board = {n: sorted({i for i in ids[n] if 0 <= i < N_TAGS}) for n in names}
         counts = np.array([len(on_board[n]) for n in names])
-        false = np.array([len(found[camera][n]) - len(on_board[n]) for n in names])
+        false = np.array([sum(not 0 <= i < N_TAGS for i in ids[n]) for n in names])
+        duplicates = np.array([len(ids[n]) - false[k] - counts[k] for k, n in enumerate(names)])
         per_id = np.zeros(N_TAGS, int)
         for n in names:
             per_id[on_board[n]] += 1
         fs.writeComment(f"{camera}: {len(names)} images, median {np.median(counts):.0f} of {N_TAGS} tags, "
                         f"{np.sum(counts >= run.min_tags)} usable (>= {run.min_tags} tags), "
-                        f"{np.sum(counts == 0)} with none, {false.sum()} false detections (ids not on the board)")
+                        f"{np.sum(counts == 0)} with none, {false.sum()} false detections (ids not on the board), "
+                        f"{duplicates.sum()} duplicates")
         fs.startWriteStruct(camera, cv2.FileNode_MAP)
         fs.startWriteStruct("images", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
         for n in names:
             fs.write("", n)
         fs.endWriteStruct()
-        fs.writeComment("tags_found[i] is the number of board tags detected in images[i]")
+        fs.writeComment("tags_found[i] is the number of distinct board tags detected in images[i]")
         fs.startWriteStruct("tags_found", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
         for c in counts:
             fs.write("", int(c))
@@ -609,6 +659,11 @@ def write_detection(fs, run, found):
         fs.writeComment("false_found[i] is the number of detections in images[i] with an id not on the board")
         fs.startWriteStruct("false_found", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
         for c in false:
+            fs.write("", int(c))
+        fs.endWriteStruct()
+        fs.writeComment("duplicate_found[i] is the number of extra detections of a board id already found in images[i]")
+        fs.startWriteStruct("duplicate_found", cv2.FileNode_SEQ | cv2.FileNode_FLOW)
+        for c in duplicates:
             fs.write("", int(c))
         fs.endWriteStruct()
         fs.writeComment(f"images_per_tag_id[k] is the number of images in which tag id k was found (ids 0..{N_TAGS - 1})")
@@ -658,9 +713,11 @@ def write_yaml(run, intrinsics, stereo, found=None):
     fs.write("tag_size_mm", TAG_SIZE)
     fs.write("tag_gap_mm", TAG_GAP)
     fs.writeComment("Detection: the detector named below with the thresholding preset named below,")
-    fs.writeComment("its own corner refinement off, then cv2.cornerSubPix on the original grayscale")
-    fs.writeComment("image. 'aruco' is cv2.aruco.ArucoDetector; 'uwaruco' is the re-implementation of")
+    fs.writeComment("its own corner refinement off, then cv2.cornerSubPix, both on the image channel named")
+    fs.writeComment("below. 'aruco' is cv2.aruco.ArucoDetector; 'uwaruco' is the re-implementation of")
     fs.writeComment("Cejka et al. 2019 (doi:10.3390/rs11040459) in src/UWARUco.")
+    fs.writeComment("channel: gray = BGR2GRAY of the colour frame, y = the camera's JPEG luma, r/g/b = one colour channel")
+    fs.write("channel", run.channel)
     fs.write("detector", run.detector_name)
     fs.write("detector_preset", run.preset)
     fs.writeComment("Full detector settings for this preset, so the run can be reproduced from this file alone:")
@@ -683,6 +740,19 @@ def write_yaml(run, intrinsics, stereo, found=None):
     fs.release()
 
 
+def write_corners(run, found):
+    """Every detection of the run, refined corners included, as JSON beside the YAML.
+
+    The YAML says how many tags were found; this says where. Analyses that need the corners (stereo
+    triangulation, corner shift between runs) read them from here instead of detecting again.
+    """
+    with open(run.corners_path, "w", encoding="utf-8") as fh:
+        json.dump({"calibration": os.path.basename(run.yaml_path), "frames_dir": rel(run.frames_dir),
+                   "channel": run.channel, "detector": run.detector_name, "preset": run.preset,
+                   "corner_order": "as reported by the detector; corners[k] belongs to ids[k]",
+                   "cameras": found}, fh)
+
+
 def calibrate(argv=None):
     """Run one calibration end to end. Returns (run, intrinsics, stereo) for callers to use.
 
@@ -696,7 +766,8 @@ def calibrate(argv=None):
     intrinsics = {camera: calibrate_camera(run, camera, detections[camera]) for camera in CAMERAS}
     stereo = calibrate_stereo(run, detections, intrinsics)
     write_yaml(run, intrinsics, stereo, found)
-    print(f"\nsaved calibration to {rel(run.yaml_path)}")
+    write_corners(run, found)
+    print(f"\nsaved calibration to {rel(run.yaml_path)} and corners to {rel(run.corners_path)}")
     return run, intrinsics, stereo
 
 

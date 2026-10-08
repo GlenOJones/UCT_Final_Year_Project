@@ -1,0 +1,31 @@
+{
+  "_comment": "Channel selection study: which image channel should the AprilGrid detector see underwater? Every setting of the experiment is here; run_study.py and analyse_study.py read nothing else. Paths are relative to the project root.",
+  "channels": ["gray", "y", "r", "g", "b"],
+  "calibration": {
+    "_why": "The settings every Calibration.py run in the study shares, so the channel is the only thing that changes between runs.",
+    "detector": "aruco",
+    "preset": "wide",
+    "min_tags": 10,
+    "min_common_tags": 10,
+    "detection_images": false
+  },
+  "media": {
+    "Air": "data/Calibration/FinalComparison/Air",
+    "Water": "data/Calibration/FinalComparison/Water"
+  },
+  "distance_unit": "cm",
+  "recall_medium": "Water",
+  "angle_names": {
+    "_why": "Optional description of each board angle (scan code in the folder name), shown in the recall figure's panel titles.",
+    "C1": "straight"
+  },
+  "test_target": {
+    "_why": "Held-out stereo pairs of a different target, never used to calibrate, triangulated with each channel's Water calibration. The tags are ordinary AprilTags (1-bit border), unlike the Kalibr board (2-bit), so only markerBorderBits differs from the calibration preset.",
+    "medium": "Water",
+    "frames": "data/Calibration/FinalComparison/WaterComparison",
+    "ids": [6, 7, 8, 9, 10, 11],
+    "marker_border_bits": 1,
+    "tag_size_mm": null
+  },
+  "out_dir": "results/analysis/channel_selection"
+}

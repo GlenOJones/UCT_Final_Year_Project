@@ -5,7 +5,7 @@
 !/Report/
 !.gitignore
 !/src/
-
+!/results/analysis/
 # Python virtual environments and caches
 venv/
 __pycache__/

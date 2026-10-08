@@ -52,9 +52,13 @@ def read_run(path):
     # ArUco run, so an absent field means "aruco" rather than an unreadable file.
     detector = board.getNode("detector").string() or "aruco"
     preset = board.getNode("detector_preset").string() or "?"
+    # "channel" came with colour frames; older runs are gray, and gray stays unlabelled to match.
+    channel = board.getNode("channel").string() or "gray"
+    label = preset if detector == "aruco" else f"{detector}:{preset}"
     run = {"path": path,
            "detector": detector,
-           "preset": preset if detector == "aruco" else f"{detector}:{preset}",
+           "channel": channel,
+           "preset": label if channel == "gray" else f"{label}/{channel}",
            "min_tags": int(board.getNode("min_tags_per_image").real() or 0),
            "frames_dir": fs.getNode("metadata").getNode("frames_dir").string(),
            "cameras": {}}
