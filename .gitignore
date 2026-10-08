@@ -5,6 +5,8 @@
 !/Report/
 !.gitignore
 !/src/
+!/results/
+/results/*
 !/results/analysis/
 # Python virtual environments and caches
 venv/
