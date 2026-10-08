@@ -13,18 +13,32 @@
 
 
 
-
+% CURRENTLY THINKING OF DOING 3 SEPERATE EXPERIMENT, RESULT SETUPS
 %=====================================================================
 \section{Experiment 1: Stereo calibration in air and underwater}
 \label{sec:ch5.exp1_calibration}
 %=====================================================================
-% Calibration tests (in air vs underwater)
-Initial underwater tests were done into the sun, not at full quality (oops).
-This resulted in minimal detection and an initial default detection of ...
+% Intro / Setup for experiment
+This experiment determines the intrinsic and extrinsic parameters of the StellarHD stereo camera pair, both in air and in water,
+and tests the AprilGrid detection pipeline as well as three different underwater compensation techniques. Calibration images were
+taken both in air and underwater. The in-air calibration provides a baseline for analysing the effect that the underwater environment
+has on the camera calibration.
 
-Discussion about how the data set was collected
-Challenges with Data set (Here look at the FOV changes in water, show close up crop and long distance crop for board, showing floating debri and or bubbles)
-Accuracy discussion, tried to be accurate on railing
+\subsubsection{Data collection}
+% Calibration tests (in air vs underwater)
+A sliding rig was designed using 2020 aluminium extrusions and custom 3D-printed attachments with wheels. The rig allows
+one-degree-of-freedom sliding towards and away from a calibration board mounted at its end. The board's angle is adjustable, and it
+can be moved from the centre to the left or right. Because frames are matched in distance, position and relative angle, this allows
+repeatable comparison of calibration techniques between air and water.
+
+Images were captured at distances from 40 to 160\,cm from the board, in 10\,cm increments. At each distance, the board angle ranged
+from roughly X to Y. The board was first placed in the centre and then on the left of the frame mount. Distances were read from
+calibrated markers drawn on the side of the guide rail. % TODO: state where distances were measured from
+In total, 212 stereo pairs were used in air and 230 matching pairs underwater. % TODO: redo without blurred frames
+
+Figure~\ref{fig:ch5.air_vs_water} illustrates the key differences between the in-air and underwater data sets. Refraction at the
+glass--water interface narrows the field of view underwater, so the in-air images appear wider-angle, with the board appearing smaller
+at a given distance. The water also adds haze and reduces contrast, and occasional floating particles and bubbles are visible.
 
 
 \begin{figure}[htbp]
@@ -46,22 +60,22 @@ Accuracy discussion, tried to be accurate on railing
     \label{fig:ch5.air_vs_water}
 \end{figure}
 
-
 \subsection{Frame selection}
-Frame selection and extraction is done via a extract\_Stereo\_frames.py. 
-The frames can be manually selected and labelled through a viewier, or autoselected at
-specified step intervals. The script matches left and write pairs and writes them to a specified output
-directory to be processsed. Due to the (prev mentioned) lack of timesync between cameras, the script also checks
-the difference between the two stereo pairs nd rejects above a reconfigurable difference (1defualt 10ms).
+As the StellarHD cameras do not support single-shot images, each frame is extracted from an .mkv video file using
+\texttt{extract\_stereo\_frame.py} and is chosen and labelled by hand. Because there is no hardware synchronisation between the
+cameras, the script pairs each left frame with the right frame that has the closest timestamp, and rejects the pair if the
+difference exceeds a configurable threshold (default 10\,ms). Since the ROV is stationary at each set position, a 10\,ms offset
+causes negligible relative motion between the two views.
 
-XXX..py does analysis on the selected frames, looking at x,y,z metrics to ensure good??
-
-
-
+% MJPEG at 1600×1200, full-range YUV 4:2:2, ~30fps, in MKV containers
+The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
 
 
-There were concerns regarding the YUYV blur and shutter time.This allows for good comparison 
-between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016.7894491
+
+
+
+%There were concerns regarding the YUYV blur and shutter time.This allows for good comparison 
+%between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016.7894491
 
 
 
@@ -69,9 +83,12 @@ between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016
 
 
 \subsection{Calibration}
-The Calibration for determining the systems intrinsics and extrinsics were completed
-using calibration.py. This allowed for quick iteration of openCV detector configurations. For this
-comparison, tags detected is the metric. Outputs a png with the noted detectrions. See image below.
+% NB: APPARENTLY THE IN AIR WERE MORE COMPRESSED DUE TO HIGHER DETAIL - CPMPRESSION LEVELS DEPEND detail
+Calibration is done with \texttt{calibration.py}. This allowed for quick iteration of openCV detector configurations. For this
+comparison, tags detected is the metric.
+
+
+Outputs a png with the noted detectrions. See image below.
 add in the DetectedTags.png here
 \begin{figure}[H]
     \centering
