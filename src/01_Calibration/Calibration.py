@@ -4,15 +4,19 @@ Detects the board in every extracted frame pair, refines the corners to sub-pixe
 a pinhole-plus-distortion model for each camera. The result is written as a commented YAML file that
 is readable both by a person and by cv2.FileStorage.
 
+THE STANDARD PIPELINE is this script at its defaults: preset water_final (detector_presets.json "default"),
+channel merge, outlier rejection on. Experiments in src/experiments/ never rely on these defaults: each states
+every setting in its own config, so changing a default here does not change any experiment's result.
+
 Paths resolve from this file, so it can be run from any working directory:
-    src/venv/bin/python src/01_Calibration/Calibration.py
-    src/venv/bin/python src/01_Calibration/Calibration.py --preset uwaruco --min-tags 8
+    src/venv/bin/python src/01_Calibration/Calibration.py --frames-dir data/Calibration/FinalComparison/Water
+    src/venv/bin/python src/01_Calibration/Calibration.py --preset opencv_default --channel gray --no-reject
     src/venv/bin/python src/01_Calibration/Calibration.py --detector uwaruco --preset scaled
 
 Two detectors can be put in front of the calibration. --detector aruco (the default) is OpenCV's
 ArucoDetector, tuned by a preset from detector_presets.json, which detector_config.py checks on
 load. --detector uwaruco is the re-implementation of the underwater detector of Cejka et al. 2019
-in src/UWARUco, tuned by a preset from src/UWARUco/uwaruco_presets.json. Either way the detector,
+in src/archive/UWARUco, tuned by a preset from src/archive/UWARUco/uwaruco_presets.json. Either way the detector,
 the preset name and its full settings are recorded in the output, so a run can be reproduced from
 the YAML alone, and compare_calibrations.py reads those outputs to compare runs.
 
@@ -24,8 +28,10 @@ and triangulate from this file alone.
 See docs/calibration_improvement_notes.md for notes on improving the quality of the result.
 """
 import argparse
+import contextlib
 import datetime
 import glob
+import io
 import json
 import os
 import sys
@@ -80,7 +86,20 @@ SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.00
 #   y        the camera's own JPEG luma, read from the gray/ copy that extract_stereo_frames.py --gray
 #            writes beside left/ and right/: <recording>/gray/<camera>/<file>
 #   r, g, b  one colour channel. Water absorbs red first, so r should fade fastest with range.
-CHANNELS = ("gray", "y", "r", "g", "b")
+#   merge    detect separately in each of MERGE_ORDER and keep every board tag any of them found (see
+#            merge_detections). The channels find different tags in the same image: on the 30 Sep water
+#            set with the wide preset, gray+R+G+B together held 13.8% more tags than gray alone, their
+#            extra corners reprojecting at a median 0.25 px (gray's own: 0.19 px). Y is left out: it is
+#            gray up to rounding for MJPEG, and merging the two added 2 tags in 7623. The channels are
+#            used to find tags only: all corners are refined on the gray image (see detect_tags).
+CHANNELS = ("gray", "y", "r", "g", "b", "merge")
+# Merge priority: a tag found in several channels takes its corners from the first of these that found
+# it. Gray first, then the single channels in the order they did on their own (recall g > r > b).
+MERGE_ORDER = ("gray", "g", "r", "b")
+# px. A tag found in several channels whose corners disagree by more than this in any corner is
+# dropped: the same tag seen twice should land within a fraction of a pixel, so a larger gap means
+# one channel misread the id or misplaced the tag.
+MERGE_TOLERANCE_PX = 1.0
 
 
 # ====== DETECTOR PRESETS ======
@@ -141,18 +160,18 @@ def load_presets():
 
 # ====== DETECTOR REGISTRY ======
 # Two detectors can be put in front of the same calibration: OpenCV's ArucoDetector, and the
-# re-implementation of Cejka et al.'s underwater ARUco in src/UWARUco. They are swapped here rather
+# re-implementation of Cejka et al.'s underwater ARUco in src/archive/UWARUco. They are swapped here rather
 # than compared in a script of their own, so that what gets compared is two real calibrations of the
 # same frames and not two tag counts from a program that only resembles this one.
 #
 # Each entry answers three questions: which preset to use when none is named, what the settings were
 # (recorded in the YAML), and how to build the detector. Anything with a detectMarkers(gray) that
 # returns (corners, ids, rejected) fits here.
-UWARUCO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "UWARUco")
+UWARUCO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "archive", "UWARUco")
 
 
 def uwaruco_module():
-    """Import src/UWARUco/uwaruco.py. Imported on use so that ArUco runs do not depend on it."""
+    """Import src/archive/UWARUco/uwaruco.py. Imported on use so that ArUco runs do not depend on it."""
     sys.path.insert(0, UWARUCO_DIR)
     import uwaruco
     return uwaruco
@@ -200,6 +219,8 @@ class Run:
     detector: cv2.aruco.ArucoDetector
     board: cv2.aruco.Board
     channel: str = "gray"     # which image the detector sees, one of CHANNELS
+    reject: bool = True       # drop misplaced tags and badly fitting images before the final fit
+    arguments: str = ""       # the command-line arguments of the run, recorded in the YAML
 
     @property
     def name(self):
@@ -229,24 +250,27 @@ def parse_args(presets, argv=None):
                     help="one folder per recording, each with left/ and right/ (default 18_Sep/Rigframes)")
     ap.add_argument("--detector", default="aruco", choices=list(DETECTORS),
                     help="which detector implementation to use: OpenCV's ArUco, or the UWARUco "
-                         "re-implementation in src/UWARUco (default aruco)")
+                         "re-implementation in src/archive/UWARUco (default aruco)")
     # No choices= here: the valid presets depend on --detector, and each detector's own loader
     # already rejects an unknown name with a message listing the ones it does define.
     ap.add_argument("--preset", default=None,
                     help=f"detector preset; from detector_presets.json for --detector aruco "
-                         f"(default {presets.default}), or from src/UWARUco/uwaruco_presets.json "
+                         f"(default {presets.default}), or from src/archive/UWARUco/uwaruco_presets.json "
                          f"for --detector uwaruco")
     ap.add_argument("--out-dir", default=None,
                     help="where the YAML and detection images go (default results/<session>/calibration, "
                          "the session being the folder --frames-dir is in, e.g. 18_Sep)")
-    ap.add_argument("--channel", default="gray", choices=CHANNELS,
+    ap.add_argument("--channel", default="merge", choices=CHANNELS,
                     help="image the detector sees: gray (computed from colour), y (the camera's JPEG "
-                         "luma, from <recording>/gray/), or one colour channel r, g, b (default gray)")
+                         "luma, from <recording>/gray/), one colour channel r, g, b, or merge (detect in "
+                         "gray, g, r and b and combine the tags) (default merge)")
     ap.add_argument("--min-tags", type=int, default=10,
                     help="tags an image needs to be used (default 10)")
     ap.add_argument("--min-common-tags", type=int, default=10,
                     help="tags both cameras must see in a pair for it to be used for extrinsics "
                          "(default 10)")
+    ap.add_argument("--no-reject", action="store_true",
+                    help="keep every detected tag and image: skip the outlier rejection (see REJECT_*)")
     ap.add_argument("--no-detection-images", action="store_true",
                     help="skip writing a copy of every frame with its detections drawn on")
     return ap.parse_args(argv)
@@ -270,7 +294,7 @@ def build_board():
     return cv2.aruco.Board(tag_corners, dictionary, np.arange(N_TAGS))
 
 
-def setup(args):
+def setup(args, arguments=""):
     """Validate the inputs and resolve everything the run needs. Returns a Run."""
     default_preset, describe, make_detector = DETECTORS[args.detector]()
     preset = args.preset or default_preset
@@ -294,7 +318,8 @@ def setup(args):
                min_tags=args.min_tags, min_common_tags=args.min_common_tags,
                save_detections=not args.no_detection_images,
                image_size=image_size, detector_settings=describe(preset),
-               detector=make_detector(preset), board=build_board(), channel=args.channel)
+               detector=make_detector(preset), board=build_board(), channel=args.channel,
+               reject=not args.no_reject, arguments=arguments)
 
 
 # ====== DETECTION ======
@@ -312,9 +337,52 @@ def load_image(path, channel="gray"):
     image = cv2.imread(path, cv2.IMREAD_COLOR)
     if image is None:
         raise SystemExit(f"{path}: could not read image")
+    return image, channel_image(image, "gray" if channel == "merge" else channel)
+
+
+def channel_image(image, channel):
+    """One single-channel image made from a BGR frame: gray, r, g or b (see CHANNELS)."""
     if channel == "gray":
-        return image, cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    return image, np.ascontiguousarray(image[..., "bgr".index(channel)])
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    return np.ascontiguousarray(image[..., "bgr".index(channel)])
+
+
+def detect(run, image, refine_on=None):
+    """(corners, ids, rejected) in one single-channel image, corners refined on refine_on (default: the
+    same image)."""
+    corners, ids, rejected = run.detector.detectMarkers(image)
+    return refine_corners(image if refine_on is None else refine_on, corners), ids, rejected
+
+
+def merge_detections(results):
+    """Combine detections of the same frame from several channels, given in MERGE_ORDER.
+
+    Each board id is kept once, with the corners of the first channel that found it. Within a channel,
+    an id reported twice is ambiguous and ignored. A tag found in several channels whose corners
+    disagree by more than MERGE_TOLERANCE_PX is dropped. Ids not on the board are kept (once each) so
+    the false-detection rate stays comparable with single-channel runs.
+    Returns (corners, ids, number of tags dropped for disagreeing).
+    """
+    found = {}                               # id -> [4x2 corners per channel that found it once]
+    for corners, ids, _ in results:
+        if ids is None:
+            continue
+        flat = [int(i) for i in ids.ravel()]
+        for i, c in zip(flat, corners):
+            if flat.count(i) == 1:
+                found.setdefault(i, []).append(c.reshape(4, 2))
+    keep, conflicts = {}, 0
+    for i, seen in found.items():
+        if 0 <= i < N_TAGS and any(np.max(np.linalg.norm(other - seen[0], axis=1)) > MERGE_TOLERANCE_PX
+                                   for other in seen[1:]):
+            conflicts += 1
+            continue
+        keep[i] = seen[0]
+    if not keep:
+        return (), None, conflicts
+    ids = sorted(keep)
+    return (tuple(keep[i].reshape(1, 4, 2).astype(np.float32) for i in ids),
+            np.array(ids, np.int32).reshape(-1, 1), conflicts)
 
 
 def subpix_window(tag_corners):
@@ -365,8 +433,17 @@ def detect_tags(run, camera, found=None):
         if gray.shape[::-1] != run.image_size:
             raise SystemExit(f"{path}: size {gray.shape[::-1]} differs from {run.image_size}")
         name = os.path.relpath(path, run.frames_dir).replace(os.sep + camera + os.sep, "/")   # "140/C140_Left_90.png"
-        corners, ids, rejected = run.detector.detectMarkers(gray)
-        corners = refine_corners(gray, corners)
+        conflicts = None
+        if run.channel == "merge":
+            # Channels only FIND tags; every corner is refined on gray. Refined on its own channel, the
+            # same tag landed 1-4.5 px apart between channels (8 Oct, 145 mm reference tags), because R
+            # and B carry half-resolution, more compressed chroma; that put soft corners into the fit
+            # and made the agreement check below throw most large tags away.
+            results = [detect(run, channel_image(image, c), refine_on=gray) for c in MERGE_ORDER]
+            corners, ids, conflicts = merge_detections(results)
+            rejected = results[0][2]         # gray's, for the detection image
+        else:
+            corners, ids, rejected = detect(run, gray)
         if run.save_detections:
             save_detection_image(run, camera, name, image, corners, ids, rejected)
 
@@ -374,6 +451,8 @@ def detect_tags(run, camera, found=None):
         if found is not None:
             found[name] = {"ids": [] if ids is None else [int(i) for i in ids.ravel()],
                            "corners": [c.reshape(4, 2).tolist() for c in corners]}
+            if conflicts is not None:
+                found[name]["merge_conflicts"] = conflicts
         if n_tags < run.min_tags:
             print(f"  {camera}: skip {name}: {n_tags} tags")
             continue
@@ -420,9 +499,87 @@ def calibrate_camera(run, camera, detections):
         "dist_coeffs": dist_coeffs,
         "rms": rms,
         "std_intrinsics": std_intrinsics.ravel()[:9],   # 1-sigma of fx, fy, cx, cy, k1, k2, p1, p2, k3
+        # 1-sigma of each image's board pose: rvec (rad, 3) then tvec (mm, 3), one row per image
+        "std_extrinsics": std_extrinsics.reshape(-1, 6),
         "images": names,
         "per_image_errors": per_view_errors,
     }
+
+
+# ====== OUTLIER REJECTION ======
+# A tag the detector reads as ANOTHER board id is placed at that id's board position, and one such tag
+# ruins its image. On the 8 Oct water set with the swept detector settings, board tag 17 was decoded as
+# id 45 (124-132 px from where 45 belongs), giving its image 19-21 px RMS, and an extreme-angle frame
+# (C7, ~57 deg) fitted at 78 px; a handful of such images moved fx by up to 60 px. Neither is caught at
+# detection time (45 is a valid board id), so they are caught by the fit: each round fits each camera on
+# the tags kept so far, re-poses EVERY image robustly (RANSAC, so one misread cannot drag its pose), and
+# keeps the tags and images that agree with the model. Re-checking every tag each round lets a tag
+# dropped under an early, contaminated fit come back once the fit is clean.
+REJECT_TAG_PX = 2.0          # a tag is dropped when its worst corner is further than
+REJECT_TAG_MEDIANS = 5.0     #   max(REJECT_TAG_PX, REJECT_TAG_MEDIANS x the median over kept tags)
+REJECT_IMAGE_PX = 1.0        # an image is dropped when its kept tags' corner RMS is above
+REJECT_IMAGE_MEDIANS = 3.0   #   max(REJECT_IMAGE_PX, REJECT_IMAGE_MEDIANS x the median over kept images)
+REJECT_MAX_ROUNDS = 10
+
+
+def tag_errors(run, corners, ids, K, D):
+    """{tag id: (worst corner px, mean squared corner px)} for the board tags of one image, against the
+    board posed robustly on them with intrinsics K, D. Ids repeated in the image are left out."""
+    flat = [int(i) for i in ids.ravel()]
+    tags = {i: c.reshape(4, 2) for i, c in zip(flat, corners) if 0 <= i < N_TAGS and flat.count(i) == 1}
+    if len(tags) < 4:
+        return {}
+    obj_all = run.board.getObjPoints()
+    obj = np.concatenate([obj_all[i] for i in tags]).astype(np.float64)
+    img = np.concatenate(list(tags.values())).astype(np.float64)
+    ok, rvec, tvec, inliers = cv2.solvePnPRansac(obj, img, K, D, flags=cv2.SOLVEPNP_IPPE,
+                                                 reprojectionError=3 * REJECT_TAG_PX, iterationsCount=500)
+    if not ok or inliers is None or len(inliers) < 8:
+        return {i: (np.inf, np.inf) for i in tags}
+    rvec, tvec = cv2.solvePnPRefineLM(obj[inliers.ravel()], img[inliers.ravel()], K, D, rvec, tvec)
+    d = np.linalg.norm(cv2.projectPoints(obj, rvec, tvec, K, D)[0].reshape(-1, 2) - img, axis=1).reshape(-1, 4)
+    return {i: (float(e.max()), float(np.mean(e ** 2))) for i, e in zip(tags, d)}
+
+
+def keep_only(detections, keep):
+    """Detections reduced to the kept tag ids of the kept images."""
+    out = {}
+    for name, ids_kept in keep.items():
+        corners, ids = detections[name]
+        sel = [k for k, i in enumerate(ids.ravel()) if int(i) in ids_kept]
+        out[name] = (tuple(corners[k] for k in sel), ids[sel].reshape(-1, 1))
+    return out
+
+
+def reject_outliers(run, camera, detections):
+    """Iteratively drop misplaced tags and badly fitting images (see REJECT_*).
+    Returns (kept detections, report dict)."""
+    keep = {n: {int(i) for i in ids.ravel() if 0 <= i < N_TAGS} for n, (_, ids) in detections.items()}
+    keep = {n: k for n, k in keep.items() if len(k) >= run.min_tags}
+    for rounds in range(1, REJECT_MAX_ROUNDS + 1):
+        with contextlib.redirect_stdout(io.StringIO()):
+            fit = calibrate_camera(run, camera, keep_only(detections, keep))
+        K, D = fit["camera_matrix"], fit["dist_coeffs"]
+        errors = {n: tag_errors(run, *detections[n], K, D) for n in detections}
+        kept_worst = [errors[n][i][0] for n in keep for i in keep[n] if i in errors[n]]
+        tag_limit = max(REJECT_TAG_PX, REJECT_TAG_MEDIANS * float(np.median(kept_worst)))
+        new = {n: {i for i, (worst, _) in e.items() if worst <= tag_limit} for n, e in errors.items()}
+        rms = {n: float(np.sqrt(np.mean([errors[n][i][1] for i in k]))) for n, k in new.items() if len(k) >= run.min_tags}
+        image_limit = max(REJECT_IMAGE_PX, REJECT_IMAGE_MEDIANS * float(np.median(list(rms.values()))))
+        new = {n: new[n] for n, r in rms.items() if r <= image_limit}
+        if new == keep:
+            break
+        keep = new
+    rejected_tags = sorted((n, i, errors[n][i][0]) for n in errors for i in errors[n]
+                           if n in keep and i not in keep[n])
+    rejected_images = sorted((n, rms.get(n, float("nan"))) for n in detections if n not in keep)
+    print(f"{camera}: outlier rejection kept {len(keep)} of {len(detections)} images, dropped "
+          f"{len(rejected_tags)} tags in kept images ({rounds} rounds; limits {tag_limit:.2f} px per tag, "
+          f"{image_limit:.2f} px per image)")
+    report = {"rounds": rounds, "tag_limit_px": tag_limit, "image_limit_px": image_limit,
+              "rejected_tags": rejected_tags, "rejected_images": rejected_images,
+              "kept_tags": sum(len(k) for k in keep.values())}
+    return keep_only(detections, keep), report
 
 
 # ====== STEREO EXTRINSICS ======
@@ -550,6 +707,22 @@ def write_camera(fs, camera, result, image_size):
         fs.write(key, value)
     fs.endWriteStruct()
 
+    # OpenCV's other uncertainty output: the 1-sigma of every image's board pose (its "extrinsics").
+    # Written as the size of the rotation and translation uncertainty per image, in the order of images.
+    ext = result["std_extrinsics"]
+    rot_deg = np.degrees(np.linalg.norm(ext[:, :3], axis=1))
+    trans_mm = np.linalg.norm(ext[:, 3:], axis=1)
+    fs.writeComment("Board pose (extrinsics) 1-sigma per image, from calibrateCameraExtended: |sigma rvec| in deg and")
+    fs.writeComment(f"|sigma tvec| in mm, listed in the order of images. Median {np.median(rot_deg):.3f} deg, "
+                    f"{np.median(trans_mm):.2f} mm; worst {rot_deg.max():.3f} deg, {trans_mm.max():.2f} mm")
+    fs.startWriteStruct("pose_uncertainty_1sigma", cv2.FileNode_MAP)
+    for key, values in (("rotation_deg", rot_deg), ("translation_mm", trans_mm)):
+        fs.startWriteStruct(key, cv2.FileNode_SEQ | cv2.FileNode_FLOW)
+        for v in values:
+            fs.write("", float(v))
+        fs.endWriteStruct()
+    fs.endWriteStruct()
+
     fs.writeComment("---- Quality ----")
     fs.writeComment("RMS distance between detected corners and where the model puts them; below ~0.5 px is good")
     fs.writeComment(f"rms = {result['rms']:.3f} px over {len(result['images'])} images")
@@ -585,6 +758,7 @@ def write_stereo(fs, stereo, run):
     fs.writeComment("R and T map a point from the LEFT camera frame to the RIGHT:")
     fs.writeComment("  X_right = R @ X_left + T        (T in mm, same units as tag_size_mm)")
     fs.writeComment("Intrinsics were held fixed (CALIB_FIX_INTRINSIC) while these were fitted.")
+    fs.writeComment("No uncertainty is given for R and T: cv2.stereoCalibrate (OpenCV 5.0) does not report one.")
     fs.write("rotation_matrix", stereo["R"])
     fs.write("translation_mm", stereo["T"])
     fs.writeComment(f"baseline |T| = {stereo['baseline_mm']:.2f} mm - CHECK THIS AGAINST A RULER.")
@@ -675,7 +849,35 @@ def write_detection(fs, run, found):
     fs.endWriteStruct()
 
 
-def write_yaml(run, intrinsics, stereo, found=None):
+def write_rejection(fs, rejection):
+    """What the outlier rejection dropped, per camera: settings, then every dropped tag and image."""
+    fs.writeComment("---- Outlier rejection: tags and images dropped before the final fit (see REJECT_* in Calibration.py) ----")
+    fs.startWriteStruct("outlier_rejection", cv2.FileNode_MAP)
+    fs.write("tag_limit_rule", f"worst corner > max({REJECT_TAG_PX} px, {REJECT_TAG_MEDIANS} x median)")
+    fs.write("image_limit_rule", f"kept-tag corner RMS > max({REJECT_IMAGE_PX} px, {REJECT_IMAGE_MEDIANS} x median)")
+    for camera in CAMERAS:
+        r = rejection[camera]
+        fs.writeComment(f"{camera}: {len(r['rejected_images'])} images and {len(r['rejected_tags'])} tags dropped, "
+                        f"{r['kept_tags']} tags kept, {r['rounds']} rounds")
+        fs.startWriteStruct(camera, cv2.FileNode_MAP)
+        fs.write("tag_limit_px", r["tag_limit_px"])
+        fs.write("image_limit_px", r["image_limit_px"])
+        fs.write("kept_tags", r["kept_tags"])
+        fs.writeComment("rejected_tags[k] = 'image|tag id|worst corner px'")
+        fs.startWriteStruct("rejected_tags", cv2.FileNode_SEQ)
+        for n, i, e in r["rejected_tags"]:
+            fs.write("", f"{n}|{i}|{e:.2f}")
+        fs.endWriteStruct()
+        fs.writeComment("rejected_images[k] = 'image|corner RMS px of the tags that passed (nan: too few did)'")
+        fs.startWriteStruct("rejected_images", cv2.FileNode_SEQ)
+        for n, e in r["rejected_images"]:
+            fs.write("", f"{n}|{e:.2f}")
+        fs.endWriteStruct()
+        fs.endWriteStruct()
+    fs.endWriteStruct()
+
+
+def write_yaml(run, intrinsics, stereo, found=None, rejection=None):
     """Write the whole calibration, with the comments that make it readable on its own."""
     os.makedirs(run.out_dir, exist_ok=True)
     fs = cv2.FileStorage(run.yaml_path, cv2.FILE_STORAGE_WRITE)
@@ -695,6 +897,8 @@ def write_yaml(run, intrinsics, stereo, found=None):
     fs.write("script", "src/01_Calibration/Calibration.py")
     fs.write("opencv_version", cv2.__version__)
     fs.write("frames_dir", rel(run.frames_dir))
+    fs.writeComment("Command-line arguments of this run (paths project-relative). Anything not given was at its default.")
+    fs.write("arguments", run.arguments)
     fs.endWriteStruct()
 
     fs.writeComment("Image size the calibration was made at; it is only valid at this resolution")
@@ -715,9 +919,14 @@ def write_yaml(run, intrinsics, stereo, found=None):
     fs.writeComment("Detection: the detector named below with the thresholding preset named below,")
     fs.writeComment("its own corner refinement off, then cv2.cornerSubPix, both on the image channel named")
     fs.writeComment("below. 'aruco' is cv2.aruco.ArucoDetector; 'uwaruco' is the re-implementation of")
-    fs.writeComment("Cejka et al. 2019 (doi:10.3390/rs11040459) in src/UWARUco.")
+    fs.writeComment("Cejka et al. 2019 (doi:10.3390/rs11040459) in src/archive/UWARUco.")
     fs.writeComment("channel: gray = BGR2GRAY of the colour frame, y = the camera's JPEG luma, r/g/b = one colour channel")
     fs.write("channel", run.channel)
+    if run.channel == "merge":
+        fs.writeComment(f"merge: detected in each of {', '.join(MERGE_ORDER)}; a tag found in several takes the first one's")
+        fs.writeComment(f"corners, and is dropped if their corners disagree by more than {MERGE_TOLERANCE_PX:g} px")
+        fs.write("merge_order", ",".join(MERGE_ORDER))
+        fs.write("merge_tolerance_px", MERGE_TOLERANCE_PX)
     fs.write("detector", run.detector_name)
     fs.write("detector_preset", run.preset)
     fs.writeComment("Full detector settings for this preset, so the run can be reproduced from this file alone:")
@@ -727,12 +936,17 @@ def write_yaml(run, intrinsics, stereo, found=None):
     fs.write("corner_window_fraction", SUBPIX_WIN_FRACTION)
     fs.write("corner_window_min_px", SUBPIX_WIN_MIN)
     fs.write("min_tags_per_image", run.min_tags)
+    fs.writeComment("on: misplaced tags and badly fitting images were dropped before the final fit (see outlier_rejection)")
+    fs.write("outlier_rejection", "on" if run.reject else "off")
     fs.endWriteStruct()
 
     for camera in CAMERAS:
         write_camera(fs, camera, intrinsics[camera], run.image_size)
 
     write_stereo(fs, stereo, run)
+
+    if rejection is not None:
+        write_rejection(fs, rejection)
 
     if found is not None:
         write_detection(fs, run, found)
@@ -760,12 +974,19 @@ def calibrate(argv=None):
     again, and detecting them twice would be both slow and a chance for the two passes to disagree.
     """
     presets = load_presets()
-    run = setup(parse_args(presets, argv))
+    argv = sys.argv[1:] if argv is None else list(argv)
+    arguments = " ".join(rel(a) if os.path.isabs(a) else a for a in argv)
+    run = setup(parse_args(presets, argv), arguments)
     found = {camera: {} for camera in CAMERAS}
     detections = {camera: detect_tags(run, camera, found[camera]) for camera in CAMERAS}
+    rejection = None
+    if run.reject:
+        rejection = {}
+        for camera in CAMERAS:
+            detections[camera], rejection[camera] = reject_outliers(run, camera, detections[camera])
     intrinsics = {camera: calibrate_camera(run, camera, detections[camera]) for camera in CAMERAS}
     stereo = calibrate_stereo(run, detections, intrinsics)
-    write_yaml(run, intrinsics, stereo, found)
+    write_yaml(run, intrinsics, stereo, found, rejection)
     write_corners(run, found)
     print(f"\nsaved calibration to {rel(run.yaml_path)} and corners to {rel(run.corners_path)}")
     return run, intrinsics, stereo

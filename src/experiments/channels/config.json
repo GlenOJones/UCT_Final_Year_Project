@@ -1,0 +1,78 @@
+{
+  "_comment": "Experiment 1, colour channel comparison (report chapter 5). Which single-channel image should the AprilGrid detector see? One Calibration.py run per medium and channel with OpenCV's defaults: stock detector thresholding (preset opencv_default; only the board's 2-bit border and errorCorrectionRate=1 differ from OpenCV, as the AprilGrid needs them) and plain calibrateCamera with no outlier rejection. Every setting of the experiment is here. Paths are relative to the project root. Reproduce with: src/venv/bin/python src/experiments/reproduce.py channels",
+  "channels": [
+    "gray",
+    "y",
+    "r",
+    "g",
+    "b",
+    "merge"
+  ],
+  "calibration": {
+    "_why": "Shared by every run, so the channel is the only thing that changes. reject=false: OpenCV's calibration has no outlier rejection.",
+    "detector": "aruco",
+    "preset": "opencv_default",
+    "channel": "set per run from channels",
+    "reject": false,
+    "min_tags": 10,
+    "min_common_tags": 10,
+    "detection_images": false
+  },
+  "media": {
+    "Air": "data/Calibration/FinalComparison/Air",
+    "Water": "data/Calibration/FinalComparison/Water"
+  },
+  "distance_unit": "cm",
+  "recall_medium": "Water",
+  "angle_names": {
+    "_why": "Optional description of each board angle (scan code in the folder name), shown in the recall figure's panel titles.",
+    "C1": "straight"
+  },
+  "test_target": {
+    "_why": "Held-out stereo pairs of a different target, never used to calibrate, triangulated with each channel's Water calibration. The tags are ordinary AprilTags (1-bit border), unlike the Kalibr board (2-bit), so only markerBorderBits differs from the calibration preset.",
+    "medium": "Water",
+    "frames": "data/Calibration/FinalComparison/WaterComparison",
+    "ids": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "marker_border_bits": 1,
+    "tag_size_mm": null
+  },
+  "out_dir": "results/experiments/channels",
+  "figures": {
+    "_why": "The report's figures from this experiment, and the arguments that make them (read by reproduce.py).",
+    "channel_overlap": [
+      {
+        "name": "fig_channel_overlap_L3",
+        "channels": [
+          "gray",
+          "g",
+          "r"
+        ],
+        "images": [
+          "left/Water_L3_Frames/l3_Left_130.png"
+        ],
+        "width": 3.4,
+        "legend_right": true
+      }
+    ],
+    "air_vs_water": [
+      {
+        "name": "fig_air_vs_water_C1_right_60",
+        "camera": "right",
+        "channel": "gray",
+        "images": {
+          "Air": "Air_C1_Frames/C1_Right_60.png",
+          "Water": "Water_C1_frames/c1_Right_60.png"
+        },
+        "title": "Right camera, angle C1 (straight), distance label 60 cm; OpenCV default detector on gray (green: tags found)"
+      }
+    ],
+    "air_vs_water_crops": true
+  }
+}

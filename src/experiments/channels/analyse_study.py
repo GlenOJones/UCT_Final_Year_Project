@@ -5,7 +5,7 @@ Three metrics, each answering one question:
   1. Detection: recall against distance, with the false-id rate (calibration frames)
      Does the detector find the board's tags in this channel, and out to what range? Recall is the
      number of DISTINCT board ids found in an image divided by the 70 on the board. It is plotted per
-     board angle (scan) of recall_medium, against the frame's distance label (pairs.csv): pooling the
+     board angle (scan) of each medium, against the frame's distance label (pairs.csv): pooling the
      angles would mix in how much of the board each angle shows, which is larger than any channel effect. The false-id and duplicate rates are the share of all
      detections that are ids not on the board, or a board id reported twice in one image: a channel
      that only gains tags by misreading them shows up here. Read from each run's YAML.
@@ -25,10 +25,10 @@ Three metrics, each answering one question:
 Everything comes from run_study.py's outputs except the test target's detections, which use
 Calibration.py's own load_image(), detector preset and corner refinement, so they match the pipeline.
 
-Use (from the project root, after run_study.py):
-    src/venv/bin/python src/analysis/channel_selection/analyse_study.py
-    src/venv/bin/python src/analysis/channel_selection/analyse_study.py --study src/analysis/channel_selection/study_opencv_default.json
-Writes results.json, fig_recall_by_angle.{pdf,png}, fig_recall_mean.{pdf,png}, fig_tag_size_vs_depth.{pdf,png} and
+Use (from the project root, after run_study.py; reproduce.py channels runs both):
+    src/venv/bin/python src/experiments/channels/analyse_study.py
+    src/venv/bin/python src/experiments/channels/analyse_study.py --study src/experiments/channels/variants/wide.json
+Writes results.json, fig_recall_by_angle_<medium>.{pdf,png}, fig_recall_mean_<medium>.{pdf,png}, fig_tag_size_vs_depth.{pdf,png} and
 table_*.tex (booktabs, for \\input in the report) to the study's out_dir.
 """
 import argparse
@@ -38,6 +38,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from types import SimpleNamespace
 
 import cv2
 import matplotlib
@@ -66,8 +67,10 @@ STYLE = {
     "r":    dict(color="#c0392b", marker="^", linestyle="-"),
     "g":    dict(color="#2e8b57", marker="D", linestyle="-."),
     "b":    dict(color="#2c6fbb", marker="v", linestyle=":"),
+    "merge": dict(color="#7b3fa0", marker="P", linestyle="-"),
 }
-NAMES = {"gray": "Gray (computed)", "y": "Y (JPEG luma)", "r": "Red", "g": "Green", "b": "Blue"}
+NAMES = {"gray": "Gray (computed)", "y": "Y (JPEG luma)", "r": "Red", "g": "Green", "b": "Blue",
+         "merge": "Merged (gray+R+G+B)"}
 
 
 # ====== READING THE RUNS ======
@@ -188,6 +191,45 @@ def reprojection(study, runs):
     return out
 
 
+# ====== MATCHED-TAG RMS ======
+def matched_tags(study):
+    """Corner RMS (px) per channel over the tags EVERY channel detected in the same image.
+
+    Each channel is judged with its own calibration and a robust (RANSAC) pose per image, on exactly
+    the same tags, so a channel is neither rewarded for dropping hard tags nor penalised for finding
+    them. Uses every saved detection, so outlier rejection (if any) cannot flatter it.
+    """
+    holder = SimpleNamespace(board=Calibration.build_board())
+    out = {}
+    for medium in study["media"]:
+        corners = {c: json.load(open(run_study.corners_path(study, medium, c)))["cameras"] for c in study["channels"]}
+        fs = {c: cv2.FileStorage(run_study.yaml_path(study, medium, c), cv2.FILE_STORAGE_READ) for c in study["channels"]}
+        out[medium] = {}
+        for cam in CAMERAS:
+            sets = []
+            for c in study["channels"]:
+                sets.append({(n, i) for n, d in corners[c][cam].items() for i in d["ids"]
+                             if 0 <= i < N_TAGS and d["ids"].count(i) == 1})
+            shared = set.intersection(*sets)
+            images = sorted({n for n, _ in shared})
+            out[medium][cam] = {"n_tags": len(shared)}
+            for c in study["channels"]:
+                node = fs[c].getNode(f"{cam}_camera")
+                K, D = node.getNode("camera_matrix").mat(), node.getNode("distortion_coefficients").mat()
+                ms = []
+                for n in images:
+                    d = corners[c][cam][n]
+                    errs = Calibration.tag_errors(holder, tuple(np.float32(x).reshape(1, 4, 2) for x in d["corners"]),
+                                                  np.int32(d["ids"]).reshape(-1, 1), K, D)
+                    ms += [errs[i][1] for i in errs if (n, i) in shared]
+                ms = np.array(ms)
+                good = ms[np.isfinite(ms)]
+                corner = np.sqrt(good)
+                out[medium][cam][c] = {"rms": float(np.sqrt(good.mean())), "median": float(np.median(corner)),
+                                       "p95": float(np.percentile(corner, 95)), "unposed": int((~np.isfinite(ms)).sum())}
+    return out
+
+
 # ====== METRIC 2: TRIANGULATED TAG SIZE ======
 def target_detector(study):
     """The calibration preset's detector, with only the border width changed for the test target."""
@@ -266,10 +308,10 @@ def tag_size(study):
 
 
 # ====== FIGURES ======
-def fig_recall(study, det, rep, path):
-    """One panel per board angle of recall_medium: recall against distance, one line per channel, and a
+def fig_recall(study, det, rep, medium, path, matched=None):
+    """One panel per board angle of one medium: recall against distance, one line per channel, and a
     table of the summary numbers per channel in the spare cells."""
-    medium, channels = study["recall_medium"], study["channels"]
+    channels = study["channels"]
     names = study.get("angle_names", {})
     angles = list(det[medium][channels[0]]["by_angle"])
     ncols = 4
@@ -295,14 +337,15 @@ def fig_recall(study, det, rep, path):
     table_ax.axis("off")
     ref = NAMES[channels[0]].split(" ")[0]
     header = ["", "mean\nrecall", f"Δ vs {ref}\n(pp, paired)", "usable\nimages", "false\nids (%)",
-              "RMS px\nL / R"]
+              "matched-tag\nRMS px L / R" if matched else "RMS px\nL / R"]
     rows = []
     for c in channels:
         d, r = det[medium][c], rep[medium]
         delta = "ref" if c == channels[0] else f"{100 * d['recall_delta_vs_ref'] + 0:+.1f} ± {100 * d['recall_delta_se']:.1f}".replace("-0.0 ", "0.0 ")
         rows.append([NAMES[c], f"{d['recall_mean']:.3f}", delta, f"{d['usable_images']}",
                      f"{100 * d['false_id_rate']:.2f}",
-                     " / ".join(f"{r[cam]['channels'][c]['rms_common']:.2f}" for cam in CAMERAS)])
+                     " / ".join(f"{(matched[medium][cam][c]['rms'] if matched else r[cam]['channels'][c]['rms_common']):.2f}"
+                                for cam in CAMERAS)])
     table = table_ax.table(cellText=rows, colLabels=header, loc="center", cellLoc="center", edges="horizontal")
     table.auto_set_font_size(False)
     table.set_fontsize(8)
@@ -314,8 +357,10 @@ def fig_recall(study, det, rep, path):
         if col == 0:
             cell.set_text_props(ha="left")
     n_common = " / ".join(str(rep[medium][cam]["n_common"]) for cam in CAMERAS)
+    rms_note = (f"matched-tag RMS over the {' / '.join(str(matched[medium][cam]['n_tags']) for cam in CAMERAS)} tags "
+                f"every channel found" if matched else f"RMS over the {n_common} images every channel used")
     table_ax.set_title(f"All angles. Δ: mean ± s.e. over the same images. Usable: ≥{study['calibration']['min_tags']} "
-                       f"tags (L+R). RMS over the {n_common} images every channel used.",
+                       f"tags (L+R). {rms_note}.",
                        fontsize=7, loc="left", wrap=True)
 
     fig.supxlabel(f"board distance ({study['distance_unit']})", fontsize=10)
@@ -325,10 +370,9 @@ def fig_recall(study, det, rep, path):
     plt.close(fig)
 
 
-def fig_recall_mean(study, det, path):
-    """Mean recall over every image of recall_medium (all angles, both cameras) against distance, one
+def fig_recall_mean(study, det, medium, path):
+    """Mean recall over every image of one medium (all angles, both cameras) against distance, one
     line per channel; each channel's mean over all images is in its legend entry."""
-    medium = study["recall_medium"]
     fig, ax = plt.subplots(figsize=(6.0, 3.8), constrained_layout=True)
     for c in study["channels"]:
         d = det[medium][c]
@@ -347,6 +391,61 @@ def fig_recall_mean(study, det, path):
     for ext in ("pdf", "png"):
         fig.savefig(f"{path}.{ext}", dpi=200)
     plt.close(fig)
+
+
+def fig_recall_media(study, det, path):
+    """One panel per medium, side by side in study.json's order: mean tag detection fraction against
+    distance, one line per channel. Each point is the mean over every image at that distance (all angles,
+    both cameras); each channel's mean over all images is in its legend entry."""
+    media = list(study["media"])
+    fig, axes = plt.subplots(1, len(media), figsize=(5.2 * len(media), 3.9), sharey=True, constrained_layout=True)
+    for ax, medium in zip(np.atleast_1d(axes), media):
+        n = sum(v["n_images"] for v in det[medium][study["channels"][0]]["by_label"].values())
+        for c in study["channels"]:
+            d = det[medium][c]
+            by = d["by_label"]
+            ax.plot([float(k) for k in by], [v["recall_mean"] for v in by.values()], markersize=5, linewidth=1.5,
+                    label=f"{NAMES[c]}: {d['recall_mean']:.3f}", **STYLE[c])
+        ax.set_title(f"{medium} ({n} images)", loc="left", fontsize=10)
+        ax.set_xlabel(f"board distance ({study['distance_unit']})")
+        ax.set_ylim(0, 1.0)
+        ax.grid(alpha=0.3, linewidth=0.5)
+        ax.legend(title="channel: mean over all images", title_fontsize=8, fontsize=8, frameon=False, loc="upper right")
+    np.atleast_1d(axes)[0].set_ylabel("mean tag detection fraction")
+    for ext in ("pdf", "png"):
+        fig.savefig(f"{path}.{ext}", dpi=200)
+    plt.close(fig)
+
+
+def channel_summary_table(study, det, matched, out_dir):
+    """Detection rate, false detections and matched-tag RMS / median per medium and channel, as a
+    booktabs table and as plain text."""
+    head = ["Medium", "Input", "Detection rate", r"False det. (\%)", "Matched-tag RMS L/R (px)",
+            "Matched-tag median L/R (px)"]
+    rows, text = [], []
+    for medium in study["media"]:
+        for k, c in enumerate(study["channels"]):
+            d, m = det[medium][c], matched[medium]
+            rms = " / ".join(f"{m[cam][c]['rms']:.3f}" for cam in CAMERAS)
+            med = " / ".join(f"{m[cam][c]['median']:.3f}" for cam in CAMERAS)
+            rows.append([medium if k == 0 else "", NAMES[c], f"{d['recall_mean']:.3f}",
+                         f"{100 * d['false_id_rate']:.2f}", rms, med])
+            text.append(f"{medium:6s} {NAMES[c]:22s} {d['recall_mean']:.3f}  {100 * d['false_id_rate']:5.2f}%"
+                        f"  RMS {rms}  median {med}")
+    tex = [r"\begin{table}[htbp]", r"\centering", r"\small",
+           r"\caption{Colour channel comparison. Detection rate: distinct board tags per image $\div$ 70, mean over all "
+           r"images. Matched-tag RMS and median: corner reprojection error over only the tags every input detected.}",
+           r"\label{tab:channel_summary}", r"\begin{tabular}{llrrrr}", r"\toprule", " & ".join(head) + r" \\", r"\midrule"]
+    for k, r in enumerate(rows):
+        if k and r[0]:
+            tex.append(r"\midrule")
+        tex.append(" & ".join(r) + r" \\")
+    tex += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    with open(os.path.join(out_dir, "table_channel_summary.tex"), "w", encoding="utf-8") as fh:
+        fh.write("% Generated by src/experiments/channels/analyse_study.py - do not edit by hand.\n" + "\n".join(tex) + "\n")
+    with open(os.path.join(out_dir, "table_channel_summary.txt"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(text) + "\n")
+    print("\n" + "\n".join(text))
 
 
 def fig_tag_size(study, ts, path):
@@ -382,7 +481,7 @@ def write_table(path, header, rows, caption, label):
              " & ".join(header) + r" \\", r"\midrule",
              *(" & ".join(r) + r" \\" for r in rows), r"\bottomrule", r"\end{tabular}", r"\end{table}"]
     with open(path, "w", encoding="utf-8") as fh:
-        fh.write("% Generated by src/analysis/channel_selection/analyse_study.py - do not edit by hand.\n")
+        fh.write("% Generated by src/experiments/channels/analyse_study.py - do not edit by hand.\n")
         fh.write("\n".join(lines) + "\n")
 
 
@@ -429,21 +528,31 @@ def print_summary(study, det, rep, ts):
         print(f"  {c:5s} mean edge {s['edge_mean_mm']:.2f} mm, drift over depth {s['edge_drift_mm']:.2f} mm{extra}")
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     run_study.add_study_argument(ap)
-    study = run_study.load_study(ap.parse_args().study)
+    study = run_study.load_study(ap.parse_args(argv).study)
     out_dir = study["out_dir"]
     runs = {m: {c: read_run(run_study.yaml_path(study, m, c)) for c in study["channels"]} for m in study["media"]}
 
     det, rep, ts = detection(study, runs), reprojection(study, runs), tag_size(study)
+    matched = matched_tags(study)
     with open(os.path.join(out_dir, "results.json"), "w", encoding="utf-8") as fh:
-        json.dump({"detection": det, "reprojection": rep, "tag_size": ts}, fh, indent=1)
-    fig_recall(study, det, rep, os.path.join(out_dir, "fig_recall_by_angle"))
-    fig_recall_mean(study, det, os.path.join(out_dir, "fig_recall_mean"))
+        json.dump({"detection": det, "reprojection": rep, "matched_tags": matched, "tag_size": ts}, fh, indent=1)
+    for medium in study["media"]:
+        fig_recall(study, det, rep, medium, os.path.join(out_dir, f"fig_recall_by_angle_{medium}"), matched)
+        fig_recall_mean(study, det, medium, os.path.join(out_dir, f"fig_recall_mean_{medium}"))
+    fig_recall_media(study, det, os.path.join(out_dir, "fig_recall_mean_by_medium"))
+    channel_summary_table(study, det, matched, out_dir)
     fig_tag_size(study, ts, os.path.join(out_dir, "fig_tag_size_vs_depth"))
     tables(study, det, rep, ts, out_dir)
     print_summary(study, det, rep, ts)
+    for medium, m in matched.items():
+        print(f"\n{medium} matched-tag RMS (px), tags every channel found: "
+              + ", ".join(f"{cam} {m[cam]['n_tags']}" for cam in CAMERAS))
+        for c in study["channels"]:
+            print(f"  {c:6s}" + "   ".join(f"{cam}: RMS {m[cam][c]['rms']:.3f}  median {m[cam][c]['median']:.3f}  "
+                                         f"p95 {m[cam][c]['p95']:.3f}  unposed {m[cam][c]['unposed']}" for cam in CAMERAS))
     print(f"\nwrote results.json, figures and tables to {os.path.relpath(out_dir, PROJECT_ROOT)}")
 
 

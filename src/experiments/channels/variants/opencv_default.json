@@ -1,16 +1,19 @@
 {
-  "_comment": "Same channel comparison as study.json, with the stock OpenCV thresholding (preset opencv_default) instead of wide, to see whether the channel ranking depends on the detector tuning.",
+  "_comment": "Variant of the channel comparison (not in the report): stock OpenCV thresholding (opencv_default) like config.json, but with outlier rejection on. Run with: src/venv/bin/python src/experiments/reproduce.py channels --config src/experiments/channels/variants/opencv_default.json",
   "channels": [
     "gray",
     "y",
     "r",
     "g",
-    "b"
+    "b",
+    "merge"
   ],
   "calibration": {
     "_why": "The settings every Calibration.py run in the study shares, so the channel is the only thing that changes between runs.",
     "detector": "aruco",
     "preset": "opencv_default",
+    "channel": "set per run from channels",
+    "reject": true,
     "min_tags": 10,
     "min_common_tags": 10,
     "detection_images": false
@@ -40,5 +43,5 @@
     "marker_border_bits": 1,
     "tag_size_mm": null
   },
-  "out_dir": "results/analysis/channel_selection_opencv_default"
+  "out_dir": "results/experiments/channels_variants/opencv_default"
 }

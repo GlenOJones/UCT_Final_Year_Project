@@ -1,10 +1,19 @@
 {
-  "_comment": "Channel selection study: which image channel should the AprilGrid detector see underwater? Every setting of the experiment is here; run_study.py and analyse_study.py read nothing else. Paths are relative to the project root.",
-  "channels": ["gray", "y", "r", "g", "b"],
+  "_comment": "Variant of the channel comparison (not in the report): detector preset wide, outlier rejection on. Run with: src/venv/bin/python src/experiments/reproduce.py channels --config src/experiments/channels/variants/wide.json",
+  "channels": [
+    "gray",
+    "y",
+    "r",
+    "g",
+    "b",
+    "merge"
+  ],
   "calibration": {
     "_why": "The settings every Calibration.py run in the study shares, so the channel is the only thing that changes between runs.",
     "detector": "aruco",
     "preset": "wide",
+    "channel": "set per run from channels",
+    "reject": true,
     "min_tags": 10,
     "min_common_tags": 10,
     "detection_images": false
@@ -23,9 +32,16 @@
     "_why": "Held-out stereo pairs of a different target, never used to calibrate, triangulated with each channel's Water calibration. The tags are ordinary AprilTags (1-bit border), unlike the Kalibr board (2-bit), so only markerBorderBits differs from the calibration preset.",
     "medium": "Water",
     "frames": "data/Calibration/FinalComparison/WaterComparison",
-    "ids": [6, 7, 8, 9, 10, 11],
+    "ids": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
     "marker_border_bits": 1,
     "tag_size_mm": null
   },
-  "out_dir": "results/analysis/channel_selection"
+  "out_dir": "results/experiments/channels_variants/wide"
 }

@@ -21,7 +21,7 @@ Run (from any directory):
     src/venv/bin/python src/01_Calibration/compare_calibrations.py 'results/18_Sep/calibration/*_stereo.yaml'
 
 A run to make is named "preset" for the default ArUco detector or "detector:preset" for another,
-so "uwaruco:scaled" calibrates with the UWARUco detector of src/UWARUco at its "scaled" preset.
+so "uwaruco:scaled" calibrates with the UWARUco detector of src/archive/UWARUco at its "scaled" preset.
 Rows are labelled the same way, so an ArUco preset and a UWARUco preset of the same name stay
 apart in the table.
 """

@@ -5,7 +5,8 @@ frames? Nothing here re-implements detection. The script builds a Presets object
 it to Calibration.py's own make_detector() and detect_tags(), so what is measured is exactly what a
 calibration run would see, and Calibration.py itself is untouched.
 
-The search is coordinate descent from a starting preset: one axis at a time, every candidate value
+The search is coordinate descent from OpenCV's default thresholding (the opencv_default preset, see
+START_PRESET): one axis at a time, every candidate value
 tried with the rest held at the current best, keeping whichever value finds the most tags, repeated
 until a round changes nothing. That is far cheaper than the full grid (thousands of combinations)
 and, because the axes mostly act independently, it lands in the same place.
@@ -29,13 +30,16 @@ a tag read as the wrong id lands in the fit at the wrong board position and is i
 More tags is still not the same as a better calibration: run Calibration.py with the winning preset
 and compare the reprojection error against the preset you started from.
 
-Every evaluation is cached to results/analysis/detector_sweep/<frames>_evaluations.jsonl as it finishes, so
+Every evaluation is cached to <out-dir>/<frames>_evaluations.jsonl as it finishes, so
 a sweep that is interrupted, or one re-run after SWEEP_AXES grows, only computes what is new. Pass
 --fresh to throw that cache away.
 
-Use (from the project root):
-    src/venv/bin/python src/01_Calibration/sweep_detector.py
-    src/venv/bin/python src/01_Calibration/sweep_detector.py --start opencv_default --save-preset best
+Normally run through reproduce.py, which also checks the result against detector_presets.json and
+calibrates with every preset (settings in config.json here):
+    src/venv/bin/python src/experiments/reproduce.py detector_sweep
+On its own (from the project root):
+    src/venv/bin/python src/experiments/detector_sweep/sweep_detector.py --frames-dir data/Calibration/FinalComparison/Water
+    src/venv/bin/python src/experiments/detector_sweep/sweep_detector.py --frames-dir ... --save-preset best
 """
 import argparse
 import contextlib
@@ -44,9 +48,11 @@ import json
 import os
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                "01_Calibration"))
 import Calibration as calib  # noqa: E402
 from detector_config import validate  # noqa: E402
 
@@ -93,6 +99,11 @@ SWEEP_AXES = {
     "maxErroneousBitsInBorderRate": [0.35, 0.5, 0.75],
 }
 
+# The search always starts from OpenCV's own thresholding, so its result owes nothing to earlier hand
+# tuning. On the 8 Oct underwater set, sweeps started from 'opencv_default' and from 'wide' ended on
+# identical settings (10424 tags, 187 usable images), so the start does not steer the answer here.
+START_PRESET = "opencv_default"
+
 # The board carries ids 0..69; anything else the 36h11 dictionary reports is a false positive.
 BOARD_IDS = range(calib.N_TAGS)
 
@@ -131,9 +142,6 @@ def parse_args(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--frames-dir", default=os.path.join(PROJECT_ROOT, "data/Calibration/18_Sep/Rigframes"),
                     help="one folder per recording, each with left/ and right/ (default 18_Sep/Rigframes)")
-    ap.add_argument("--start", default=None,
-                    help="preset in detector_presets.json to start the search from "
-                         "(default: that file's own default)")
     ap.add_argument("--rounds", type=int, default=4,
                     help="most passes over the axes; the search stops early when one changes "
                          "nothing (default 4)")
@@ -147,8 +155,11 @@ def parse_args(argv=None):
     ap.add_argument("--fresh", action="store_true",
                     help="ignore and overwrite the cached evaluations from earlier runs, "
                          "recomputing every candidate from scratch")
-    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/analysis/detector_sweep"),
-                    help="where the JSON record of the search goes")
+    ap.add_argument("--out-dir", default=os.path.join(PROJECT_ROOT, "results/experiments/detector_sweep/sweep"),
+                    help="where the JSON record of the search and the evaluation cache go")
+    ap.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) - 2),
+                    help="processes to detect in parallel; 1 runs in-process exactly as before "
+                         "(default: CPU count - 2)")
     ap.add_argument("--save-preset", metavar="NAME",
                     help="add the winning settings to detector_presets.json under this name. "
                          "The file is rewritten by json.dump, so its formatting changes.")
@@ -163,12 +174,50 @@ def make_run(frames_dir, settings, board_params, image_size, board, min_tags):
     """
     presets = calib.Presets(path="<sweep>", default="candidate",
                             board_params=board_params, presets={"candidate": dict(settings)})
-    return calib.Run(frames_dir=frames_dir, preset="candidate", out_dir="<unused>",
+    return calib.Run(frames_dir=frames_dir, detector_name="aruco", preset="candidate", out_dir="<unused>",
                      min_tags=0,                 # count every image; usable is judged below
                      min_common_tags=min_tags,   # unused here, no stereo fit is done
                      save_detections=False,      # writing 208 images per candidate would dominate
                      image_size=image_size, detector_settings=presets.describe("candidate"),
                      detector=presets.make_detector("candidate"), board=board)
+
+
+def detected_ids(settings, ctx):
+    """Every image's detected ids (a list per image, both cameras) with these settings.
+
+    In-process this is Calibration.detect_tags itself. With a worker pool each image is detected in
+    a separate process by the same Presets.make_detector() the pipeline uses; corners are not refined
+    there, since refinement moves corners but never changes which ids were found.
+    """
+    if ctx.pool is None:
+        out = []
+        for camera in calib.CAMERAS:
+            run = make_run(ctx.frames_dir, settings, ctx.board_params, ctx.image_size, ctx.board,
+                           ctx.min_tags)
+            with contextlib.redirect_stdout(io.StringIO()):
+                detections = calib.detect_tags(run, camera)
+            out += [[] if ids is None else ids.ravel().tolist() for _, ids in detections.values()]
+        return out
+    paths = [p for camera in calib.CAMERAS for p in calib.find_images(ctx.frames_dir, camera)]
+    jobs = [(p, dict(settings), dict(ctx.board_params)) for p in paths]
+    return list(ctx.pool.map(_detect_ids, jobs, chunksize=4))
+
+
+_worker_detectors = {}
+
+
+def _detect_ids(job):
+    """Worker: ids found in one gray image with one candidate's settings (detector built once per candidate)."""
+    path, settings, board_params = job
+    key = tuple(sorted(settings.items()))
+    if key not in _worker_detectors:
+        presets = calib.Presets(path="<sweep>", default="candidate", board_params=board_params,
+                                presets={"candidate": settings})
+        _worker_detectors.clear()
+        _worker_detectors[key] = presets.make_detector("candidate")
+    _, gray = calib.load_image(path, "gray")
+    _, ids, _ = _worker_detectors[key].detectMarkers(gray)
+    return [] if ids is None else ids.ravel().tolist()
 
 
 def evaluate(settings, ctx):
@@ -184,20 +233,14 @@ def evaluate(settings, ctx):
 
     started = time.time()
     board_tags = duplicates = false_tags = usable = total = 0
-    for camera in calib.CAMERAS:
-        run = make_run(ctx.frames_dir, settings, ctx.board_params, ctx.image_size, ctx.board,
-                       ctx.min_tags)
-        with contextlib.redirect_stdout(io.StringIO()):
-            detections = calib.detect_tags(run, camera)
-        for _, ids in detections.values():
-            found = [] if ids is None else ids.ravel().tolist()
-            on_board = [i for i in found if i in BOARD_IDS]
-            distinct = len(set(on_board))
-            total += len(found)
-            board_tags += distinct
-            duplicates += len(on_board) - distinct
-            false_tags += len(found) - len(on_board)
-            usable += distinct >= ctx.min_tags
+    for found in detected_ids(settings, ctx):
+        on_board = [i for i in found if i in BOARD_IDS]
+        distinct = len(set(on_board))
+        total += len(found)
+        board_tags += distinct
+        duplicates += len(on_board) - distinct
+        false_tags += len(found) - len(on_board)
+        usable += distinct >= ctx.min_tags
 
     score = Score(board_tags, duplicates, false_tags, usable, total, time.time() - started)
     ctx.seen[frozen] = score
@@ -271,6 +314,7 @@ class Context:
     max_bad_rate: float
     cache_path: str
     seen: dict
+    pool: object = None       # ProcessPoolExecutor when --workers > 1, else detection runs in-process
 
 
 def search(ctx, settings, rounds):
@@ -357,10 +401,11 @@ def write_log(out_dir, frames_dir, start, max_bad_rate, best, best_score, trials
     return path
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    """Run the search. Returns (best settings, best Score, path of the search log)."""
+    args = parse_args(argv)
     presets = calib.load_presets()
-    start = args.start or presets.default
+    start = START_PRESET
     if start not in presets.presets:
         raise SystemExit(f"unknown preset {start!r}; {calib.PRESETS_FILE} defines: "
                          f"{', '.join(presets.presets)}")
@@ -381,12 +426,17 @@ def main():
     header = cache_header(args.frames_dir, args.min_tags, presets.board_params)
     seen = start_cache(cache_path, header, args.fresh)
 
+    pool = ProcessPoolExecutor(args.workers) if args.workers > 1 else None
     ctx = Context(frames_dir=args.frames_dir, board_params=presets.board_params,
                   image_size=image_size, board=calib.build_board(), min_tags=args.min_tags,
-                  max_bad_rate=args.max_bad_rate, cache_path=cache_path, seen=seen)
+                  max_bad_rate=args.max_bad_rate, cache_path=cache_path, seen=seen, pool=pool)
     # The starting point is the preset's own tuning only; board_params are merged in by
     # make_detector(), so putting them in the search state as well would let a round move them.
-    best, best_score, trials = search(ctx, presets.presets[start], args.rounds)
+    try:
+        best, best_score, trials = search(ctx, presets.presets[start], args.rounds)
+    finally:
+        if pool is not None:
+            pool.shutdown()
 
     print("\n===== best =====")
     print(f"{best_score}")
@@ -399,12 +449,12 @@ def main():
     name = args.save_preset or "swept"
     body = preset_json(name, best, start, best_score)
     print(f"\nAs a detector_presets.json preset:\n{json.dumps(body, indent=2)}")
-    write_log(args.out_dir, args.frames_dir, start, args.max_bad_rate, best, best_score,
-              trials)
+    log = write_log(args.out_dir, args.frames_dir, start, args.max_bad_rate, best, best_score, trials)
     if args.save_preset:
         save_preset(args.save_preset, body)
     print(f"\nNow check it calibrates well, not just detects well:\n"
           f"  src/venv/bin/python src/01_Calibration/Calibration.py --preset {name}")
+    return best, best_score, log
 
 
 if __name__ == "__main__":

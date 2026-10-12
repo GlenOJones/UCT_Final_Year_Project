@@ -16,7 +16,8 @@ layout is defined once and cannot drift.
             comparison/<method>/             against the CAD model: metrics.json, comparison.png,
                                              distances.ply, cad_aligned.ply
         summary.csv                          every scan x method x fit compared with CAD
-    results/analysis/<name>/                 studies that span sessions (detector sweep, ...)
+    results/experiments/<name>/              the thesis experiments (src/experiments/reproduce.py)
+    results/analysis/<name>/                 older studies that span sessions
     work/<session>/<scan>/<method>/          bulky intermediate files (COLMAP workspaces): safe to
                                              delete once the results above exist
 

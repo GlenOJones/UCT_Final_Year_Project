@@ -36,8 +36,8 @@ front of an in-air lens would instead imply a ~95 deg in-air FOV. If the lens al
 optically, Pinax has little left to remove; that is a result worth reporting either way, not a bug.
 
 Usage (project root):
-    src/venv/bin/python src/01_Calibration/compensation.py data/Calibration/18_Sep/Rigframes
-    src/venv/bin/python src/01_Calibration/compensation.py data/Calibration/18_Sep/Rigframes \
+    src/venv/bin/python src/archive/pinax_18sep.py data/Calibration/18_Sep/Rigframes
+    src/venv/bin/python src/archive/pinax_18sep.py data/Calibration/18_Sep/Rigframes \
         --air-calib results/18_Sep/calibration/InAir_stereo.yaml --d0 8 --d1 6 --n-water 1.339
 Outputs (default results/analysis/pinax/): results.json, fig_pinax.png, and a corrected sample image per camera.
 """
@@ -80,19 +80,11 @@ board = cv2.aruco.Board(_tags, dictionary, np.arange(70))
 
 
 # ====== PINAX CORE ======
-def refract_radial(r, n_w):
-    """Normalised image radius in air -> normalised radius of the same ray in water (tan of its angle).
-
-    sin(theta_air) = n_w sin(theta_water), so theta_water = asin(sin(theta_air) / n_w). Independent of the
-    pane's index and thickness. r' < r: the water-side field of view is narrower, by about 1/n_w near the axis.
-    """
-    return np.tan(np.arcsin(np.clip(np.sin(np.arctan(r)) / n_w, -1.0, 1.0)))
-
-
-def unrefract_radial(r_w, n_w):
-    """Inverse of refract_radial: water-side radius -> air-side radius. NaN past total internal reflection."""
-    s = n_w * np.sin(np.arctan(r_w))
-    return np.where(np.abs(s) <= 1.0, np.tan(np.arcsin(np.clip(s, -1.0, 1.0))), np.nan)
+# refract_radial / unrefract_radial live in src/experiments/compensation/calibmethods/refraction.py (one
+# definition of the physics, used by the calibration-method comparison).
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                "experiments", "compensation", "calibmethods"))
+from refraction import refract_radial, unrefract_radial  # noqa: E402,F401
 
 
 def ray_trace(v0, d0, d1, n_g, n_w):

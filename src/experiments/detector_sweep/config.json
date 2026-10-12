@@ -1,0 +1,45 @@
+{
+  "_comment": "Experiment 2, OpenCV detector parameter sweep. (1) Coordinate-descent search of cv2.aruco.DetectorParameters on the underwater calibration frames (sweep_detector.py, starting from opencv_default). (2) Every preset calibrated on Air and Water with the standard calibration settings, and their detection and fit compared (summarise.py). (3) Accuracy of {opencv_default, water_final} x {gray, merge} on the held-out WaterComparison target (accuracy_check.py). Paths are relative to the project root. Reproduce with: src/venv/bin/python src/experiments/reproduce.py detector_sweep",
+  "out_dir": "results/experiments/detector_sweep",
+
+  "sweep": {
+    "_why": "The search always starts from opencv_default (sweep_detector.START_PRESET), so its result owes nothing to hand tuning. Its best settings should equal expected_preset in detector_presets.json; reproduce.py reports any difference. water_final is that preset with polygonalApproxAccuracyRate put back to 0.03 by hand (see its _why in detector_presets.json).",
+    "frames": "data/Calibration/FinalComparison/Water",
+    "rounds": 4,
+    "min_tags": 10,
+    "max_bad_rate": 0.005,
+    "expected_preset": "water_sweep_from_default"
+  },
+
+  "calibration": {
+    "_why": "Shared by every calibration in this experiment: the standard pipeline's fit (outlier rejection on). preset and channel are set per run.",
+    "detector": "aruco",
+    "preset": "set per run",
+    "channel": "set per run",
+    "reject": true,
+    "min_tags": 10,
+    "min_common_tags": 10,
+    "detection_images": false
+  },
+
+  "media": {
+    "Air": "data/Calibration/FinalComparison/Air",
+    "Water": "data/Calibration/FinalComparison/Water"
+  },
+
+  "presets": {
+    "_why": "Calibrated in every medium on the gray channel, so the preset is the only thing that changes.",
+    "names": ["opencv_default", "wide", "water_sweep_from_default", "water_final"],
+    "channel": "gray"
+  },
+
+  "accuracy": {
+    "_why": "Each setup is a (preset, channel) calibration of the medium below; its own channel and preset also detect the target. tag_size_mm is the printed edge of the WaterComparison tags' outer black square (G. Jones). The target is 3 rows x 2 columns; middle_row are the ids of the middle row.",
+    "medium": "Water",
+    "setups": [["opencv_default", "gray"], ["opencv_default", "merge"], ["water_final", "gray"], ["water_final", "merge"]],
+    "target": "data/Calibration/FinalComparison/WaterComparison",
+    "target_ids": [6, 7, 8, 9, 10, 11],
+    "middle_row": [8, 9],
+    "tag_size_mm": 145.0
+  }
+}
