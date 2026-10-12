@@ -1,0 +1,333 @@
+{
+ "experiment": "channels",
+ "created": "2026-10-12T18:13:16",
+ "command": "src/experiments/channels/run_study.py --study src/experiments/channels/variants/opencv_default.json",
+ "git_commit": "ab5cfe7006be6f10ddefd13e2995920ac7677ea7",
+ "git_uncommitted_src_changes": [],
+ "python": "3.14.4",
+ "opencv": "5.0.0",
+ "numpy": "2.5.3",
+ "configs": {
+  "src/experiments/channels/variants/opencv_default.json": {
+   "_comment": "Variant of the channel comparison (not in the report): stock OpenCV thresholding (opencv_default) like config.json, but with outlier rejection on. Run with: src/venv/bin/python src/experiments/reproduce.py channels --config src/experiments/channels/variants/opencv_default.json",
+   "channels": [
+    "gray",
+    "y",
+    "r",
+    "g",
+    "b",
+    "merge"
+   ],
+   "calibration": {
+    "_why": "The settings every Calibration.py run in the study shares, so the channel is the only thing that changes between runs.",
+    "detector": "aruco",
+    "preset": "opencv_default",
+    "channel": "set per run from channels",
+    "reject": true,
+    "min_tags": 10,
+    "min_common_tags": 10,
+    "detection_images": false
+   },
+   "media": {
+    "Air": "data/Calibration/FinalComparison/Air",
+    "Water": "data/Calibration/FinalComparison/Water"
+   },
+   "distance_unit": "cm",
+   "recall_medium": "Water",
+   "angle_names": {
+    "_why": "Optional description of each board angle (scan code in the folder name), shown in the recall figure's panel titles.",
+    "C1": "straight"
+   },
+   "test_target": {
+    "_why": "Held-out stereo pairs of a different target, never used to calibrate, triangulated with each channel's Water calibration. The tags are ordinary AprilTags (1-bit border), unlike the Kalibr board (2-bit), so only markerBorderBits differs from the calibration preset.",
+    "medium": "Water",
+    "frames": "data/Calibration/FinalComparison/WaterComparison",
+    "ids": [
+     6,
+     7,
+     8,
+     9,
+     10,
+     11
+    ],
+    "marker_border_bits": 1,
+    "tag_size_mm": null
+   },
+   "out_dir": "results/experiments/channels_variants/opencv_default"
+  }
+ },
+ "detector_presets": {
+  "opencv_default": "errorCorrectionRate=1.0, markerBorderBits=2"
+ },
+ "input_digests": {
+  "data/Calibration/FinalComparison/Air": "919d8026aa2c85031f523d02533c7b5f6b831e76261ad3d51c0b9d23698d098b",
+  "data/Calibration/FinalComparison/Water": "1cfd46e1b4624708f3c8f21958ef5bd262be0c825ef5952b63ecb0adf9e5801f",
+  "data/Calibration/FinalComparison/WaterComparison": "0f7cb78cd83d6363c626abd64e71ace6fea5e20ab837ca97ca454d9842efa70b"
+ },
+ "runs": [
+  {
+   "medium": "Air",
+   "channel": "gray",
+   "yaml": "results/experiments/channels_variants/opencv_default/Air/Air_opencv_default_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Air",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Air",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "gray",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Air",
+   "channel": "y",
+   "yaml": "results/experiments/channels_variants/opencv_default/Air/Air_opencv_default_y_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Air",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Air",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "y",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Air",
+   "channel": "r",
+   "yaml": "results/experiments/channels_variants/opencv_default/Air/Air_opencv_default_r_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Air",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Air",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "r",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Air",
+   "channel": "g",
+   "yaml": "results/experiments/channels_variants/opencv_default/Air/Air_opencv_default_g_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Air",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Air",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "g",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Air",
+   "channel": "b",
+   "yaml": "results/experiments/channels_variants/opencv_default/Air/Air_opencv_default_b_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Air",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Air",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "b",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Air",
+   "channel": "merge",
+   "yaml": "results/experiments/channels_variants/opencv_default/Air/Air_opencv_default_merge_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Air",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Air",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "merge",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Water",
+   "channel": "gray",
+   "yaml": "results/experiments/channels_variants/opencv_default/Water/Water_opencv_default_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Water",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Water",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "gray",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Water",
+   "channel": "y",
+   "yaml": "results/experiments/channels_variants/opencv_default/Water/Water_opencv_default_y_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Water",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Water",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "y",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Water",
+   "channel": "r",
+   "yaml": "results/experiments/channels_variants/opencv_default/Water/Water_opencv_default_r_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Water",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Water",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "r",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Water",
+   "channel": "g",
+   "yaml": "results/experiments/channels_variants/opencv_default/Water/Water_opencv_default_g_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Water",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Water",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "g",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Water",
+   "channel": "b",
+   "yaml": "results/experiments/channels_variants/opencv_default/Water/Water_opencv_default_b_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Water",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Water",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "b",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  },
+  {
+   "medium": "Water",
+   "channel": "merge",
+   "yaml": "results/experiments/channels_variants/opencv_default/Water/Water_opencv_default_merge_stereo.yaml",
+   "argv": [
+    "--frames-dir",
+    "data/Calibration/FinalComparison/Water",
+    "--out-dir",
+    "results/experiments/channels_variants/opencv_default/Water",
+    "--detector",
+    "aruco",
+    "--preset",
+    "opencv_default",
+    "--channel",
+    "merge",
+    "--min-tags",
+    "10",
+    "--min-common-tags",
+    "10",
+    "--no-detection-images"
+   ]
+  }
+ ]
+}

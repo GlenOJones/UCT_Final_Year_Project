@@ -9,18 +9,24 @@
 # Each parent folder has to be re-included before a file inside it can be.
 !/results/
 /results/*
-!/results/analysis/
-/results/analysis/*
-!/results/analysis/channel_selection_colour_defaults/
-/results/analysis/channel_selection_colour_defaults/*
-!/results/analysis/channel_selection_colour_defaults/fig_air_vs_water_C1_right_60.png
-!/results/analysis/channel_selection_colour_defaults/fig_recall_mean_by_medium.png
-!/results/analysis/air_vs_water_crops/
-/results/analysis/air_vs_water_crops/*
-!/results/analysis/air_vs_water_crops/fig_single_tag_close_far.png
-!/results/analysis/channel_selection_opencv_default/
-/results/analysis/channel_selection_opencv_default/*
-!/results/analysis/channel_selection_opencv_default/fig_channel_overlap_L3.png
+!/results/experiments/
+/results/experiments/*
+# Experiment 1 (channels): report figures, the summary table, and the manifest saying what made them.
+!/results/experiments/channels/
+/results/experiments/channels/*
+!/results/experiments/channels/fig_air_vs_water_C1_right_60.png
+!/results/experiments/channels/fig_recall_mean_by_medium.png
+!/results/experiments/channels/table_channel_summary.tex
+!/results/experiments/channels/manifest.json
+!/results/experiments/channels/air_vs_water_crops/
+/results/experiments/channels/air_vs_water_crops/*
+!/results/experiments/channels/air_vs_water_crops/fig_single_tag_close_far.png
+!/results/experiments/channels_variants/
+/results/experiments/channels_variants/*
+!/results/experiments/channels_variants/opencv_default/
+/results/experiments/channels_variants/opencv_default/*
+!/results/experiments/channels_variants/opencv_default/fig_channel_overlap_L3.png
+!/results/experiments/channels_variants/opencv_default/manifest.json
 # Python virtual environments and caches
 venv/
 __pycache__/
