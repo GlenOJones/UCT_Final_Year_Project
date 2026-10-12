@@ -128,7 +128,7 @@ def main(argv=None):
     ap.add_argument("--width", type=float, default=6.2, help="figure width per frame, inches (default 6.2)")
     ap.add_argument("--name", default="fig_channel_overlap", help="output file name, without extension")
     ap.add_argument("--legend-right", action="store_true",
-                    help="put the description and the key in a column to the right of the image(s)")
+                    help="only the image(s) and the key, in a column to the right; the description is printed")
     ap.add_argument("--channels", nargs="+", default=["gray", "g", "r"], help="channels to compare (default gray g r)")
     ap.add_argument("--images", nargs="+", help="camera/subfolder/file.png to show (default: the two where the "
                                                 "channels disagree most)")
@@ -140,11 +140,11 @@ def main(argv=None):
 
     scale = args.width / 6.2
     if args.legend_right:
-        side = 2.6 * max(scale, 0.75)                     # inches for the description + key column
-        fig = plt.figure(figsize=(args.width * len(keys) + side, 4.6 * scale + 0.3), constrained_layout=True)
-        grid = fig.add_gridspec(1, len(keys) + 1, width_ratios=[args.width] * len(keys) + [side])
-        axes = [fig.add_subplot(grid[0, k]) for k in range(len(keys))]
-        info = [draw(ax, study, files, args.channels, key, scale, title=False) for ax, key in zip(axes, keys)]
+        side = 2.6 * max(scale, 0.75)                     # inches for the key
+        fig, axes = plt.subplots(1, len(keys), figsize=(args.width * len(keys) + side, 4.6 * scale + 0.3),
+                                 constrained_layout=True)
+        info = [draw(ax, study, files, args.channels, key, scale, title=False)
+                for ax, key in zip(np.atleast_1d(axes), keys)]
     else:
         fig, axes = plt.subplots(1, len(keys), figsize=(args.width * len(keys), 4.6 * scale + 0.9), constrained_layout=True)
         for ax, key in zip(np.atleast_1d(axes), keys):
@@ -159,12 +159,10 @@ def main(argv=None):
                 Line2D([], [], color="#888888", linestyle="--", linewidth=0.8, label="on the board, found by none")]
     heading = f"{medium}, preset {study['calibration']['preset']}:\nwhich channel found each tag"
     if args.legend_right:
-        side_ax = fig.add_subplot(grid[0, -1])
-        side_ax.axis("off")
-        text = heading + "\n\n" + "\n\n".join("\n".join(lines) for lines in info)
-        side_ax.text(0, 1, text, va="top", ha="left", fontsize=max(8 * scale, 6), transform=side_ax.transAxes)
-        side_ax.legend(handles=handles, loc="lower left", fontsize=max(8 * scale, 6), frameon=False,
-                       handletextpad=0.4, borderaxespad=0)
+        # Image and key only; the description goes in the report's caption, so it is printed instead.
+        fig.legend(handles=handles, loc="outside right center", fontsize=max(8 * scale, 6), frameon=False,
+                   handletextpad=0.4)
+        print(heading.replace("\n", " ") + "\n  " + "\n  ".join("; ".join(lines) for lines in info))
     else:
         small = len(keys) * args.width < 5
         fig.legend(handles=handles, loc="outside lower center", ncol=2 if small else 3, fontsize=max(8 * scale, 5.5),
@@ -172,7 +170,7 @@ def main(argv=None):
         fig.suptitle(heading.replace("\n", " "), x=0.01, ha="left", fontsize=max(10 * scale, 6.5))
     out = os.path.join(study["out_dir"], args.name)
     for ext in ("pdf", "png"):
-        fig.savefig(f"{out}.{ext}", dpi=200)
+        fig.savefig(f"{out}.{ext}", dpi=200, bbox_inches="tight", pad_inches=0.03)
     print(f"wrote {os.path.relpath(out, run_study.PROJECT_ROOT)}.{{pdf,png}}: {', '.join(keys)}")
 
 

@@ -12,7 +12,8 @@ and board.
 Use (from the project root, after run_study.py; reproduce.py channels runs it):
     src/venv/bin/python src/experiments/channels/plot_air_water_crops.py
 Poses come from the study's gray runs. Writes <out_dir>/air_vs_water_crops/: one PNG per crop, fig_air_vs_water_crops.{pdf,png} and
-fig_single_tag_close_far.{pdf,png} (one tag and its border per matched image, real pixels).
+fig_single_tag_close_far.{pdf,png} (one tag and its border per matched image, real pixels; only Air and
+Water are labelled on it, the rest of its description is printed for the caption).
 """
 import argparse
 import json
@@ -90,21 +91,26 @@ def show(img):
 def single_tag_figure(study, out):
     """Close-up and furthest matched pairs, one tag and its border each, enlarged with nearest-neighbour
     scaling so the real pixels are visible."""
-    fig, axes = plt.subplots(2, 2, figsize=(7.2, 7.6), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 7.4), constrained_layout=True)
+    caption = [f"Tag {SINGLE_TAG} and its border, right camera, angle C1; same measured distance in air and water. "
+               f"Top row: close-up pair, bottom row: furthest pair; enlarged with nearest-neighbour scaling."]
     for row, (pair, label) in enumerate(((CLOSE, "close-up"), (FAR, "furthest"))):
         for col, (medium, folder, name) in enumerate(pair):
             img, dist, width = block_crop(study, medium, folder, name, (SINGLE_TAG,), SINGLE_MARGIN)
             s = CROP_HEIGHT / img.shape[0]
             ax = axes[row, col]
             ax.imshow(cv2.cvtColor(cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_NEAREST), cv2.COLOR_BGR2RGB))
-            ax.set_title(f"{medium}, {label}: board {dist:.1f} cm\ncrop {img.shape[1]} x {img.shape[0]} px in the original",
-                         loc="left", fontsize=9)
+            if row == 0:
+                ax.set_title(medium, loc="left", fontsize=10)
+            caption.append(f"{medium}, {label} ({name}): board {dist:.1f} cm, crop {img.shape[1]} x {img.shape[0]} px "
+                           f"in the original")
             ax.axis("off")
             cv2.imwrite(os.path.join(out, f"single_tag_{label}_{medium.lower()}_{name}"), img)
-    fig.suptitle(f"Tag {SINGLE_TAG} and its border, right camera, angle C1; same measured distance in air and water",
-                 x=0.01, ha="left", fontsize=9.5)
     for ext in ("pdf", "png"):
-        fig.savefig(os.path.join(out, f"fig_single_tag_close_far.{ext}"), dpi=200)
+        fig.savefig(os.path.join(out, f"fig_single_tag_close_far.{ext}"), dpi=200, bbox_inches="tight", pad_inches=0.03)
+    plt.close(fig)
+    print(f"wrote {os.path.relpath(out, PROJECT_ROOT)}/fig_single_tag_close_far.{{pdf,png}}; caption text:\n  "
+          + "\n  ".join(caption))
 
 
 def main(argv=None):
