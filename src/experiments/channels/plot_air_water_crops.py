@@ -35,8 +35,8 @@ DATA = os.path.join(PROJECT_ROOT, "data", "Calibration", "FinalComparison")
 CROP_HEIGHT = 420            # px, every crop is resized to this height for display
 
 # (medium, scan folder, file) pairs at matched measured distance, right camera
-CLOSE = (("Air", "Air_C1_Frames", "C1_Right_40.png"), ("Water", "Water_C1_frames", "c1_Right_50.png"))      # 21.6 / 19.7 cm
-FAR = (("Air", "Air_C1_Frames", "C1_Right_140.png"), ("Water", "Water_C1_frames", "c1_Right_150.png"))      # 119.8 / 120.6 cm
+CLOSE = (("Air", "Air_C1_Frames", "C1_Right_40.png"), ("Water", "Water_C1_frames", "c1_Right_40.png"))      # 21.8 / 19.7 cm
+FAR = (("Air", "Air_C1_Frames", "C1_Right_140.png"), ("Water", "Water_C1_frames", "c1_Right_140.png"))      # 121.0 / 120.6 cm
 # Board tag ids of the block to crop (rows run 0..6 bottom to top, columns 0..9 left to right).
 CLOSE_BLOCK = (25, 26, 27, 35, 36, 37)    # in frame in both close-ups
 FAR_BLOCK = (23, 24, 25, 26, 33, 34, 35, 36, 43, 44, 45, 46)
@@ -44,7 +44,7 @@ SINGLE_TAG = 26              # in frame in all four matched images (incl. the ti
 SINGLE_MARGIN = 0.45         # x tag side around the tag: covers the white gap (0.3) and the corner squares
 # Single-image examples: (title, image path under DATA, crop x0, y0, x1, y1 in px)
 EXAMPLES = (
-    ("Bubbles on the board (water, C1, 20 cm)", "Water/Water_C1_frames/right/c1_Right_50.png", (300, 100, 900, 520)),
+    ("Bubbles on the board (water, C1, 20 cm)", "Water/Water_C1_frames/right/c1_Right_40.png", (300, 100, 900, 520)),
     ("Glints on the laminated sea target (water)", "WaterComparison/left/reference__Left_50.png", (500, 380, 1220, 880)),
     ("Objects between camera and board (water, C5)", "Water/Water_C5_frames/right/c5_Right_40.png", (200, 450, 1500, 1200)),
 )
