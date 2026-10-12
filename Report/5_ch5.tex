@@ -1,6 +1,37 @@
 %*********************************************************************
 %	CHAPTER 5 - EXPERIMENTAL PROCEDURE
 %*********************************************************************
+
+% THEORY REQUIRED FOR THIS SECTION
+% CAMERA CALIBRATION Zhang
+% OPENCV TOOLBOX tools to apply Zhang (Explain how opencv does its detection and reference Uwaruco's findings)
+
+\subsubsection{OpenCV}
+
+\begin{table}[H]
+    \centering
+    \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
+    \midrule[1pt]
+    \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
+    \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
+    \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
+    \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
+    \midrule
+    \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
+    \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
+    \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch5.detectorparams}
+\end{table}
+
+% YUYV and MJPG compression - colours, file size compression for MJPG
+% Underwater compensation stuff.
+% Water attenuation on light (Maybe add to main literature review)
+
 \chapter{Experimental procedure}
 \label{ch:experiments}
 %---------------------------------------------------------------------
@@ -24,23 +55,60 @@ and tests the AprilGrid detection pipeline as well as three different underwater
 taken both in air and underwater. The in-air calibration provides a baseline for analysing the effect that the underwater environment
 has on the camera calibration.
 
-\subsubsection{Data collection}
+\subsubsection{Calibration Board and test Rig Construction}
 % Calibration tests (in air vs underwater)
-A sliding rig was designed using 2020 aluminium extrusions and custom 3D-printed attachments with wheels. The rig allows
-one-degree-of-freedom sliding towards and away from a calibration board mounted at its end. The board's angle is adjustable, and it
-can be moved from the centre to the left or right. Because frames are matched in distance, position and relative angle, this allows
-repeatable comparison of calibration techniques between air and water.
+A sliding rig was designed using 2020 aluminium extrusions and custom 3D-printed sliding mounts for the ROV. The rig allows
+one-degree-of-freedom sliding towards and away from a calibration board mounted at its end. The board is attatched with a variable angle
+mount, allowing it to be set at angles rangeing from horizontal to vertical in intervals of 10 degrees. The board's mount can be mounted
+to the center, right or left of the end of the end rail. This allows for repeatable position, distance and relative angle between the board and the cameras
+across different tests.
 
-Images were captured at distances from 40 to 160\,cm from the board, in 10\,cm increments. At each distance, the board angle ranged
-from roughly X to Y. The board was first placed in the centre and then on the left of the frame mount. Distances were read from
-calibrated markers drawn on the side of the guide rail. % TODO: state where distances were measured from
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.33\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
+        \caption{Description. Sliding image}
+        \label{fig:ch5.air_water_comp}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.66\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
+        \caption{Description. Showing set angles}
+        \label{fig:ch5.dist_comp}
+    \end{subfigure}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.air_vs_water}
+\end{figure}
+
+\subsubsection{Data collection}
+% TODO: COnfirm angles set
+Images were captured in 10,cm increments at distances from 40 to 160\,cm from the board side of the rail, read from the calibrated markers on 
+the side of the guide rail. At each distance, the board angle was set to  $(90, 100, 110, 130, 150)$. The board was first placed in the centre and then on the left of the frame mount. % TODO: Adjust where distances were measured from
 In total, 212 stereo pairs were used in air and 230 matching pairs underwater. % TODO: redo without blurred frames
 
-Figure~\ref{fig:ch5.air_vs_water} illustrates the key differences between the in-air and underwater data sets. Refraction at the
-glass--water interface narrows the field of view underwater, so the in-air images appear wider-angle, with the board appearing smaller
-at a given distance. The water also adds haze and reduces contrast, and occasional floating particles and bubbles are visible.
+% MJPEG at 1600×1200, full-range YUV 4:2:2, ~30fps, in MKV containers
+Initial testing found that the uncompressed YUYV format was too causing warped blurry images underwater. It was assumed that the shutterspeed
+was filling up the fixed 5fps configuration for the cameras. The cameras have a maximum 5fps frame rate for the raw footage, raising concerns over
+the number of images produced per ice drive by pass. It was decided that MJPG's compression was admissable for the tests due to smaller file sizes
+(x vs 1GB for a 30 second clip) and improved image quality. This decision had effects on the data processing regarding detection ability (see section X 
+, regarding colour channels)) and reconstruction (see X). These were only discovered after testing the MJPG footage,
+and repeated testing was done for experiments 2 and 3, comparing the MJPG and YUYV results.
 
+% Maybe I fix
 
+For these sets of tests, the cameras were set to auto exposure and to record 30fps in MJPG at maximum resolution, $1600$x$1200$
+The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
+
+\autoref{fig:ch5.air_vs_water} illustrates the key differences between the in-air and underwater data sets. Refraction at the
+glass-water interface narrows the field of view underwater. The in-air images appear wider-angle, with the board appearing smaller
+at a given distance.The aquagon lenses have specifically been calibrated for underwater conditions, which is clearly visible in the comparison.
+The in air image has noticable pincusion distortion, noticable along the straith edges of the board
+The water introduces haze and reduces contrast. Some frames include floating particles and bubbles on the surface of the calibration board.
+
+% TODO: Get rid of annotative text, also make sure you're actually using teh correct images.....
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.665\textwidth}
@@ -61,16 +129,12 @@ at a given distance. The water also adds haze and reduces contrast, and occasion
 \end{figure}
 
 \subsection{Frame selection}
-As the StellarHD cameras do not support single-shot images, each frame is extracted from an .mkv video file using
-\texttt{extract\_stereo\_frame.py} and is chosen and labelled by hand. Because there is no hardware synchronisation between the
-cameras, the script pairs each left frame with the right frame that has the closest timestamp, and rejects the pair if the
-difference exceeds a configurable threshold (default 10\,ms). Since the ROV is stationary at each set position, a 10\,ms offset
-causes negligible relative motion between the two views.
-
-% MJPEG at 1600×1200, full-range YUV 4:2:2, ~30fps, in MKV containers
-The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
-
-
+The StellarHD cameras do not support single-shot image. Each frame is extracted from the .mkv video file using
+\texttt{extract\_stereo\_frame.py}. As there is no hardware synchronisation between the two stellarHD cameras,
+ the script pairs left and right framews with the closest timestamp, rejecting pairs if with a difference above a configurable 
+ threshold (default 10\,ms). Since the ROV is stationary at each set position, a 10\,ms offset
+causes negligible relative motion between the two views. \texttt{extract\_stereo\_framep.py} allows for manual frame selection 
+or selecting frames at set steps (e.g. every 10th frame)
 
 
 
@@ -78,21 +142,17 @@ The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YU
 %between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016.7894491
 
 
-
-
-
-
 \subsection{Calibration}
 % NB: APPARENTLY THE IN AIR WERE MORE COMPRESSED DUE TO HIGHER DETAIL - CPMPRESSION LEVELS DEPEND detail
-Calibration is done with \texttt{calibration.py}. This allowed for quick iteration of openCV detector configurations. For this
-comparison, tags detected is the metric.
-
-
-Outputs a png with the noted detectrions. See image below.
-add in the DetectedTags.png here
+Calibration is done with \texttt{calibration.py}. The code reads in the full set of calibration images aswell as a JSON file containing the openCV
+detector settings. The board geometries for the Aprilgrid board are hardcoded into the file. The code reads in the dector settings, builds a board object to match the physical board,
+loads each image and selecets either greyscale, luma or a single colour channel, detects tags, does sub pixel corner refinement, regects images with less than 10 tags. It then uses
+these tags and tag positions to calculate camera intrinsics using \texttt{calibrateCameraExtended} and stereo extrinsics using \texttt{calibrateStereoExtended}. The camera's intrinsics
+and extrinsics are outputted to a .YAML file for comparison and use further in the pipeline. The error metrics used in Section X are generated and stored in the same YAML file. An example 
+image with annotaed detections is given in \autoref{fig:ch5.detectedtags} below.
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.8\textwidth]{figs/Ch5/DetectedTags.png}
+    \includegraphics[width=0.5\textwidth]{figs/Ch5/DetectedTags.png}
     % CLAUDE: caption below is still the template placeholder; \cite{key} prints [?]. Replace with your own caption.
     \caption[Short caption for the List of Figures.]{\textbf{Bold lead-in sentence.}
         Longer explanation of what the reader is looking at. Taken from \cite{key}.}
@@ -100,106 +160,85 @@ add in the DetectedTags.png here
 \end{figure}
 
 
-\subsubsection{Optimising for Detection}
+\subsection{Optimising for Detection}
 % Mention how to optimise through varying openCV parameters
 % Mention metrics for what is good, explained in the theoretical development
 %=====================================================================
 
 
-Comparing channel selection , channel gain mixing
+%Comparing channel selection , channel gain mixing
+%MAINLY TWEAKED OPENCV for improved detections.
+
+%TESTING CLAHE AND IMPROVING DETECTIONS WITHOUT MESSING UP ACCURACY
+%CONCERNS OVER CLAHE NON-LINEAR MAPPING 
+%HARD BECAUSE IT GETS HAZY, FLOATING DEBRIS IN THE WAY (HAVE FIGURE REFERENCEING CLOSE UP AD DIFFERENT DISTANCES)
+
+%SAFE FOR BOTH 
+%PER-PIXEL, SPATIALLY UNIFORM TRANSFORMS : GAMM, CONTRAST STRERTCH, PER-CHANNEL GAIN CHANNEL MIXING, CHANNEL SELECTION
+%SIMPLE DEHAZING: I=J.t+b.(L-T)... something about dehazing not moving a corner
+%Symmetric linear filters: Gaussian bluer, unsharm mask UPSCALING?
 
 
-MAINLY TWEAKED OPENCV for improved detections.
-
-TESTING CLAHE AND IMPROVING DETECTIONS WITHOUT MESSING UP ACCURACY
-CONCERNS OVER CLAHE NON-LINEAR MAPPING 
-HARD BECAUSE IT GETS HAZY, FLOATING DEBRIS IN THE WAY (HAVE FIGURE REFERENCEING CLOSE UP AD DIFFERENT DISTANCES)
-
-
-SAFE FOR BOTH 
-PER-PIXEL, SPATIALLY UNIFORM TRANSFORMS : GAMM, CONTRAST STRERTCH, PER-CHANNEL GAIN CHANNEL MIXING, CHANNEL SELECTION
-SIMPLE DEHAZING: I=J.t+b.(L-T)... something about dehazing not moving a corner
-Symmetric linear filters: Gaussian bluer, unsharm mask
-UPSCALING?
-
-
-Metrics:
--  Tag detection vs distance + false ids
-- Triagnulated tag-size error in mm (of stereo reconstruction) at same distance? or different distanec?
-         - use frames not used in calibrate (Ems board across different distances)
-- RMS Reprojection error on the common set of tags. Better detector gets ones with noiser corners, makes error worse punishment for good work
-        - COncenrs  (internal, measures how well model fits data, not accurate result)
-- OpenCV uncertainty values
+%Metrics:
+%-  Tag detection vs distance + false ids
+%- Triagnulated tag-size error in mm (of stereo reconstruction) at same distance? or different distanec?
+%         - use frames not used in calibrate (Ems board across different distances)
+%- RMS Reprojection error on the common set of tags. Better detector gets ones with noiser corners, makes error worse punishment for good work
+%        - COncenrs  (internal, measures how well model fits data, not accurate result)
+%- OpenCV uncertainty values
     
 
-- false-ids.
-Compare RMS error across ONLY those matching tags across all. NB to ensure not loosing accuracy across any of the enhancements
+%- false-ids.
+%Compare RMS error across ONLY those matching tags across all. NB to ensure not loosing accuracy across any of the enhancements
 
-The method relies on high gradients
+%The method relies on high gradients
 
-Detection count:
-First: Standard OpenCV setup, full colour
-Second: Comparing the Gray, RGB colours 
-Third: 
+%Detection count:
+%First: Standard OpenCV setup, full colour
+%Second: Comparing the Gray, RGB colours 
+%Third: 
 
-WRITEUP:\\
+
 \subsubsection{Calibraion analysis metrics}
-Optimising for calibration requires careful consideration to avoid degrading the quality and coverage
-of the calibration. Selectivly choosing frames to reduce RMS error results in losing what might be better 
-calibration coverage. The harder to detect tags may increase RMS errors due to higher noise with their 
-detections, resulting in worse RMS error therefore punishing the algortihms for an improved output.
+Optimising for calibration requires careful consideration to avoid degrading the accuracy of the calibration. Selectivly choosing frames to reduce RMS error results in losing calibration
+coverage. Harder to detect tags may increase RMS errors due to higher noise with their detections, resulting in worse RMS error therefore punishing the algortithms for a more accurate output.
 To avoid this, four metrics are used to evaluate the calibration's algorithm's effectiveness:
 \begin{enumerate}
     \item \textbf{Tag detection rate:} number of AprilTags detected, as a fraction of the total board tags.
     \item \textbf{Mean per-image RMS:} reprojection error computed separately for each image, then averaged over all images.
     \item \textbf{Overall RMS:} reprojection error over all detected corners, as returned by \texttt{calibrateCameraExtended}.
     \item \textbf{Parameter uncertainty:} standard deviations of the intrinsic parameters, as returned by \texttt{calibrateCameraExtended}.
-    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a separate AprilTag target at distances of 50--250\,cm.
+    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a different AprilTag target at distances of 50--250\,cm.
     \item \textbf{Matched-tag RMS:} reprojection error computed only over tags detected in all of the compared calibrations.
 \end{enumerate}
 
+\subsubsection{Results}
 \subsubsection{Comparing channels for tag detection}
 
 % Intro to the colour comparison
-The first comparison examined how AprilgGrid detection works for the different channels. OpenCV's ArUco  detector
-detection takes single-channel image. Water attenuates light differently depending on its wavelength, meaning the contrast
-of the tags will vary between channels. Five inputs were compared: greyscale (converted using OpenCV's \texttt{cvtColor}), 
-the camera's JPEG luma (Y), and the red, green and blue channels individually.
- The analyse this comparison, five inputs: grayscale converted using? , the camera's JPEG luma (Y), and the red, 
-green and blue channels. 
-
-Each run used OpenCV's defualt detector and calibration settings on the same set of calibration frames. Runs were compared on 
+The first comparison examines how AprilgGrid detection works for the different channels. OpenCV's ArUco  detector
+detection takes single-channel image. Five inputs were compared: greyscale (converted using OpenCV's \texttt{cvtColor}), 
+the camera's JPEG luma (Y), and the red, green and blue channels. Each run used OpenCV's defualt detector and calibration settings on the same set of calibration frames. Runs were compared on 
 tag detection rate, false detection rate and matched-tag RMS error.
 
-When looking at which detections were made for each channel, an intersting observatoin was made. Although they had a similar detection rate,
-not all the projections were the same tags. \autoref{fig:ch5.channel_overlap} below shows the different tags detected by different colours..
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.8 \textwidth]{../results/analysis/channel_selection_opencv_default/fig_channel_overlap_L3.png}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.channel_overlap}
-\end{figure}
-
-The calibrtaion.py script was subsequently adapted to also take a mergerd option, joining the detected tag across all channels.
-
-
-% analysing the coloour comparioson'
-
-\begin{figure}[htbp]
+% TODO: Make this comparison a permanent python code. Rerun comparison and look at other metrics
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{../results/analysis/channel_selection_colour_defaults/fig_recall_mean_by_medium.png}
     \caption[short caption]{\textbf{Lead-in.} Description. Left: air. Right: water.}
     \label{fig:ch5.recall_mean}
 \end{figure}
-Grayscale and Y gave the same results, a mean recall of X and Y RMS for the ledt camera. This is expected as the JPEG luma uses the same RBG weigths as
-grayscale. Red and green ach found X less, with Blue the clear worse with X and Y error. Likely blue half resoluition (research).
-% Joining the different detections for maximum number of detections
 
-An interesting note was that the air detection rate was worse across all detections. While this appears confusing, it is 
-likely due to the angle affecting nature of the water. The apparent FOV chanes from in air to in water. This can be seen visually and 
-in the (where can I get the 1.33 ish from).  Figure X shows comparative right images between the two.
+\textbf{Greyscale and luma.} The converted greyscale and camera's Y channel gave identicle detection counts and near identical 
+error in both air and water.
 
+% This makes sense as \texttt{cvtColor} and the camera's YUYV encoding both use the same weights, $Y=0.299R+0.587G+0.114$ (ref).
+
+\textbf{Individual channels.} Green slightly outperformed the other channels and matched or slightly outperformed greyscale in air anfd water ($0.170$ vs $0.162$), with blue
+weakest across both media.
+
+
+%This is likely due to how the colour channels are reconstructed from YUYV data? is it  or is it just how its encoded? Eac hcolour is recovered from the lima plus zthe half-resolution chorma. .
 
 
 \begin{table}[htbp]
@@ -228,51 +267,92 @@ Water & Gray (computed) & 0.358 & 0.00 & 0.491 / 0.852 & 0.207 / 0.220 \\
 \end{tabular}
 \end{table}
 
+%========================
+\textbf{Analysis} \\
+% == IMPROVED WITH MERGING
+When looking at which detections were made for each channel, an intersting observation was made. Although they had a similar detection rate,
+not all the detections were of the same tags. \autoref{fig:ch5.channel_overlap} below shows which tags were detected by each channel. The calibration.py script was subsequently adapted to also take a mergerd configutation, running the tag detection on
+the RGB channels seprately and merging the detected tags. This improved detection count to 0.437.
+
+
+% Get rid of text in image.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8 \textwidth]{../results/analysis/channel_selection_opencv_default/fig_channel_overlap_L3.png}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
+
+
+
+%ADD EQUATION HERE WITH REFERENCE TO HOW IT HAPPEND.
+
+% Blue has the largest chroma coefficient and gets the most chroma blur and compression noise This can soften the black white tag edges that the detector relies on. Green has the smallest
+%dependence and is closest to the luma iamge (MIGHT BE A BS ARGUMENT BECAUSE ITS MJEPF. DO TEST TO CONFIMR THIS)
+
+
+
+% analysing the coloour comparioson'5
+
+%Matching greyscale and luma resuls is expected as the JPEG luma uses the same RBG weigths as grayscale. 
+% TODO: Research MJPEG encoding aswell as a hypothesis for this result
+
+%Red and green ach found X less, with Blue the clear worse with X and Y error. Likely blue half resoluition (research).
+% Joining the different detections for maximum number of detections
+
+
+% == IN AIR VS WATER COMPARISONN
+An interesting note was that the air detection rate was worse across all detections. While this appears counterintuitive, it is 
+likely due to the refraction and snells law. % TOOD: Explicit snells law explanation in angle getting smaller for secionts theory dev
+This is substantiated by the intrinsics (FACTOR THAT REPRESENTS THE 1.33 CALCULATOIN). This means X, and an actually FOV of. This FOV change
+can be seen in \autoref{fig:ch5.air_vs_water}. Another factor possible cause is the MJPG compression. %TODO RESEARCH IF VALID REASON)
+Due to the higher detail in the air frames versus the hazy water frames, the MJPG compression dulls out the sharper details to maintain the
+maximum file size. This was confirmed by running a (what kind of test with what metrics), which resulted in (TODO).
+
+
+% == COMPARING RMS METRICS AND FALSE DETECTIONTS
+% TODO
+% HOW ARE THEY DIFFERENT...
+% TODO: ADD MEASURED ACCURACY ON EMILYS TAGS TO 4 DECIMAL PLACES
 
 \subsubsection{Tuning OpenCV detector parameters}
 
 % OpenCV parameter adjustments, what, why, ,how (educated guess, followed by paramtere sweep), improved detection results
 % CLAUDE ADAPTED TO THIS:
-The next step was to tune the parameters of OpenCV's ArUco marker detector. To do this, a parameter sweep was run using \texttt{sweep\_detector.py} to find the configuration that detects the most
-AprilGrid tags within accuracay metrics. Thirteen \texttt{DetectorParameters} were varied, covering thresholding, contour
-filtering and the decoding of each tag's bits. Any configuration producing more than 0.5\% false identifications or duplicate tag detections was rejected.
+% WITHIN WHAT ACCURACY METRICS
+The next test was the tuning was of OpenCV's ArUco marker detector parameters. To do this, a parameter sweep was run using \texttt{sweep\_detector.py} 
+to find the configuration that detects the most AprilGrid tags within accuracay metrics. Thirteen \texttt{DetectorParameters} were varied, covering thresholding, contour
+filtering and the decoding of each tag's bits. The configurations tested can be found in (TABLE X ) in the Appendix.Configurations producing more than 0.5\% false identifications or duplicate tag detections was rejected. 
+A tag is dropped if the worst corner is either 2 pixels or $5$x the median RMS error. %TODO: Why these values?
+An image is dropped if its tags corner RMS exceeds 3x the median or if it has fewer than 10 tags. % THESE ARE BOTH GIVING THE VIBES OF CANCELLING OUT GOOD ERROR
 
-% MAYBE MOVE TO THEORETICAL DEVELOPMENT
+% COULD MENTION WHAT WENT WRONG WITH "INITIAL TESTING... OR JUST KINDA LIE"
 
-\begin{table}[H]
-    \centering
-    \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
-    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
-    \toprule[2.25pt]
-    \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
-    \midrule[1pt]
-    \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
-    \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
-    \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
-    \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
-    \midrule
-    \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
-    \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
-    \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
-    \bottomrule[2.25pt]
-    \end{tabularx}
-    \label{table:ch5.detectorparams}
-\end{table}
+\subsubsection{OpenCV Parameter sweep results}
+% === HIGH LEVEL RESULTS, HOW LONG IT TOOK TO RUN, WHAT THE BIGGEST WINNERS WERE, HOW MUCH IMPROVEMENT
+The sweep took X seconds to run, settling to a final configuration with the following setup:
+TODO: \texttt{INSER CONFIG LINE FOR OPENCV DETECTOR OBJECT}.
 
-% Went wrong at first
-The first round of the sweep broke the calibration with 5-8px RMS. This was due to loose corner approximations ((polygonalApproxAccuracyRate = 0.08)
-misplacing the courners and three? tag misreads in the higher angle frames. THi sresulted in up 20 78 per image RMS error.
+This resulted in a a final 75\% more tags than the original setup (9302 vs 5323). This coverage
+is important for charturisation across the full frame.
 
-% What the fix was
-Thi swas fixed with outlier rejection in calibration.py. A tax is drupped if the worst corner is either 2 pixels or 5X the median from the board model.
-An image is dropped if its tags corner RMS exceed 1-x or 3x median or if it has fewer than 10 tags. These are both giving the vibes
-of cancelling out the error which is dangerous. This is why the accuracy comparisons are still made? Note how many were cancelled.
 
+% TODO: Generate plot showing the biggest gains for each config
 % Results with the fix
-This was fixed by rersetting it to 0.03 and adding misplaced 
-tag rejection and badly fitting images. This resulted in a a final 75\% more tags than the original setup (9302 vs 5323). This coverage
-is important for charicuraisation across th full frame.
-% Which I adjusted and why
+
+% ===ANALYSIS
+% EXPLAIN WHY IT MAKES SENSE THAT THOSE PARAMETERS RESULTED IN GOOD IMPROVEMENTS, RELATING TO THEORY OF THE ALGORITHM
+
+
+
+\subsection{Underwater Compensation analysis}
+% EXPLANATIONS OF THE THREE METHODS GIVEN IN THE THEORETICAL DEVELOPMENT SECTION
+% === PINAX (is it even possible in this context)
+% === Zhang but underwater
+% === Raytracing of sorts
+
+
+% LOWKEY AQUAGON SPECIFIC COMPENSATION.....?s https://aquacal.readthedocs.io/en/latest/guide/optimizer.html
 
 
 
