@@ -63,15 +63,16 @@ def scale_bars(left, right, R, T, pairs, pair_index, band_mm):
     return np.array(rows, float).reshape(-1, 7)
 
 
-def run_split(run, split, techniques, cfg):
-    """Everything one split contributes: {"params", "points", "bars", "notes"}."""
+def run_split(run, split, techniques, cfg, keep_models=False):
+    """Everything one split contributes: {"params", "points", "bars", "notes"}, plus "models" (the fitted
+    cameras and stereo extrinsics per technique) when keep_models."""
     image_size = run.image_size
     frame_index = {c: {f.name: k for k, f in enumerate(run.frames[c])} for c in data.CAMERAS}
     all_pairs = run.stereo_pairs()
     pair_index = {lf.name: k for k, (lf, _) in enumerate(all_pairs)}
     test_pairs = [p for p in all_pairs if p[0].group in split.test]
 
-    params, point_rows, bar_rows, notes = {}, [], [], []
+    params, point_rows, bar_rows, notes, kept = {}, [], [], [], {}
     for t_idx, tech in enumerate(techniques):
         fitted, entry = {}, {}
         for c_idx, camera in enumerate(data.CAMERAS):
@@ -88,13 +89,20 @@ def run_split(run, split, techniques, cfg):
 
         train_pairs = tech.training_pairs(all_pairs, split.train)
         R, T, rms = fitted["left"].stereo(train_pairs, fitted["right"], image_size)
+        if keep_models:
+            kept[tech.key] = {"left": fitted["left"], "right": fitted["right"], "R": np.asarray(R), "T": np.ravel(T)}
         entry["stereo"] = {"R": R.tolist(), "T_mm": list(map(float, T)), "baseline_mm": float(np.linalg.norm(T)),
                            "rms_px": rms, "training_pairs": len(train_pairs),
                            "opencv_function": "cv2.stereoCalibrate" if tech.model == "brown_conrady"
+                           else "in-air stereo calibration, unchanged" if tech.model == "air_direct"
                            else "stereo_lm (see models.py)"}
         bars = scale_bars(fitted["left"], fitted["right"], R, T, test_pairs, pair_index, cfg["scale_bar_length_mm"])
         bar_rows.append(np.column_stack([np.full(len(bars), t_idx), bars]))
         params[tech.key] = entry
 
-    return {"split": split.index, "train": split.train, "test": split.test, "params": params,
-            "points": np.concatenate(point_rows), "bars": np.concatenate(bar_rows), "notes": notes}
+    out = {"split": split.index, "train": split.train, "test": split.test, "params": params,
+           "points": np.concatenate(point_rows) if point_rows else np.empty((0, 10)),
+           "bars": np.concatenate(bar_rows) if bar_rows else np.empty((0, 8)), "notes": notes}
+    if keep_models:
+        out["models"] = kept
+    return out

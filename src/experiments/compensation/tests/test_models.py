@@ -9,16 +9,20 @@ import os
 import sys
 import unittest
 
+import tempfile
+
 import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from calibmethods import data, models  # noqa: E402
+from calibmethods import covariance, data, models  # noqa: E402
 
 IMAGE_SIZE = (1600, 1200)
 K = np.array([[955.0, 0, 792.0], [0, 954.0, 642.0], [0, 0, 1]])
 TRUE = {"brown_conrady": np.array([0.06, -0.08, 0.0003, -0.0003, 0.02]),
         "kannala_brandt": np.array([0.02, -0.01, 0.004, -0.001])}
+TRUE["brown_conrady_axial"] = TRUE["brown_conrady"]
+SHIFT = np.array([-12.0, 6.0])     # mm: dz = -2.9 mm at r = 0.5, -5.2 mm at r = 0.8
 N_WATER = 1.333
 K_AIR = np.array([[718.0, 0, 792.0], [0, 717.0, 642.0], [0, 0, 1]])
 D_AIR = np.array([-0.02, 0.01, 0.0002, -0.0002, -0.003])
@@ -54,13 +58,24 @@ def views(model, n=25, seed=0):
 class Models(unittest.TestCase):
     def each_model(self, fittable_only=False):
         for key, cls in models.MODELS.items():
-            if key == "pinax" and fittable_only:
+            if key in ("pinax", "air_direct") and fittable_only:
                 continue
             with self.subTest(model=key):
-                yield pinax() if key == "pinax" else cls(K, TRUE[key])
+                if key == "pinax":
+                    yield pinax()
+                elif key == "air_direct":
+                    m = cls()
+                    m.K, m.D = K.copy(), TRUE["brown_conrady"].copy()
+                    yield m
+                elif key == "brown_conrady_axial":
+                    yield cls(K, TRUE[key], SHIFT)
+                else:
+                    yield cls(K, TRUE[key])
 
     def test_normalise_inverts_project(self):
         for m in self.each_model():
+            if not getattr(m, "central", True):
+                continue            # a non-central ray's direction is not X/Z; see Axial.test_ray_hits_point
             f = views(m, n=3)[0]
             rvec, tvec = np.zeros(3), np.array([-200.0, -150, 400])
             pts = m.project(f.obj, rvec, tvec)
@@ -80,6 +95,8 @@ class Models(unittest.TestCase):
             self.assertLess(fitted.fit_rms, 1e-3)
             np.testing.assert_allclose(fitted.K, K, atol=0.05)
             np.testing.assert_allclose(fitted.D, m.D, atol=1e-3)
+            if hasattr(m, "shift"):
+                np.testing.assert_allclose(fitted.shift, m.shift, atol=0.05)
 
     def test_pinax_obeys_snell(self):
         """The air-side ray of a water ray at angle theta_w makes sin(theta_a) = n sin(theta_w)."""
@@ -131,6 +148,122 @@ class Models(unittest.TestCase):
             right_img = m.project(X_left, cv2.Rodrigues(R)[0].ravel(), T)
             X = models.triangulate(m, m, R, T, f.img, right_img)
             np.testing.assert_allclose(X, X_left, atol=1e-6)
+
+
+class Axial(unittest.TestCase):
+    """BrownConradyAxial: rays, nesting with Brown-Conrady, and recovering a known shift."""
+
+    def test_ray_hits_point(self):
+        """Each pixel's ray, from its axis crossing along its direction, passes through the 3-D point."""
+        m = models.BrownConradyAxial(K, TRUE["brown_conrady"], SHIFT)
+        X = np.array([[0, 0, 500.0], [200, -100, 400], [-450, 300, 700], [800, 500, 1200]])
+        px = m.project(X, np.zeros(3), np.zeros(3))
+        o, xy = m.ray_origins(px), m.normalise(px)
+        lam = X[:, 2] - o[:, 2]
+        np.testing.assert_allclose(o + lam[:, None] * np.column_stack([xy, np.ones(len(xy))]), X, atol=1e-6)
+
+    def test_zero_shift_is_brown_conrady(self):
+        f = views(models.BrownConrady(K, TRUE["brown_conrady"]), n=1, seed=2)[0]
+        rvec, tvec = np.array([0.1, -0.2, 0.05]), np.array([-100.0, -80, 700])
+        np.testing.assert_allclose(models.BrownConradyAxial(K, TRUE["brown_conrady"]).project(f.obj, rvec, tvec),
+                                   models.BrownConrady(K, TRUE["brown_conrady"]).project(f.obj, rvec, tvec),
+                                   atol=1e-9)
+
+    def test_shift_is_depth_dependent(self):
+        """The same ray angle at two depths lands on different pixels than Brown-Conrady puts it, by ~f dz r/Z."""
+        bc, ax = models.BrownConrady(K, TRUE["brown_conrady"]), models.BrownConradyAxial(K, TRUE["brown_conrady"], SHIFT)
+        diffs = []
+        for Z in (300.0, 1200.0):
+            X = np.array([[0.5 * Z, 0, Z]])
+            diffs.append(np.linalg.norm(ax.project(X, np.zeros(3), np.zeros(3)) - bc.project(X, np.zeros(3), np.zeros(3))))
+        self.assertAlmostEqual(diffs[0] / diffs[1], 4.0, delta=0.1)
+
+    def test_midpoint_matches_opencv_for_central(self):
+        """With central models the midpoint triangulation equals cv2.triangulatePoints on exact data."""
+        R, T = cv2.Rodrigues(np.radians([0.2, -0.8, 0.1]))[0], np.array([-150.0, 0.5, 0])
+        m = models.BrownConrady(K, TRUE["brown_conrady"])
+        f = views(m, n=1, seed=5)[0]
+        rvec, tvec = m.pose(f.obj, f.img)
+        X_left = (cv2.Rodrigues(rvec)[0] @ f.obj.T).T + tvec
+        right_img = m.project(X_left, cv2.Rodrigues(R)[0].ravel(), T)
+        np.testing.assert_allclose(models.midpoint_triangulate(m, m, R, T, f.img, right_img),
+                                   models.triangulate(m, m, R, T, f.img, right_img), atol=1e-6)
+
+    def test_brown_conrady_data_fits_zero_shift(self):
+        """Single-viewpoint data: the axial fit finds dz ~ 0 and the same intrinsics as Brown-Conrady."""
+        frames = views(models.BrownConrady(K, TRUE["brown_conrady"]))
+        fitted = models.BrownConradyAxial().fit(frames, IMAGE_SIZE)
+        np.testing.assert_allclose(fitted.shift, 0, atol=0.05)
+        np.testing.assert_allclose(fitted.K, K, atol=0.05)
+
+
+def write_air_yaml(path, R, T):
+    """A minimal in-air Calibration.py YAML: both cameras' K, D, the image size and the stereo extrinsics."""
+    fs = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
+    fs.startWriteStruct("image", cv2.FILE_NODE_MAP)
+    fs.write("width_px", IMAGE_SIZE[0])
+    fs.write("height_px", IMAGE_SIZE[1])
+    fs.endWriteStruct()
+    for camera in ("left", "right"):
+        fs.startWriteStruct(f"{camera}_camera", cv2.FILE_NODE_MAP)
+        fs.write("camera_matrix", K_AIR)
+        fs.write("distortion_coefficients", D_AIR.reshape(1, -1))
+        fs.endWriteStruct()
+    fs.startWriteStruct("stereo", cv2.FILE_NODE_MAP)
+    fs.write("rotation_matrix", R)
+    fs.write("translation_mm", T.reshape(3, 1))
+    fs.endWriteStruct()
+    fs.release()
+
+
+class InAirAndCovariance(unittest.TestCase):
+    def test_air_direct_uses_air_calibration_unchanged(self):
+        """Fitting reads the in-air K, D; stereo returns the in-air R, T, and scores them at ~0 px on data
+        made with exactly that rig."""
+        R, T = cv2.Rodrigues(np.radians([0.2, -0.8, 0.1]))[0], np.array([-150.0, 0.5, -0.2])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "air_stereo.yaml")
+            write_air_yaml(path, R, T)
+            left = models.AirDirect(path).fit([], IMAGE_SIZE, "left")
+            right = models.AirDirect(path).fit([], IMAGE_SIZE, "right")
+        np.testing.assert_allclose(left.K, K_AIR)
+        np.testing.assert_allclose(left.D, D_AIR)
+        pairs = []
+        for f in views(left, n=4, seed=13):
+            rvec, tvec = left.pose(f.obj, f.img)
+            X = (cv2.Rodrigues(rvec)[0] @ f.obj.T).T + tvec
+            pairs.append((f, data.Frame(f.name, "g", f.ids, f.obj, right.project(X, cv2.Rodrigues(R)[0].ravel(), T))))
+        R_out, T_out, rms = left.stereo(pairs, right, IMAGE_SIZE)
+        np.testing.assert_allclose(R_out, R)
+        np.testing.assert_allclose(T_out, T)
+        self.assertLess(rms, 1e-6)
+
+    def test_covariance_matches_opencv(self):
+        """The Schur-complement covariance gives OpenCV's calibrateCameraExtended standard deviations."""
+        rng = np.random.default_rng(21)
+        frames = [data.Frame(f.name, f.group, f.ids, f.obj, f.img + rng.normal(0, 0.3, f.img.shape))
+                  for f in views(models.BrownConrady(K, TRUE["brown_conrady"]), n=20, seed=17)]
+        m = models.BrownConrady().fit(frames, IMAGE_SIZE)
+        res = covariance.intrinsic_covariance(m, frames)
+        out = cv2.calibrateCameraExtended([f.obj.astype(np.float32) for f in frames],
+                                          [f.img.astype(np.float32) for f in frames], IMAGE_SIZE, None, None,
+                                          criteria=models.FIT_CRITERIA)
+        np.testing.assert_allclose(res["sigma"], out[5].ravel()[:9], rtol=2e-3)
+        self.assertAlmostEqual(res["sigma_px"], 0.3, delta=0.02)
+        C = np.array(res["corr"])
+        np.testing.assert_allclose(np.diag(C), 1, atol=1e-9)
+        np.testing.assert_allclose(C, C.T, atol=1e-9)
+
+    def test_param_vector_round_trip(self):
+        for m in (models.BrownConrady(K, TRUE["brown_conrady"]), models.KannalaBrandt(K, TRUE["kannala_brandt"]),
+                  models.BrownConradyAxial(K, TRUE["brown_conrady"], SHIFT)):
+            with self.subTest(model=type(m).__name__):
+                p = models.get_params(m)
+                self.assertEqual(len(p), len(models.param_names(m)))
+                back = models.with_params(m, p)
+                np.testing.assert_allclose(models.get_params(back), p)
+                np.testing.assert_allclose(back.project(np.array([[100.0, 50, 600]]), np.zeros(3), np.zeros(3)),
+                                           m.project(np.array([[100.0, 50, 600]]), np.zeros(3), np.zeros(3)))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,115 @@
+% Hand-written discussion for make_report.py. It interprets the numbers of one run; make_report.py flags it
+% when the run it is built with is a different one.
+% written for run: 2026-10-13T09:39:49
+\section{Discussion}
+
+\subsection{T1: the in-air calibration cannot be used underwater}
+Used unchanged, the in-air calibration gives held-out errors of 8.6 (left) and 7.5~px (right), 30 times
+the underwater fits. It triangulates the 250--450~mm scale bars 29.5~mm (about 8\%) short and the 145~mm
+target tags 6--14~mm short, the error growing with distance (Table~\ref{tab:target}). Both follow from the
+focal length. Water multiplies it by about $n$: the underwater fits give $f_x \approx 953$~px against
+719~px in air, a ratio of 1.33. In a stereo pair the depth is $Z = fB/d$, so a focal length that is 25\%
+too short puts every point 25\% too close. The sideways position $X = (u - c_x)B/d$ does not depend on $f$
+at all. A tilted board or tag is therefore squashed along the viewing direction only, and its measured
+lengths come out short by an amount that depends on its tilt. The quiver plot (Figure~\ref{fig:fig_quiver})
+shows that the misfit is mostly radial, as a focal-length error is, and largest at the edges.
+
+The held-out error of T1 is smaller far away (1.7~px at 1--1.5~m against 12.9~px near). This is not because
+the model is better there. Far boards fill only the middle of the image, where a focal-length error can be
+taken up by moving the board, because each board gets its own fitted pose. The triangulated lengths, which
+use no board pose, are still about 26~mm short at 1--1.5~m.
+
+\subsection{T2: Pinax fixes most of it, but not the edges}
+Adding Snell's law at a flat port (Pinax) brings the held-out error down to 1.9 / 1.0~px and the scale-bar
+bias from $-29.5$ to $+1.8$~mm, without fitting anything in water. That confirms refraction is what breaks
+T1. Pinax is still 3--7 times worse than the underwater fits, though, and its error grows steeply towards
+the image edge: 9.5~px in the left camera's outer zone, against 0.47~px for Brown-Conrady
+(Figure~\ref{fig:fig_radial}). The ray-angle comparison (Figure~\ref{fig:fig_pinax_mapping}) shows why.
+Near the axis, Pinax and the in-water fit agree. Further out, Pinax's underwater rays fall short, by about
+0.3--$0.5^\circ$ at 600~px from the centre and up to $2.7^\circ$ in the corners. A focal-length difference alone
+would explain only $0.15^\circ$ of that. The Aquagon is a corrective water-contact optic, not a camera
+behind a flat window, so the flat-port model over-corrects the off-axis rays it was designed to fix.
+
+Pinax with sea water ($n = 1.339$) is slightly but consistently worse than with fresh water (by 0.07--0.08~px
+held-out, 0.5~mm length RMS). That points weakly to fresh water. Because Pinax's model error is much larger
+than this difference, it should not be read as a measurement of the water type.
+
+\subsection{T3 vs T4: the underwater fits are equivalent}
+Brown-Conrady and Kannala-Brandt fitted in water give the same held-out error (0.29 / 0.27~px left,
+0.27 / 0.27~px right), and every paired difference is within noise (Table~\ref{tab:paired}).
+Kannala-Brandt is slightly lower at the left camera's edge (0.43 against 0.47~px, also within noise).
+Brown-Conrady triangulates slightly better (1.28 against 1.44~mm length RMS, within noise). On the separate
+target both measure the tags to within 0.15~mm of each other at every distance. The correlation matrices
+(Figure~\ref{fig:fig_correlation}) show that Kannala-Brandt's four distortion coefficients are almost
+interchangeable ($|C|$ = 0.81--0.99): the data constrain its distortion curve, not the individual
+coefficients. Brown-Conrady's $k_1, k_2, k_3$ behave the same way ($|C|$ up to 0.97). None of this harms
+accuracy, but it means neither model's coefficients should be read physically. With the Aquagon's mild
+distortion, the extra flexibility of the fisheye model buys nothing here. Brown-Conrady, the standard
+pipeline model, is adequate.
+
+\subsection{T5 and the close-range checks: the camera behaves as a single-viewpoint camera}
+Brown-Conrady plus an axial ray shift is a non-single-viewpoint model that contains T3 as a special case. If
+the Aquagon's rays did not meet in one point, T5 should predict held-out boards better, especially when
+trained close and tested far. It does not. The held-out reprojection error is unchanged to 0.001--0.008~px.
+Every paired difference with T3, and with T3 trained close-range only, is within noise. The single exception
+is the right camera's far error for close-range training, where T5 is \emph{worse} by 0.005~px. The scale-bar
+RMS is 0.17~mm lower with T5, also within noise. The fitted spread of where rays cross the axis is small:
+0.5~mm (left) and 1.7~mm (right) at $37^\circ$ off-axis. It also varies a lot between splits (left
+0.3--0.7~mm, right 1.4--3.0~mm), and the two cameras disagree, which is what a weakly determined parameter
+looks like, not a physical port offset.
+
+Training Brown-Conrady on boards at 0.2--0.8~m only and scoring it out to 1.45~m (the \emph{close-range}
+rows) costs nothing measurable: all of its differences from the full fit are within noise. A model that
+transfers from near to far like this is what a single-viewpoint camera allows. A camera whose rays did not
+meet in one point would show error growing with distance outside the training band. It does not
+(Figure~\ref{fig:fig_distance}).
+
+\subsection{The separate target: the remaining error is not the camera model}
+On the WaterComparison tags, the five underwater-fitted models (T3, T4, T5 and the two close-range
+variants) agree with each other to within about 0.3~mm at every distance. All of them measure the 145~mm
+tags $-0.5$~mm short at 50~cm, $-1.5$~mm at 100~cm and $-3.5$ to $-3.8$~mm at 150--200~cm (about 2.5\%).
+Because models with very different assumptions, including the non-single-viewpoint one, give the same error
+on the same pixels, the error comes from the pixels, not from the camera model. The likely sources are:
+\begin{itemize}
+\item the corner localisation on small, hazy tags (at 2~m a tag is about 67~px wide, and 1~px of corner
+bias is about 2\% of its size);
+\item the stereo extrinsics, which are shared in form by all the models;
+\item the target itself.
+\end{itemize}
+An earlier test with different corner refinements showed this error changes by about 2~mm at 1.5--2~m with
+the refinement method alone. The 250~cm label has a single tag with inconsistent edges and should not be
+used.
+
+\subsection{What the covariance says, and what it does not}
+The formal standard deviations are small: $\pm0.3$~px on $f_x$, $\pm0.1$~px on the principal point. The fit
+noise they assume ($\hat\sigma \approx 0.18$--0.19~px) is, however, lower than the held-out error
+(0.27--0.29~px): pixel errors are not independent white noise, because corners of one tag and frames of one
+sweep share their errors. The formal uncertainties are therefore optimistic by roughly 1.5 times, and
+significance tests built on them over-claim. T5 is the clear example. Its right-camera shift
+$a_1 = 4.3 \pm 0.17$~mm is 25 formal standard deviations from zero, yet it changes between splits by more
+than that and does not improve prediction at all. The held-out comparisons in this report, which use
+recordings the fit never saw, are the test to rely on. The covariance is useful for something else: it shows
+which parameters trade off ($f_x$/$f_y$ always, the radial coefficients among themselves, and $f$ with $k_1$
+in the in-air fit).
+
+\subsection{Conclusions}
+\begin{enumerate}
+\item An in-air calibration cannot be reused underwater: it measures lengths about 8\% short.
+\item Physics-based flat-port compensation (Pinax) recovers most of the error without underwater data, but
+not at the edges, because the Aquagon is not a flat port. It is 3--7 times worse than calibrating in water.
+\item Calibrating in water with the standard Brown-Conrady model is as good as any model tested
+(0.27--0.29~px held-out, about 1.3~mm length RMS on 250--450~mm bars). Kannala-Brandt and the
+non-single-viewpoint extension add nothing measurable.
+\item Within the data's range (0.23--1.42~m, upper 71\% of the image), the camera behaves as a
+single-viewpoint camera: a nested non-single-viewpoint model and near-to-far transfer both find nothing.
+\item The 2--3\% tag-size error beyond the calibration range is common to every model, so it is not a
+camera-model effect. Corner localisation on the far, hazy tags is the most likely cause.
+\end{enumerate}
+
+\subsection{Limits}
+The boards never reached below $v \approx 850$~px or beyond 1.45~m, so the bottom of the image and longer
+ranges are extrapolated by every model. The WaterComparison target has one stereo pair per distance and
+4--6 tags each. The water type and whether the focus changed between the air and water sessions are not
+known; both affect T1 and T2 only. The axial model is one particular non-single-viewpoint form (symmetric
+about the axis). A general per-pixel ray model was not tested, because the image coverage and depth range
+would leave it poorly constrained.

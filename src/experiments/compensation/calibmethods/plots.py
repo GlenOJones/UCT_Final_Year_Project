@@ -23,14 +23,17 @@ def _plain_log(axis):
 
 from . import data, metrics, stats  # noqa: E402
 
-# Categorical slots 1-4 of the reference palette, in its validated order (adjacent pairs stay apart under
+# Categorical slots 1-8 of the reference palette, in its validated order (adjacent pairs stay apart under
 # colour-vision deficiency); each technique also has its own marker, so colour is never the only cue.
 # Techniques keep their colour in every figure.
-SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
-MARKERS = ["o", "s", "^", "D"]
+SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+MARKERS = ["o", "s", "^", "D", "v", "P", "X", "h"]
 INK, INK_2, GRID, MISSING = "#0b0b0b", "#52514e", "#e4e3df", "#d6d5d0"
 SEQUENTIAL = LinearSegmentedColormap.from_list(
     "blue", ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"])
+# Correlation (-1 .. 1): blue for negative, orange for positive, neutral grey at 0.
+DIVERGING = LinearSegmentedColormap.from_list(
+    "corr", ["#184f95", "#6da7ec", "#f2f1ee", "#f0a07c", "#b8461b"])
 
 plt.rcParams.update({
     "font.size": 9, "axes.titlesize": 9, "axes.labelsize": 9, "legend.fontsize": 8,
@@ -72,7 +75,8 @@ def _profile(points, t, c, column, edges, min_count):
 def _legend(fig, techniques, **kw):
     handles = [plt.Line2D([], [], color=SERIES[i], marker=MARKERS[i], markersize=5, label=t.label)
                for i, t in enumerate(techniques)]
-    fig.legend(handles=handles, loc="lower center", ncol=len(techniques), frameon=False, **kw)
+    # At most 4 per row, so a long list of techniques wraps instead of widening (and shrinking) the figure.
+    fig.legend(handles=handles, loc="lower center", ncol=min(4, len(techniques)), frameon=False, **kw)
 
 
 # ====== RESIDUAL HEATMAP ======
@@ -318,4 +322,118 @@ def ray_mapping(reference, other, image_size, path_stem, label_ref, label_other,
     axes[1, 0].legend(loc="lower left", frameon=False)
     fig.suptitle("Underwater ray angle per pixel, where corners were observed; shaded = range over directions",
                  fontsize=8, color=INK_2)
+    save(fig, path_stem)
+
+
+# ====== RESIDUAL VECTORS (QUIVER) ======
+def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=None):
+    """Mean held-out residual vector (observed - reprojected) per image cell, one panel per technique and
+    camera, ONE arrow gain for the whole figure so arrow lengths compare across panels. Systematic error
+    shows as coherent arrow fields (radial: distortion/focal; uniform: principal point); noise averages
+    out. Each panel is titled with its RMS. Cells with fewer than min_points_per_cell points are empty."""
+    w, h = image_size
+    nx, ny = cfg.get("quiver_cells", cfg["grid_cells"])
+    shown = list(range(len(techniques))) if subset is None else list(subset)
+    grids = {(col, c): metrics.grid_stats(*_select(points, t, c)[:, 4:8].T, image_size, (nx, ny),
+                                          cfg["min_points_per_cell"])
+             for col, t in enumerate(shown) for c in range(len(data.CAMERAS))}
+    # The gain is set by the 90th-percentile cell, so a few large cells (drawn longer than a cell) do not
+    # shrink every other arrow to a dot.
+    lengths = np.concatenate([np.hypot(g["mean_du"], g["mean_dv"])[g["valid"]] for g in grids.values()])
+    typical = float(np.percentile(lengths, 90))
+    gain = _nice(0.9 * (w / nx) / typical)
+    ref = _nice(typical)
+    X, Y = np.meshgrid((np.arange(nx) + 0.5) * w / nx, (np.arange(ny) + 0.5) * h / ny)
+    # At most 4 techniques across; each technique is a column with its left camera above its right.
+    ncol = min(4, len(shown))
+    nrow = 2 * int(np.ceil(len(shown) / ncol))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 2.45 * nrow), squeeze=False, constrained_layout=True)
+    for ax in axes.ravel()[2 * len(shown):]:
+        ax.axis("off")
+    for ax in axes.ravel():
+        ax.axis("off")
+    for (col, c), g in grids.items():
+        t = shown[col]
+        ax = axes[2 * (col // ncol) + c, col % ncol]
+        ax.axis("on")
+        sel = _select(points, t, c)
+        v = g["valid"]
+        q = ax.quiver(X[v], Y[v], g["mean_du"][v] * gain, g["mean_dv"][v] * gain, angles="xy", scale_units="xy",
+                      scale=1, color=SERIES[t], width=0.011, headwidth=3, headlength=3.5, headaxislength=3,
+                      minlength=0.5)
+        K = np.array(params_all[techniques[t].key][data.CAMERAS[c]]["camera_matrix"])
+        ax.plot(K[0, 2], K[1, 2], "+", color=INK, ms=7)
+        if col == 0 and c == 0:
+            ax.quiverkey(q, 0.55, 0.06, ref * gain, f"{ref:g} px", labelpos="E", coordinates="axes",
+                         color=INK, labelcolor=INK, fontproperties={"size": 7})
+        ax.set_xlim(0, w)
+        ax.set_ylim(h, 0)
+        ax.set_aspect("equal")
+        ax.set_xticks([0, w // 2, w])
+        ax.set_yticks([0, h // 2, h])
+        ax.grid(False)
+        ax.set_title((techniques[t].label + "\n" if c == 0 else "") + f"{data.CAMERAS[c]}: RMS {metrics.rms(sel[:, 6], sel[:, 7]):.2f} px",
+                     fontsize=7.5)
+    fig.suptitle(f"Mean held-out residual vector per cell ({nx} x {ny} grid), arrows drawn x {gain:g}; "
+                 f"key in the first panel; + = principal point; no board was seen below v ~ 850 px", fontsize=8, color=INK_2)
+    save(fig, path_stem)
+    return {"arrow_gain": float(gain), "arrow_key_px": float(ref), "cells": [nx, ny],
+            "techniques": [techniques[t].key for t in shown]}
+
+
+# ====== SEPARATE TARGET (WaterComparison tags) ======
+def target_errors(tag_rows, techniques, size_mm, calib_range_mm, path_stem, subset=None):
+    """Tag error (median edge - printed size) against distance, one point per tag, per technique; the
+    shaded band is the distance range of the calibration boards. Points of a technique are nudged
+    sideways a little so overlapping techniques stay visible."""
+    shown = list(range(len(techniques))) if subset is None else list(subset)
+    fig, ax = plt.subplots(figsize=(7.2, 3.6), constrained_layout=True)
+    ax.axvspan(calib_range_mm[0] / 1000, calib_range_mm[1] / 1000, color=GRID, alpha=0.7, lw=0)
+    ax.text(calib_range_mm[1] / 1000, 0.02, "calibration boards ", transform=ax.get_xaxis_transform(),
+            ha="right", va="bottom", fontsize=7, color=INK_2)
+    ax.axhline(0, color=INK_2, lw=0.8)
+    for k, t in enumerate(shown):
+        rows = tag_rows[techniques[t].key]
+        if not rows:
+            continue
+        d = np.array([r["distance_mm"] for r in rows]) / 1000 + (k - (len(shown) - 1) / 2) * 0.015
+        e = np.array([r["error_mm"] for r in rows])
+        ax.scatter(d, e, s=22, color=SERIES[t], marker=MARKERS[t], edgecolor="white", linewidth=0.6, zorder=3)
+        labels = sorted({r["label_cm"] for r in rows})
+        med = [(np.mean([r["distance_mm"] for r in rows if r["label_cm"] == lab]) / 1000,
+                np.median([r["error_mm"] for r in rows if r["label_cm"] == lab])) for lab in labels]
+        ax.plot(*zip(*med), color=SERIES[t], lw=1.2, alpha=0.8)
+    ax.set_xlabel("distance from left camera to tag (m)")
+    ax.set_ylabel(f"tag error (mm): median edge - {size_mm:g} mm")
+    ax.grid(alpha=0.6)
+    handles = [plt.Line2D([], [], color=SERIES[t], marker=MARKERS[t], ms=5, label=techniques[t].label) for t in shown]
+    fig.legend(handles=handles, loc="lower center", ncol=min(4, len(shown)), frameon=False, bbox_to_anchor=(0.5, -0.14))
+    fig.suptitle("WaterComparison target, the same detected corners for every technique; line = median per distance label",
+                 fontsize=8, color=INK_2)
+    save(fig, path_stem)
+
+
+# ====== PARAMETER CORRELATION ======
+def correlation(cov_results, path_stem):
+    """Correlation matrices of the intrinsics, one panel per (technique, camera). cov_results:
+    [(label, camera, covariance.intrinsic_covariance result)]. Values printed in each cell."""
+    n = len(cov_results)
+    cols = min(2, n)          # two across, so the figure fills a portrait page
+    rows_ = int(np.ceil(n / cols))
+    fig, axes = plt.subplots(rows_, cols, figsize=(3.0 * cols, 3.0 * rows_), squeeze=False, constrained_layout=True)
+    for ax in axes.ravel()[n:]:
+        ax.axis("off")
+    for ax, (label, camera, res) in zip(axes.ravel(), cov_results):
+        C = np.array(res["corr"])
+        im = ax.imshow(C, cmap=DIVERGING, vmin=-1, vmax=1, interpolation="nearest")
+        m = len(res["names"])
+        for i in range(m):
+            for j in range(m):
+                ax.text(j, i, f"{C[i, j]:.2f}".replace("0.", ".").replace("-.", "-."), ha="center", va="center",
+                        fontsize=5 if m > 9 else 5.5, color="white" if abs(C[i, j]) > 0.7 else INK)
+        ax.set_xticks(range(m), res["names"], rotation=90, fontsize=6)
+        ax.set_yticks(range(m), res["names"], fontsize=6)
+        ax.grid(False)
+        ax.set_title(f"{label}\n{camera} camera", fontsize=7.5)
+    fig.colorbar(im, ax=axes, shrink=0.6, label="correlation")
     save(fig, path_stem)

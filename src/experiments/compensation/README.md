@@ -1,6 +1,6 @@
 # Calibration method comparison
 
-Compares four ways of calibrating the StellarHD + Aquagon cameras underwater, on held-out data only:
+Compares ways of calibrating the StellarHD + Aquagon cameras underwater, on held-out data only:
 
 | key | technique | model | OpenCV fit |
 |---|---|---|---|
@@ -22,6 +22,38 @@ src/venv/bin/python src/experiments/compensation/run_comparison.py            # 
 src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/experiments/compensation/config_pinax_sensitivity.json
 src/venv/bin/python -m unittest discover -s src/experiments/compensation/tests -v
 ```
+
+## Full comparison and methods report (`config_full.json`)
+
+The five tests, numbered as in the report, plus three checks, all on the same 28 splits and detections:
+
+| key | test | model |
+|---|---|---|
+| `air` | T1 | in-air calibration (K, D and stereo R, T) used unchanged underwater (`models.AirDirect`) |
+| `pinax` | T2 | Pinax, n = 1.333 |
+| `bc` | T3 | underwater Brown-Conrady |
+| `kb` | T4 | underwater Kannala-Brandt |
+| `bc_axial` | T5 | Brown-Conrady + axial ray shift dz(r) = a1 r^2 + a2 r^4, a non-single-viewpoint model (`models.BrownConradyAxial`) |
+| `pinax_sea` | check | Pinax, n = 1.339 (water type unknown) |
+| `bc_close`, `bc_axial_close` | check | T3 and T5 trained on boards 200-800 mm only (single-viewpoint check) |
+
+On top of the outputs listed below, this config also adds:
+- **`target.json`, `target_tags.csv`, `fig_target(_fitted)`:** every technique (fitted on all recordings) triangulates the same detected WaterComparison tags (145 mm, labels 50-250 cm). The detector is `single_viewpoint.py`'s: CLAHE + contour refinement.
+- **`fig_quiver(_fitted)`:** mean held-out residual vectors on a 16 x 12 grid.
+- **`covariance.json`, `fig_correlation`:** intrinsic covariance sigma^2 (J^T J)^-1, with the board poses eliminated (`calibmethods/covariance.py`; matches `calibrateCameraExtended`). The in-air fit's covariance is computed on the Air run.
+- **`report/methods_report.pdf`:** built by `make_report.py` from the saved files (pdflatex). It covers the maths, how to run it, every table and figure, and the hand-written discussion in `report_discussion.tex`.
+
+```
+src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/experiments/compensation/config_full.json   # ~20 min
+src/venv/bin/python src/experiments/compensation/make_report.py                                                           # ~10 s
+src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/experiments/compensation/config_full.json --figures-only   # redraw figures, no fitting
+src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/experiments/compensation/config_full.json --max-splits 2 --out /tmp/trial   # code-path trial
+```
+`reproduce.py compensation` runs all three configs and builds the report.
+
+Other configs:
+- `config_axial.json` is the earlier axial-only benchmark.
+- `single_viewpoint.py` + `config_single_viewpoint.json` is the stand-alone tag-size-vs-distance test of the `water_final` calibration.
 
 `config_pinax_sensitivity.json` reruns Pinax with sea water (n = 1.339) and with the `wide` in-air calibration
 (output `results/experiments/compensation/water_final_pinax_sensitivity/`).

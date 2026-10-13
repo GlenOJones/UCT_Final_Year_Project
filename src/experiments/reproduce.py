@@ -3,6 +3,7 @@
     src/venv/bin/python src/experiments/reproduce.py channels          # experiment 1: colour channel comparison
     src/venv/bin/python src/experiments/reproduce.py detector_sweep    # experiment 2: OpenCV parameter sweep
     src/venv/bin/python src/experiments/reproduce.py compensation      # experiment 3: underwater calibration methods
+                                                                       # (+ the methods report PDF)
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -107,11 +108,14 @@ def detector_sweep(config, skip_existing):
 
 # ====== EXPERIMENT 3: UNDERWATER CALIBRATION METHODS ======
 def compensation(config, skip_existing):
-    """The Calibration.py runs the comparison reads, then the held-out comparison for each config."""
+    """The Calibration.py runs the comparison reads, then the held-out comparison for each config, then the
+    methods report (PDF) for each config that asks for one."""
+    import make_report
     import run_comparison
 
     configs = [config] if config else [os.path.join(HERE, "compensation", "config.json"),
-                                       os.path.join(HERE, "compensation", "config_pinax_sensitivity.json")]
+                                       os.path.join(HERE, "compensation", "config_pinax_sensitivity.json"),
+                                       os.path.join(HERE, "compensation", "config_full.json")]
     runs, seen, presets, inputs, out_dirs = [], set(), [], [], []
     for path in configs:
         cfg = common.load_config(path)
@@ -131,6 +135,8 @@ def compensation(config, skip_existing):
         out_dirs.append(common.project_path(cfg["output"]))
     for path in configs:
         run_comparison.main(["--config", path])
+        if "report" in common.load_config(path):
+            make_report.main(["--config", path])
     # One manifest for the experiment, beside the per-config output folders.
     common.write_manifest(os.path.commonpath(out_dirs) if len(out_dirs) > 1 else out_dirs[0], "compensation",
                           configs, inputs, presets, runs)

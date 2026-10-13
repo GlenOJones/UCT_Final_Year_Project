@@ -1,0 +1,22 @@
+{
+  "_comment": "Settings for single_viewpoint.py: does the standard OpenCV (Brown-Conrady) calibration keep its scale outside the distances it was calibrated at? Paths are relative to the project root. Reproduce with: src/venv/bin/python src/experiments/compensation/single_viewpoint.py",
+
+  "calibration": "results/experiments/compensation/calibration/Water/Water_water_final_stereo.yaml",
+  "output": "results/experiments/compensation/single_viewpoint",
+
+  "target": {
+    "_why": "WaterComparison: ordinary AprilTag 36h11 tags (1-bit border), ids 6-11 in 3 rows x 2 columns, outer black square printed at 145 mm (G. Jones). One stereo pair per distance label (cm) in pairs.csv: 50, 100, 150, 200, 250.",
+    "frames": "data/Calibration/FinalComparison/WaterComparison",
+    "ids": [6, 7, 8, 9, 10, 11],
+    "tag_size_mm": 145.0,
+    "border_bits": 1
+  },
+
+  "detection": {
+    "_why": "The calibration's own preset finds the tags, on CLAHE-enhanced gray, with aruco's CORNER_REFINE_CONTOUR. The pipeline's cornerSubPix (window 15% of the tag side, tuned for the board's X-junctions) has no junction to lock onto on these tags: on 12 Oct it moved corners up to 26 px and gave edges of 195-274 mm, while CLAHE + CONTOUR measured 145.4 mm mean on 23 tags at every label. Set corner_refinement to 'subpix' to reproduce the pipeline's refinement, or 'none' for the raw quads.",
+    "preset": "water_final",
+    "clahe_clip_limit": 4.0,
+    "clahe_tile_grid": [16, 16],
+    "corner_refinement": "contour"
+  }
+}
