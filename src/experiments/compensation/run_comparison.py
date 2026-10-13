@@ -168,7 +168,9 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
                                                    os.path.join(out_dir, "fig_heatmap_fitted"), subset=fitted)
     plots.radial(points, techs, cfg, os.path.join(out_dir, "fig_radial"))
     plots.distance(points, techs, cfg, os.path.join(out_dir, "fig_distance"))
-    plots.scale(bars, techs, cfg, os.path.join(out_dir, "fig_scale"))
+    left_out = set(cfg.get("scale_plot_exclude", []))           # e.g. T1, whose bars are ~30 mm short
+    plots.scale(bars, techs, cfg, os.path.join(out_dir, "fig_scale"),
+                subset=[i for i, t in enumerate(techs) if t.key not in left_out])
     plots.summary(table, techs, [(cameras, "rms", "held-out RMS (px)"),
                                  (cameras, "outer_to_centre", "outer / centre"),
                                  (cameras, "far_to_near_centre", "far / near, centre zone"),
@@ -198,7 +200,9 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
     if cfg.get("target"):
         doc = load_json(os.path.join(out_dir, "target.json"))
         size, calib_range = doc["target"]["tag_size_mm"], doc["calibration_range_mm"]
-        plots.target_errors(doc["tags"], techs, size, calib_range, os.path.join(out_dir, "fig_target"))
+        left_out = set(cfg.get("target_plot_exclude", []))      # e.g. T1, whose tags are 6-14 mm short
+        plots.target_errors(doc["tags"], techs, size, calib_range, os.path.join(out_dir, "fig_target"),
+                            subset=[i for i, t in enumerate(techs) if t.key not in left_out])
         if len(fitted) < len(techs):
             plots.target_errors(doc["tags"], techs, size, calib_range, os.path.join(out_dir, "fig_target_fitted"),
                                 subset=fitted)

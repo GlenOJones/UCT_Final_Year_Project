@@ -106,6 +106,14 @@
     250,
     450
   ],
+  "_scale_plot_exclude_why": "Left out of fig_scale only: T1's bars are about 30 mm short, which flattens every other curve. Its numbers stay in every table.",
+  "scale_plot_exclude": [
+    "air"
+  ],
+  "_target_plot_exclude_why": "Left out of fig_target only: T1 measures the tags 6-14 mm short, which flattens every other technique. Its numbers stay in the tables.",
+  "target_plot_exclude": [
+    "air"
+  ],
   "quiver_cells": [
     16,
     12

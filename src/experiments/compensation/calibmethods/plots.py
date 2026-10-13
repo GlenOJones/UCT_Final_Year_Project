@@ -81,11 +81,13 @@ def _profile(points, t, c, column, edges, min_count):
     return centres, pooled, lo, hi
 
 
-def _legend(fig, techniques, **kw):
-    handles = [plt.Line2D([], [], color=SERIES[i], marker=MARKERS[i], markersize=5, label=t.label)
-               for i, t in enumerate(techniques)]
+def _legend(fig, techniques, shown=None, **kw):
+    """Legend of the techniques (or only those at the indices in `shown`), each in its own colour and marker."""
+    shown = range(len(techniques)) if shown is None else shown
+    handles = [plt.Line2D([], [], color=SERIES[i], marker=MARKERS[i], markersize=5, label=techniques[i].label)
+               for i in shown]
     # At most 4 per row, so a long list of techniques wraps instead of widening (and shrinking) the figure.
-    fig.legend(handles=handles, loc="lower center", ncol=min(4, len(techniques)), frameon=False, **kw)
+    fig.legend(handles=handles, loc="lower center", ncol=min(4, len(handles)), frameon=False, **kw)
 
 
 # ====== RESIDUAL HEATMAP ======
@@ -215,13 +217,15 @@ def distance(points, techniques, cfg, path_stem):
 
 
 # ====== SCALE BARS ======
-def scale(bars, techniques, cfg, path_stem):
-    """Mean signed and RMS length error of the triangulated bars, binned by board distance."""
+def scale(bars, techniques, cfg, path_stem, subset=None):
+    """Mean signed and RMS length error of the triangulated bars, binned by board distance; all techniques, or
+    only those at the indices in `subset` (a technique tens of mm off would flatten the others)."""
+    shown = list(range(len(techniques))) if subset is None else list(subset)
     width = 2 * cfg["distance_bin_width_mm"]
     d = bars[:, 4]
     edges = np.arange(np.floor(d.min() / width) * width, d.max() + width, width)
     fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0), constrained_layout=True)
-    for t in range(len(techniques)):
+    for t in shown:
         b = bars[bars[:, 1] == t]
         k = np.digitize(b[:, 4], edges) - 1
         x, bias, rms, lo, hi = [], [], [], [], []
@@ -248,7 +252,7 @@ def scale(bars, techniques, cfg, path_stem):
     lo_mm, hi_mm = cfg["scale_bar_length_mm"]
     fig.suptitle(f"Triangulated board corners, every pair {lo_mm}-{hi_mm} mm apart, held-out stereo pairs",
                  fontsize=8, color=INK_2)
-    _legend(fig, techniques, bbox_to_anchor=(0.5, -0.12))
+    _legend(fig, techniques, shown, bbox_to_anchor=(0.5, -0.12))
     save(fig, path_stem)
 
 

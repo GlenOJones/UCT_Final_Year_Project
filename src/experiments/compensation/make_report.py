@@ -330,7 +330,10 @@ def section_results(out_dir, summary, comparisons, info, params, target, cov, te
             for k in keys]
     s.append(table("Triangulated scale bars (250--450~mm) on held-out stereo pairs, mm.", "stereo",
                    ["technique", "bias", "RMS", "far bias", "far RMS", "baseline"], rows))
-    s.append(figure(out_dir, "fig_scale", "Length error of triangulated board scale bars against board distance."))
+    left_out = [label[k] for k in info["config"].get("scale_plot_exclude", []) if k in label]
+    s.append(figure(out_dir, "fig_scale", "Length error of triangulated board scale bars against board distance."
+                    + (f" {tex(', '.join(left_out))} is left out so the others can be read; its numbers are in "
+                       "Table~\\ref{tab:stereo}." if left_out else "")))
 
     if target:
         size = target["target"]["tag_size_mm"]
@@ -351,8 +354,11 @@ def section_results(out_dir, summary, comparisons, info, params, target, cov, te
                        "found in both cameras in brackets; then over all tags: median error (mm and \\%) and RMS over "
                        "every edge (mm).", "target",
                        ["technique"] + [f"{lab} cm" for lab in labels] + ["median", "\\%", "edge RMS"], rows))
-        s.append(figure(out_dir, "fig_target", "WaterComparison tags: error of each tag against its distance, all "
-                        "techniques. Grey band: distances the calibration boards covered."))
+        left_out = [label[k] for k in info["config"].get("target_plot_exclude", []) if k in label]
+        s.append(figure(out_dir, "fig_target", "WaterComparison tags: error of each tag against its distance. Grey "
+                        "band: distances the calibration boards covered."
+                        + (f" {tex(', '.join(left_out))} is left out so the others can be read; its numbers are in "
+                           "Table~\\ref{tab:target}." if left_out else "")))
         s.append(figure(out_dir, "fig_target_fitted", "The same, for the techniques fitted in water only."))
 
     s.append(r"\subsection{Fitted parameters}")
