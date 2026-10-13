@@ -364,45 +364,154 @@ is important for charturisation across the full frame.
 % == ADDED CHOICE OF DISTANCE ERROR (EMily's 250cm is useful here)
 
 
-% LOWKEY AQUAGON SPECIFIC COMPENSATION.....?s https://aquacal.readthedocs.io/en/latest/guide/optimizer.html
+%========================================================
+%==================== Theory for this section =======
+\subsection{Theory: Calibration techniques}
+% NB its clear how detection is seperate from calibration
 
-The Aquagon lenses are sepcifically designed to compensate for the underwater environment. Being designed for underwater use means they perform better
-underwater than in air, as noted in (REF SECTION BEFORE). Although they have a flatport, standard flatport underwater compensation techniques do not necessarily
-make sense to apply in this scenario. 
+% Refraction and distortion
+% Training split thing for held out error, what, why usefaul
 
-For underwater compensation, the following methods are compared:
+
+\subsubsection{In-air calibration, not fitted to water}
+This technique uses the standard Brown-Conrady calibration completed in air (using the same rig, same detector), including the stereo intrinsics, applied to the underwater
+test data set. Due to the glass water refraction, T1 is expected to fail badly. It is the used as a reference point to test the effectiveness of the Pinax model.
+
+\subsubsection{Pinax model (in-air calibration with refraction compensation)}
+Implementing the (REF AUTHOR OF PINAX MODEL), a pixel can be .... (brief summary of pinac)....
+
+
+\subsubsection{Brown-Conrady}
+% Refernce doces: https://docs.opencv.org/4.13.0/d9/d0c/group__calib3d.html
+% Explain the baseic maths
+The Brown-Conrady is a camera model capable of correcting lens induced geometric 
+distortions \citet{xuComprehensiveOverviewFishEye2024}.The model handles radial distortion (barrel and pincushion) through
+ multiplying each point by $(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)$, where $r$ is the distance from the
+image centre and $k_i$ are the radial coefficients. Tangential distortion, caused
+by the lens not being perfectly lined up with the sensor, is handled by adding an
+offset controlled by $p_1$ and $p_2$. Joining together, this gives: 
+\begin{align}
+x_d &= x\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2p_1 x y + p_2\,(r^2 + 2x^2) \\
+y_d &= y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1\,(r^2 + 2y^2) + 2p_2 x y
+\end{align}
+where $(x, y)$ are the undistorted coordinates, $r = \sqrt{x^2 + y^2}$, and
+$(x_d, y_d)$ are the distorted coordinates.
+
+OpenCV implements this through \texttt{cv2.calibrateCamera}, using \citet{zhang}'s method for an initial estimate followed by
+ Levenberg-Marquart optimisation to refine all parameters.  \cite{CvCalibrateCameraAuroraVision}.
+
+ % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html
+
+
+\subsubsection{Kannala-Brandt}
+% https://docs.opencv.org/4.13.0/db/d58/group__calib3d__fisheye.html
+% Explan the maths basic with references
+The Kannala-Brandt distortion model is an extension of the standard Brown-Crandy model, providing a more accurate distortion
+representation for wide-angle lenses. Instead of a single pinhole projection model ($x=f\tan\theta$),
+ it approximates four different projection models with a polynomial in the angle $\theta$ of the incoming light ray:
+\begin{equation}
+r(\theta) = k_1\theta + k_2\theta^3 + k_3\theta^5 + k_4\theta^7 + k_5\theta^9
+\end{equation}
+Linking the radial distortion into the $\theta$ instead of the distance $r$, allows the model to work for wider fields of view 
+$(r=\tan\theta)$ grows towards infinity as $\theta$ approaches $90^\circ$.
+
+OpenCV uses the simpler version in \texttt{cv2.fisheye.calibrate}:
+\begin{align}
+\theta_d &= \theta\,(1 + k_1\theta^2 + k_2\theta^4 + k_3\theta^6 + k_4\theta^8) \\
+(x_d,\, y_d) &= \frac{\theta_d}{r}\,(x,\, y)
+\end{align}
+It generates vector distortion coefficients, $(k1,k2,k3,k4)$ \cite{OpenCVFisheyeCamera}.
+
+% Okay but this is now the distorted corridinates?
+% Stereo is fitted differentl
+
+\subsubsection{Brown-Crady + axial shift (non single viewpoint assumption)}
+% DONE BY 5:30
+% Assumptions made by the pinhole (and Brown-Conrady) models regarding incoming light and center - single viewpoint
+% Refraction bends the rays
+% Different angles, cross at different points , edge futher forward or back
+% 
+
+The pinhole model assumes all incoming light refracts through the principle point at the center of the virtual image plane, making
+a single viewpoint assumption. Refraction however can cause incident rays to bend, meaning rays further towards the edge
+crossing either further forward or backwards. This can cause what( ref) literature, you said it can cause distance dependent error).
+To test this, a similar approach to X( Ref) is tested
+
+To test whether the aquagon lenses produce a single viewpoint, Brown-Conrady can be adapted to include an axial shift. A ray needs
+a direction and a starting point. The direction is still the normal Brown-Conrady direction $(x,y,1)$. The
+starting point, however, can be shifted from the origin along the optical axis: $\mathbf{o}(r)=(0,0,\Delta z(r))$. The shift depends on how
+far the ray is from the centre:
+\begin{equation}
+\Delta z(r) = a_1 r^2 + a_2 r^4, \qquad r = \sqrt{x^2 + y^2}.
+\end{equation}
+If $a_1=a_2=0$, every ray starts at the origin and it is a standard Brown-Conrady. If $a_1$ and $a_2$ parameters do not
+reduce error on held-out images, the extra shift isnt helping and the camera behaves as a single viewpoint camera.
+
+The implemtation of this can be seen in the appendix (here for now)
+% TODO: Switch code snippet gor algorithmic chart
+
+\begin{lstlisting}[language=Python, caption={Brown-Conrady with axial ray shift: projection and fit (condensed from \texttt{models.py}).}, label={lst:axial}]
+def dz(r, a1, a2):
+    return a1 * r**2 + a2 * r**4            # axial shift (mm), zero on the axis
+
+def normalised(X, a1, a2):
+    """Ray direction (x, y) of camera-frame points X (N, 3)."""
+    rho, Z = np.hypot(X[:, 0], X[:, 1]), X[:, 2]
+    r = rho / Z                              # pinhole start
+    for _ in range(8):                       # Newton: r (Z - dz(r)) = rho
+        f  = r * (Z - dz(r, a1, a2)) - rho
+        df = Z - dz(r, a1, a2) - r * (2*a1*r + 4*a2*r**3)
+        r  = r - f / df
+    return X[:, :2] / (Z - dz(r, a1, a2))[:, None]
+
+def project(X, K, D, a1, a2):
+    xy = normalised(X, a1, a2)
+    rays = np.hstack([xy, np.ones((len(xy), 1))])
+    return cv2.projectPoints(rays, np.zeros(3), np.zeros(3), K, D)[0]   # OpenCV distortion
+
+# Fit: start from cv2.calibrateCamera (a1 = a2 = 0), then bundle-adjust
+# [fx, fy, cx, cy, k1, k2, p1, p2, k3, a1, a2] + one pose per view
+fit = least_squares(residuals, p0, jac_sparsity=sparsity, method="trf", x_scale="jac")
+\end{lstlisting}
+
+% TODO: Explaining how to choose parameters
+
+\subsubsection{Held out error and split training}
+% Explain basics of heldout error and splits
+
+\subsection{Testing procedure}
+% Technicall goes into Theory section:
+Five different compensation techniques were tested (T1-T5). All techniques are scored on the same held-out board detections. 
+Trained with 8 split underwater sets were used, with every recording pair held out once. This gave 28 splits. Each split trains on the 
+remaining six recording and tests on all frames in the 2 held-out ones. The exact recordings and splits are given in the appendix. Each
+metric is computed once per split, with a mean over the full range. 
+Both in air and under water datasets are used.
+
+Common detection points are generated using \texttt{OPENCVWHAT?} for both media and are then passed to the calibration code. This 
+so the differences between the techniques come from the different camera models, not the detections. Two of the techniques are
+trained on only the closer range date (insert range) to test how well they generalise to uncalibrated distances.
+
+% Which exact sets of detections for the camera models and which exact for the held out. Which ones for in air calibration technique?
+% TODO: Adjust accuracy to 35.35533905932738mm.
 
 
 % AI thinks that Pinax is mainly useful for distance errors, but the lens should be useful for removing distance dependence
 % We dont have d0 value , so d0 free parameter so its more of a 'curve fit'
 
+\subsubsection{Close range training and extrapolating}
+
 
 % For this and further, water final was used. Defualt for the Calibration. At this time, was from the frame shots and param sweep
-\subsection{Aquagon lens test}
-\subsubsection{Single Viewpoint system}
-% I want to test how well the lenses work, specifically to test single optical point inside the housing
-The single viewpoint systea advises what compensation techniques are required. The first tested is whether or not the optics bend all incoming rays
-to within the a single point. If this is not the case, significant accuracy drift will occur when testing on distances outside of the calibration range.
-To test this, the  calibration was completed on images using water\_final. Using these calculated parameters, the distance of a
-seperate apriltag $4x4$ grid is tested at distances of $(50, 100, 150, 200, 250)$. The outputed distance error in measuring the 145mm apriltags
-using the standard OpenCV \texttt{cameraCalibrate} is compared. 
 
 
-The code for this test should:
-w
-RESULTS:
-Plot of distance vs error
-ANALYSIS:
-Should be pretty much the same error (PX error should increase with distance, but mm error relatively constant. Come to conclusion that 
-it does do a good job with single viewpoint system, and pinax not necessarily a good pick here. Maybe still test it?
-
-% TEST IS SLIGHTLY INCONCLUSIVE TBH
-
-\subsubsection{Distortion analysis in air vs in water}
-% On the calibration board because more viewpoints, do based on the held out range (60-80)
-
-
-\subsection{Compensation techniques}
+\subsection{Compensation techniques tested}
+\begin{enumerate}
+    \item \textbf{T1:} In air calibration tested in water: Baseline comparison
+    \item \textbf{T2:} Pinax calibration: Sufficient for in air only
+    \item \textbf{T3:} Underwater Brown-Crady calibration: Standard OpenCV camera model
+    \item \textbf{T4:} Underwater Kannala-Brandt: Wide-angle OpenCV camera model variant
+    \item \textbf{T5:} Underwater Brown-Crady calibration with axial shift: Testing single point assumption
+\end{enumerate}
 
 % I want you to do 
 % TEST 1: Generate camera calibration from in air calibration frames, applied to the underwater data set without changing
@@ -412,53 +521,38 @@ it does do a good job with single viewpoint system, and pinax not necessarily a 
 % Test 4: The BC + axial shift
 
 
-% Technicall goes into Theory section:
-Five different compensation techniques were tested (T1-T5). All techniques are scored on the same held-out board detections.
-Trained with split 8 underwater sets were used, with every recording pair held out once. This gave 28 spliuts. Each split trains on the 
-remaining six recording and tests on all frames in the 2 held-out ones. The exact recordings and splits are given in the appendix. Each
-metric is computed once per split, with a mean over the full range. 
-Nothing is redetected for the comparisons,
-so the differences between the techniques come from the different camera models, not the detections.
-% Question, are we sure these detections are seperate from the calibrations?
-% Which exact sets of detections for the camera models and which exact for the held out. Which ones for in air calibration technique?
-% TODO: Adjust accuracy to 35.35533905932738mm.
-
-
-\subsubsection{T1: In-air calibration, not fitted to water}
-This technique uses the standard Brown-Conrady calibration completed in air (using the same rig, same detector), including the stereo intrinsics, applied to the underwater
-test data set. Due to the glass water refraction, T1 is expected to fail badly. It is the used as a reference point to test the effectiveness of the Pinax model.
-
-\subsubsection{T2: Pinax model (in-air calibration with refraction compensation)}
-Implementing the (REF AUTHOR OF PINAX MODEL), a pixel can be .... (brief summary of pinac)....
-
-
-\subsubsection{T3: Brown-Conrady}
-% Explain the baseic maths
-Implemented with \texttt{cv2calibrateCamera}, using Zhang's ... then Levenberg-Marquart to..
-
-
-\subsubsection{T4: Kannala-Brandt}
-% Explan the maths basic with references
-THe distortion acts on the ray angle (insert) instead of on 4.
-
-Eight intrinsics are generated and is fir with \texttt{cv2.fisheye.calibrate}.
-% Stereo is fitted differently
-
-\subsubsection{T5: Brown-Crady + axial shift (non single viewpoint assumption)}
-A refracting port results in rays of different dield angles crossing the opticla axis at different points, For a port with a single viewpoint
-(centered incoming rays), the spread is symmetric, so a ray can be fully described by its direction and where it crosses the axis.
-
-.....
-if T5 does not improve the held-out error, the aquagon lens is providing a single viewpoint 
 
 % How it is fitted  - scipy, curve fitted, what and why.
 
-\subsubsection{Close range training and extrapolating}
+\subsubsection{Reprojection Error on the held-out recordings}
+The analysis is split into zones based on how far each corner lies from the principal point, to analyse distortion and
+refraction, which both grow towards the edges of the image. The zones are defined using a normalised radius. First, the
+divisor $R_{\max}$ is set to the distance from the principal point to the farthest image corner (the top-right corner,
+pixel $(1600, 0)$). The normalised radius of a detected corner is then
+\begin{equation}
+r = \frac{\lVert \mathbf{p} - \mathbf{c} \rVert}{R_{\max}},
+\end{equation}
+where $\mathbf{p}$ is the corner's pixel position and $\mathbf{c}$ is the principal point, so that $r = 0$ at the
+optical centre and $r = 1$ at the farthest corner. The image is divided into three zones: centre ($r < 0.33$),
+mid ($0.33 \le r < 0.66$) and outer ($r \ge 0.66$).
 
-\subsubsection{Scoring on the held-out recordings}
+The results are further split into near and far bands by board distance: near covers boards at 200--800\,mm and far
+covers boards at 1000--1500\,mm. For the near and far comparisons, only the centre zone of the image is compared because
+further boards appear small and dont reach the outer zones.
 
 \subsubsection{Stereo scale}
-% How it is calculated
+% Explain what is computed and compared
+Held-out stereo pairs are triangulated with each techniques two cameras and its stereo intrinsics. The central models (T1-T4) use 
+\texttt{cv2.triangulatePoints} on the normalised rays, however T5 cannot use this method as it does not have a single P matrix to describe it. 
+T5 uses midpoint triangulation. Due to small errors in corner detection and calibration, the two rays pass close to eachother without 
+intersecting. The midpoint triangulation method finds the shortest segment connecting the two and takes the midpoint as the $3D$ point.
+As a check, with $a_0$ and $a_1$ set to zero (making T5 central), the midpoint method agreed with \texttt{cv2.triangulatePoints} to within $10^{-6}$\,mm.
+
+Each pair of AprilGrid corners are $250-400$mm  apart and are used as a "scale bar". Error is determined from the subtraction of true length and measured length 
+from $3D$.
+
+% TODO, Understand code
+
 
 
 \subsubsection{Comparison target}
@@ -468,20 +562,11 @@ if T5 does not improve the held-out error, the aquagon lens is providing a singl
 
 
 
+
 \subsection{Results}
+\subsubsection{RMS Reprojection error}
 % Drop the sea water test
 
-\subsubsection{Reprojection error on held-out data}
-Table wit htechnique , held-out rms, Explain the held-ou
-
-The analysis is split into zones based on how far they lie from the principal point becuase distortion and refraction
-grow towards the edges.These divisions were created based on a normalised radius. First the divisor (R\_max) is determined at the 
-distance from the principal point to the farthest corner (top right, 1600,0). A corner's radius is r= (pixel distance from principal point) 
-/ R\_max, so r=0 at the opticla center and r=1 at the farthest corner. Zones were split for center (r<0.33) , mid (0.33-0.66) and outer
-(>0.66).  
-
-They are further bands split into near and far.  Near includes boards with distances 200-800mm and far across 1000-1500mm.
-For far and near comparisons, only the centre of the image is compared.
 
 
 % LOWKEY DID CLOSE RANGE TRAINING EXTRAPOLATE BETTER?
