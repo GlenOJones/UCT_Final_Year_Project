@@ -232,7 +232,7 @@ tag detection rate, false detection rate and matched-tag RMS error.
 % HOW TO RUN THIS: src/venv/bin/python src/experiments/reproduce.py channels
 % 1. Loads config.json
 % 2. For each medium (water and air) and eaach channel (grey, y, r,g,b,merge) common.calibrate calls the real calibration pipeline.
-%       Defualt run uses opencv_defualt
+%       Defualt run uses opencv_defBC + axial, close-range trainingualt
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.9\textwidth]{figs/Ch5/fig_recall_mean_by_medium.png}
@@ -476,8 +476,7 @@ fit = least_squares(residuals, p0, jac_sparsity=sparsity, method="trf", x_scale=
 
 % TODO: Explaining how to choose parameters
 
-\subsubsection{Held out error and split training}
-% Explain basics of heldout error and splits
+
 
 \subsection{Testing procedure}
 % Technicall goes into Theory section:
@@ -499,8 +498,10 @@ trained on only the closer range date (insert range) to test how well they gener
 % We dont have d0 value , so d0 free parameter so its more of a 'curve fit'
 
 \subsubsection{Close range training and extrapolating}
-
-
+%TODO
+For reasonable underwater calibration, it is likely the board will be closer to the cameras. Ice being scanned may well be beyond these
+calibrated distances. Two of the five methods are therefore tested again, using only distances from X to Y for their camera 
+calibration. 
 % For this and further, water final was used. Defualt for the Calibration. At this time, was from the frame shots and param sweep
 
 
@@ -524,8 +525,27 @@ trained on only the closer range date (insert range) to test how well they gener
 
 % How it is fitted  - scipy, curve fitted, what and why.
 
+% CLAUDE
+\subsubsection{Held out error and split training}
+\label{sec:heldout}
+Each method was scored on recordings it was not trained on. For every combination of two of the eight underwater
+recordings (28 splits), the method was fitted on the other six and tested on the two held out, so every test
+image comes from a sweep the model never saw (Appendix~\ref{app:heldout}). For each test image the intrinsics
+are fixed, the board pose is fitted, and the held-out error is the RMS distance between the detected and
+reprojected corners. Results are the mean over the 28 splits, and two methods are compared on the same splits,
+a difference being within noise when the range of their 28 paired differences contains zero.
+
+
 \subsubsection{Reprojection Error on the held-out recordings}
-The analysis is split into zones based on how far each corner lies from the principal point, to analyse distortion and
+\textbf{Cross-validation}. Each method is scored on recordings it was not trained on. The held-out error is the RMS reprojection error
+of the calibration measured on images that were withheld from its training. The data is split into training and
+test sets to test how well the calibration predicts unseen data. For the calibration data set, there are 28 splits
+with two of the eight sets held out. The results are the mean over the 28 splits. The full sweep of training 
+splitts can be found in  (Appendix~\ref{app:heldout}). This cross-validation approach allows for accurate comparison
+because testing on unseen recordings does not reward the models which over-fit the training data, averages over 28 splits,
+and removes bias based on which set of recordings are held out.
+
+\textbf{Zone split}. The analysis is split into zones based on how far each corner lies from the principal point, to analyse distortion and
 refraction, which both grow towards the edges of the image. The zones are defined using a normalised radius. First, the
 divisor $R_{\max}$ is set to the distance from the principal point to the farthest image corner (the top-right corner,
 pixel $(1600, 0)$). The normalised radius of a detected corner is then
@@ -536,7 +556,7 @@ where $\mathbf{p}$ is the corner's pixel position and $\mathbf{c}$ is the princi
 optical centre and $r = 1$ at the farthest corner. The image is divided into three zones: centre ($r < 0.33$),
 mid ($0.33 \le r < 0.66$) and outer ($r \ge 0.66$).
 
-The results are further split into near and far bands by board distance: near covers boards at 200--800\,mm and far
+\textbf{Distance split}. The results are further split into near and far bands by board distance: near covers boards at 200--800\,mm and far
 covers boards at 1000--1500\,mm. For the near and far comparisons, only the centre zone of the image is compared because
 further boards appear small and dont reach the outer zones.
 
@@ -559,20 +579,28 @@ from $3D$.
 % WHat
 % The processing pipeline and How this adds errors
 % 150-250cm testing extrapolation
+For further measurement accuracy testing, a further data set was testing, measuring error on a a 6x6 grid of 145mm aprilTags over a range of distances,
+$(50,100,150,200,250)$ which some are above the calibration test set. An example of an image from this data set is shown in figure below.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.4 \textwidth]{figs/Ch5/reference__Left_200.png}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
 
 
 
+\subsection{Results and analysis} 
+A test program \texttt{name.py} was written to complete the sweep of tests described. The tests completed
+within 20 minutes, providing the following results
 
-\subsection{Results}
 \subsubsection{RMS Reprojection error}
-% Drop the sea water test
+\autoref{tab:heldout_left} below gives the result of the heldout RMS Reprojetction error mean 
+and $[2.5, 97.5]$ percentile range over the 28 splits.
 
 
-
-% LOWKEY DID CLOSE RANGE TRAINING EXTRAPOLATE BETTER?
-
-Table showing Reprojection errorr is similar between right anf left, showing left. Right camera gave similar results
-and can be found in the appendix.
 
 \begin{table}[H]
 \centering
@@ -599,13 +627,35 @@ BC + axial, close-range training & 0.288 {\scriptsize[0.219, 0.379]} & 0.269 {\s
 
 % ADD VISUAL PLOT HERE
 
+% Analysis:
+
+% General breakdown of results - bad to good
+
+% Showing where the failure lies for each by the zone - 
+
+% Close range training - nothing visible
+The in air calibration reference, as expected, does not carry over to in water measurements.It's ~8.6 pixel heldoit RMS error makes
+it practicaully useless for any reasonable application. The Pinax model does improve this error
+with sub pixel RMS errors for center points, The mid and outer regions however have greater errors
+implying it is not adequetly calibrating for the refreaction of the water aquagon interface, or
+not overcompensating for the calibrated lebse Both Kannala-Brandt and Brown-Conrady methods have 
+very similar results. All RMS values are below  ...
+Kannala-Brandt slightly outperforms across all compared metrics. 
+% TODO - Switch acial shift to kannala brandt, same with close range training.
+% TODO - WHY ARE THESE RMS VALUES DIFFERENT FROM THE TAG DETECTION TESTS
 
 \subsubsection{Where the error is in the image}
 % Options: Just looking at T1-T7 (technically), 
 % Mean held out residual is kinda useful but only the scaled ones are actually useful. Draw in air at different scale 
 % and make exceeding clear scaling differenece due to dwarfing. Lets have both left and right cameras
 % I like the blue plots but hard to add the in air and clearly explain scale refrence
+The Quiver plots below indicate where the error is accumulating for each technique - Note T1 and T2
+plots have arros scaled by 20 whereas the others have scaled by 100.
 
+IT is clear on all plots that none of the calibration images had the calibration board in it bewlo around
+850 px. This matches the test images, with the cameras mounted to the bottom of the rig and the 
+calibration board raised on its adjustable mount. 
+None of the plots show a cinsistent 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1 \textwidth]{figs/Ch5/fig_quiver.pdf}
@@ -742,6 +792,10 @@ The four sets run calibration seperately, generate their camera intrinsic matrix
 
 
 
+\subsection{Analysis}
+
+
+\subsection{Calibration and Compensation conclusion}
 
 
 
