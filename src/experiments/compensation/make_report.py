@@ -23,7 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 CONFIG_FILE = os.path.join(HERE, "config_full.json")
 DISCUSSION = os.path.join(HERE, "report_discussion.tex")
-CAMERAS = ("left", "right")
+CAMERAS = ["left", "right"]     # the cameras the tables show; main() narrows it to the config's report_cameras
 
 
 # ====== READING THE RUN ======
@@ -103,6 +103,8 @@ PREAMBLE = r"""\documentclass[11pt,a4paper]{article}
 
 
 def section_overview(info, techs):
+    names = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four"}
+    checks = names.get(len(techs) - 5, str(len(techs) - 5))
     rows = []
     descriptions = {
         "air_direct": "in-air $K$, $D$ and stereo $R$, $T$ used as they are; nothing fitted in water",
@@ -117,9 +119,9 @@ def section_overview(info, techs):
         extra = f", $n={t['options']['n_water']}$" if "n_water" in t.get("options", {}) else ""
         rows.append([tex(t["label"]), descriptions[t["model"]] + extra, train])
     return (r"""\section{What was tested}
-Five ways of turning a pixel into a ray underwater were compared on the same data, plus three checks:
-""" + table("The techniques. T1--T5 are the five tests; the last three rows are checks (water type, and "
-            "whether a model trained close to the camera holds far away).", "techniques",
+Five ways of turning a pixel into a ray underwater were compared on the same data, plus """ + f"{checks}" + """ checks:
+""" + table("The techniques. T1--T5 are the five tests; the remaining rows are checks of whether a model trained "
+            "close to the camera holds far away.", "techniques",
             ["technique", "model", "underwater training frames"], rows, align="p{4.6cm}p{8.4cm}p{3.2cm}")
             + f"""
 All techniques are scored on the same held-out board detections: {info['frames']['left']} left and
@@ -168,8 +170,8 @@ gives the water-side ray $(x_w, y_w) = (x_a, y_a)\,r_w/r_a$. The glass index can
 Projection runs the chain backwards. The rays are taken from Pinax's single virtual centre on the axis; its
 offset (set by lens-to-port distance and port thickness, which have no physical value for a water-contact
 lens) is a constant shift that each board pose absorbs. No intrinsic is fitted in water; the stereo
-extrinsics are fitted on the underwater pairs. The headline uses fresh water, $n = 1.333$; $n = 1.339$
-(sea water) is a check, since the water type is not known.
+extrinsics are fitted on the underwater pairs. Fresh water, $n = 1.333$, is assumed; the water type was not
+recorded.
 
 \subsection{T5: Brown-Conrady + axial shift (non-single-viewpoint)}
 Behind a refracting port the rays of different field angles cross the optical axis at different points.
@@ -271,9 +273,12 @@ CAMERA_COLUMNS = [("rms", "held-out"), ("rms_centre", "centre"), ("rms_mid", "mi
 def section_results(out_dir, summary, comparisons, info, params, target, cov, techs):
     keys = [t["key"] for t in techs]
     label = {t["key"]: t["label"] for t in techs}
+    only = (f"Reprojection results are shown for the {CAMERAS[0]} camera only: it is the reference camera, in whose "
+            "frame every stereo result is expressed. Both cameras are fitted and scored, and the stereo results "
+            "(scale bars, WaterComparison target) use both. " if len(CAMERAS) == 1 else "")
     s = [r"\section{Results}", r"\subsection{Reprojection error on held-out recordings}",
-         "Same detections for every technique; mean and [2.5, 97.5] percentile range over the 28 splits, in pixels "
-         "(the last column is a ratio). Figure~\\ref{fig:fig_summary} shows the headline numbers."]
+         only + "Same detections for every technique; mean and [2.5, 97.5] percentile range over the 28 splits, in "
+         "pixels (the last column is a ratio). Figure~\\ref{fig:fig_summary} shows the headline numbers."]
     for camera in CAMERAS:
         rows = [[tex(label[k])] + [interval(summary.get((k, camera, m)), 2 if "to" in m else 3) for m, _ in CAMERA_COLUMNS]
                 for k in keys]
@@ -288,8 +293,8 @@ def section_results(out_dir, summary, comparisons, info, params, target, cov, te
              ("bc", "bc_close"), ("pinax", "pinax_sea")]
     rows = []
     for a, b in pairs:
-        for camera, metric, unit in [("left", "rms", "px"), ("right", "rms", "px"), ("left", "rms_outer", "px"),
-                                     ("stereo", "length_rms_mm", "mm"), ("stereo", "length_rms_far_mm", "mm")]:
+        for camera, metric, unit in ([(c, "rms", "px") for c in CAMERAS] + [(c, "rms_outer", "px") for c in CAMERAS]
+                                     + [("stereo", "length_rms_mm", "mm"), ("stereo", "length_rms_far_mm", "mm")]):
             r = comparisons.get((a, b, camera, metric)) or comparisons.get((b, a, camera, metric))
             if r is None:
                 continue
@@ -303,20 +308,21 @@ def section_results(out_dir, summary, comparisons, info, params, target, cov, te
 
     s.append(r"\subsection{Where the error is in the image}")
     s.append(figure(out_dir, "fig_quiver", "Quiver plot: mean held-out residual vector (observed $-$ reprojected) per "
-                    "image cell, all techniques on one arrow scale. A coherent pattern is a systematic model error; "
-                    "random noise averages out."))
-    s.append(figure(out_dir, "fig_quiver_fitted", "The same quiver plot for the techniques fitted in water only, on "
-                    "their own arrow scale (the in-air ones would dwarf them)."))
+                    "image cell. The techniques using the in-air calibration (T1 and Pinax) are drawn at $\\times20$, "
+                    "those fitted in water at $\\times100$ (gain in each panel title, a key for each gain), so an arrow "
+                    "of the same drawn length is five times smaller in the second group. A coherent pattern is a "
+                    "systematic model error; random noise averages out."))
     s.append(figure(out_dir, "fig_heatmap_fitted", "Mean residual length per image cell (colour) with the mean "
                     "residual vector, techniques fitted in water; grey cells have too few points; dashed circles are "
-                    "the zone boundaries. (fig\\_heatmap.pdf has all eight techniques on a log scale.)"))
+                    "the zone boundaries. (fig\\_heatmap.pdf has all the techniques on a log scale.)"))
     s.append(figure(out_dir, "fig_radial", "Error magnitude against distance from the optical centre (principal "
                     "point), normalised so 1 is the farthest image corner; band = range over splits."))
     s.append(figure(out_dir, "fig_distance", "Error against board distance. The shaded band is the close-range "
                     "training range: the close-trained techniques are extrapolating to its right."))
     s.append(figure(out_dir, "fig_pinax_mapping", "Underwater ray angle per pixel from Pinax and from the Brown-Conrady "
                     "fitted in water (top), and their difference (bottom); dashed: the part a focal-length difference "
-                    "alone explains. Only pixels near observed corners are used."))
+                    "alone explains. Only pixels near observed corners are used.",
+                    width=r"\linewidth" if len(CAMERAS) > 1 else r"0.6\linewidth"))
 
     s.append(r"\subsection{Stereo scale (held-out pairs)}")
     rows = [[tex(label[k])] + [interval(summary.get((k, "stereo", m)), 2) for m in
@@ -428,6 +434,7 @@ def main(argv=None):
     out_dir = project_path(args.out or cfg["output"])
     summary, comparisons, info, params, target, cov = load_run(out_dir)
     techs = info["config"]["techniques"]
+    CAMERAS[:] = cfg.get("report_cameras", CAMERAS)
 
     doc = "\n".join([
         PREAMBLE, r"\begin{document}", r"\maketitle", r"\tableofcontents", r"\newpage",

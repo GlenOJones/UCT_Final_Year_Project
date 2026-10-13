@@ -1,5 +1,5 @@
 {
-  "_comment": "Full comparison for the methods report: the five tests (in-air unchanged, Pinax, underwater Brown-Conrady, underwater Kannala-Brandt, Brown-Conrady + axial shift), the Pinax sea-water check and the two close-range-training (single-viewpoint) checks, all on the same held-out splits and the same detected corners; plus the WaterComparison tag test, residual quiver plots and parameter covariance. Run (from the project root): src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/experiments/compensation/config_full.json && src/venv/bin/python src/experiments/compensation/make_report.py. reproduce.py compensation does both, after making the pipeline runs.",
+  "_comment": "Full comparison for the methods report: the five tests (in-air unchanged, Pinax, underwater Brown-Conrady, underwater Kannala-Brandt, Brown-Conrady + axial shift), the two close-range-training (single-viewpoint) checks, all on the same held-out splits and the same detected corners; plus the WaterComparison tag test, residual quiver plots and parameter covariance. Run (from the project root): src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/experiments/compensation/config_full.json && src/venv/bin/python src/experiments/compensation/make_report.py. reproduce.py compensation does both, after making the pipeline runs.",
   "pipeline_runs": {
     "_why": "The Calibration.py runs this comparison reads, made by reproduce.py before it runs. Every pipeline setting is stated. They use the gray channel, as the runs these results were first made from did; the standard pipeline's channel is merge.",
     "calibration": {
@@ -62,15 +62,6 @@
       "model": "brown_conrady_axial"
     },
     {
-      "key": "pinax_sea",
-      "label": "Pinax, sea water n = 1.339",
-      "model": "pinax",
-      "options": {
-        "air_calibration": "results/experiments/compensation/calibration/Air/Air_water_final_stereo.yaml",
-        "n_water": 1.339
-      }
-    },
-    {
       "key": "bc_close",
       "label": "Brown-Conrady, close-range training",
       "model": "brown_conrady",
@@ -118,6 +109,15 @@
   "quiver_cells": [
     16,
     12
+  ],
+  "quiver_gains": {
+    "_why": "Arrow gains of the quiver plot: the techniques using the in-air calibration (T1, Pinax) have residuals of pixels, those fitted in water of tenths of a pixel, so each group is drawn at its own gain in one figure.",
+    "in_air": 20,
+    "fitted": 100
+  },
+  "_report_cameras_why": "Figures and report tables show the left (reference) camera only, because the stereo results are in its frame. Both cameras are still fitted and scored, and the stereo results (scale bars, WaterComparison tags) use both.",
+  "report_cameras": [
+    "left"
   ],
   "target": {
     "_why": "WaterComparison: ordinary AprilTag 36h11 tags (1-bit border), ids 6-11 in 3 rows x 2 columns, outer black square printed at 145 mm (G. Jones). One stereo pair per distance label (cm) in pairs.csv: 50, 100, 150, 200, 250.",

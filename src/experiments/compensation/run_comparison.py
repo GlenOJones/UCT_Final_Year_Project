@@ -157,6 +157,8 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
     config asks for them) target.json and covariance.json. Fits nothing except the Pinax ray-mapping models,
     which are closed-form reads of the calibrations."""
     fitted = [i for i, t in enumerate(techs) if t.model not in IN_AIR_MODELS]
+    cameras = cfg.get("report_cameras", list(data.CAMERAS))   # which cameras the figures show
+    plots.show_cameras(cameras)
     figures = {"heatmap": plots.heatmaps(points, techs, params_all, cfg, run.image_size,
                                          os.path.join(out_dir, "fig_heatmap"), log=len(fitted) < len(techs))}
     if len(fitted) < len(techs):
@@ -167,9 +169,9 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
     plots.radial(points, techs, cfg, os.path.join(out_dir, "fig_radial"))
     plots.distance(points, techs, cfg, os.path.join(out_dir, "fig_distance"))
     plots.scale(bars, techs, cfg, os.path.join(out_dir, "fig_scale"))
-    plots.summary(table, techs, [(data.CAMERAS, "rms", "held-out RMS (px)"),
-                                 (data.CAMERAS, "outer_to_centre", "outer / centre"),
-                                 (data.CAMERAS, "far_to_near_centre", "far / near, centre zone"),
+    plots.summary(table, techs, [(cameras, "rms", "held-out RMS (px)"),
+                                 (cameras, "outer_to_centre", "outer / centre"),
+                                 (cameras, "far_to_near_centre", "far / near, centre zone"),
                                  (("stereo",), "length_rms_mm", "length RMS (mm)")],
                   os.path.join(out_dir, "fig_summary"))
 
@@ -178,7 +180,7 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
         # Where Pinax and the in-water Brown-Conrady (all recordings) send the same ray: why Pinax fails or not.
         reference, other, observed = {}, {}, {}
         ref_tech = next(t for t in techs if t.model == "brown_conrady" and t.train_distance_mm is None)
-        for camera in data.CAMERAS:
+        for camera in cameras:
             reference[camera] = ref_tech.new_model().fit(run.frames[camera], run.image_size, camera)
             other[camera] = pinax[0].new_model().fit(run.frames[camera], run.image_size, camera)
             observed[camera] = np.concatenate([f.img for f in run.frames[camera]])
@@ -186,11 +188,13 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
                           ref_tech.label, "Pinax", observed)
 
     if cfg.get("quiver_cells"):
+        # One figure for every technique: the in-air ones (errors of pixels) and those fitted in water (tenths of
+        # a pixel) each get the arrow gain the config sets for them, so neither saturates nor vanishes.
+        g = cfg.get("quiver_gains", {})
+        gains = ({i: g["in_air"] if t.model in IN_AIR_MODELS else g["fitted"] for i, t in enumerate(techs)}
+                 if g else None)
         figures["quiver"] = plots.quiver(points, techs, cfg, run.image_size, params_all,
-                                         os.path.join(out_dir, "fig_quiver"))
-        if len(fitted) < len(techs):
-            figures["quiver_fitted"] = plots.quiver(points, techs, cfg, run.image_size, params_all,
-                                                    os.path.join(out_dir, "fig_quiver_fitted"), subset=fitted)
+                                         os.path.join(out_dir, "fig_quiver"), gains=gains)
     if cfg.get("target"):
         doc = load_json(os.path.join(out_dir, "target.json"))
         size, calib_range = doc["target"]["tag_size_mm"], doc["calibration_range_mm"]
@@ -204,9 +208,9 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
         doc = load_json(os.path.join(out_dir, "covariance.json"))
         label = {t.key: t.label for t in techs}
         panels = [(label[t.key], camera, doc[t.key][camera]) for t in techs
-                  if t.key in doc and t.train_distance_mm is None for camera in data.CAMERAS]
+                  if t.key in doc and t.train_distance_mm is None for camera in cameras]
         panels += [("In-air calibration (T1, Pinax)", camera, doc["in_air_calibration"][camera])
-                   for camera in data.CAMERAS if "in_air_calibration" in doc]
+                   for camera in cameras if "in_air_calibration" in doc]
         plots.correlation(panels, os.path.join(out_dir, "fig_correlation"))
         figures["covariance"] = {"panels": [(a, b) for a, b, _ in panels]}
     return figures

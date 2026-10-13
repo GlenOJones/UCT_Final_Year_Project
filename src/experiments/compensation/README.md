@@ -25,7 +25,9 @@ src/venv/bin/python -m unittest discover -s src/experiments/compensation/tests -
 
 ## Full comparison and methods report (`config_full.json`)
 
-The five tests, numbered as in the report, plus three checks, all on the same 28 splits and detections:
+The five tests, numbered as in the report, plus two checks, all on the same 28 splits and detections. The
+report shows the left (reference) camera only (`report_cameras`); both cameras are still fitted and scored, and
+the stereo results use both:
 
 | key | test | model |
 |---|---|---|
@@ -34,7 +36,6 @@ The five tests, numbered as in the report, plus three checks, all on the same 28
 | `bc` | T3 | underwater Brown-Conrady |
 | `kb` | T4 | underwater Kannala-Brandt |
 | `bc_axial` | T5 | Brown-Conrady + axial ray shift dz(r) = a1 r^2 + a2 r^4, a non-single-viewpoint model (`models.BrownConradyAxial`) |
-| `pinax_sea` | check | Pinax, n = 1.339 (water type unknown) |
 | `bc_close`, `bc_axial_close` | check | T3 and T5 trained on boards 200-800 mm only (single-viewpoint check) |
 
 On top of the outputs listed below, this config also adds:

@@ -44,6 +44,15 @@ plt.rcParams.update({
 })
 
 
+# The cameras the figures show, as indices into data.CAMERAS (points rows store the index). Every camera is
+# still fitted and scored; this only chooses which appear (show_cameras(["left"]) for the reference camera).
+SHOWN = list(range(len(data.CAMERAS)))
+
+
+def show_cameras(names):
+    SHOWN[:] = [data.CAMERAS.index(n) for n in names]
+
+
 def save(fig, path_stem):
     for ext in ("png", "pdf"):
         fig.savefig(f"{path_stem}.{ext}")
@@ -96,7 +105,7 @@ def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=
     shown = list(range(len(techniques))) if subset is None else list(subset)
     grids = {(col, c): metrics.grid_stats(*_select(points, t, c)[:, 4:8].T, image_size, (nx, ny),
                                           cfg["min_points_per_cell"])
-             for col, t in enumerate(shown) for c in range(len(data.CAMERAS))}
+             for col, t in enumerate(shown) for c in SHOWN}
     vmax = max(np.nanmax(g["mean_error"]) for g in grids.values())
     vmin = min(np.nanmin(g["mean_error"]) for g in grids.values())
     norm = LogNorm(vmin=_nice(vmin), vmax=vmax) if log else Normalize(vmin=0, vmax=vmax)
@@ -105,7 +114,7 @@ def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=
     gain = _nice(0.9 * cell / longest)                      # px of image per px of residual
     ref = _nice(longest / 2)
 
-    fig, axes = plt.subplots(len(data.CAMERAS), len(shown), figsize=(3.2 * len(shown), 5.3),
+    fig, axes = plt.subplots(len(SHOWN), len(shown), figsize=(3.2 * len(shown), 2.65 * len(SHOWN) + 0.4),
                              squeeze=False, constrained_layout=True)
     cmap = SEQUENTIAL.copy()
     cmap.set_bad(MISSING)
@@ -114,7 +123,8 @@ def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=
     X, Y = np.meshgrid(xc, yc)
     for (col, c), g in grids.items():
         t = shown[col]
-        ax = axes[c, col]
+        row = SHOWN.index(c)
+        ax = axes[row, col]
         im = ax.imshow(np.ma.masked_invalid(g["mean_error"]), extent=(0, w, h, 0), cmap=cmap, norm=norm,
                        interpolation="nearest")
         v = g["valid"]
@@ -131,11 +141,11 @@ def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=
         ax.set_xticks([0, w // 2, w])
         ax.set_yticks([0, h // 2, h])
         ax.grid(False)
-        if c == 0:
+        if row == 0:
             ax.set_title(techniques[t].label)
         if col == 0:
             ax.set_ylabel(f"{data.CAMERAS[c]} camera\nv (px)")
-        if c == len(data.CAMERAS) - 1:
+        if row == len(SHOWN) - 1:
             ax.set_xlabel("u (px)")
     fig.colorbar(im, ax=axes, shrink=0.7, label="mean residual length (px)" + (", log scale" if log else ""))
     axes[-1, 0].quiverkey(q, 0.02, 0.01, ref * gain, f"arrow key: {ref:g} px mean residual", labelpos="E",
@@ -149,9 +159,11 @@ def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=
 
 # ====== PROFILES ======
 def _profile_figure(points, techniques, column, edges, cfg, xlabel, path_stem, title, decorate=None):
-    fig, axes = plt.subplots(1, len(data.CAMERAS), figsize=(7.2, 3.0), sharey=True, constrained_layout=True)
+    fig, axes = plt.subplots(1, len(SHOWN), figsize=(3.6 * len(SHOWN) + (1.2 if len(SHOWN) == 1 else 0), 3.0),
+                             sharey=True, squeeze=False, constrained_layout=True)
+    axes = axes[0]
     values = []
-    for c, ax in enumerate(axes):
+    for c, ax in zip(SHOWN, axes):
         if decorate:
             decorate(ax)
         for t in range(len(techniques)):
@@ -283,7 +295,8 @@ def ray_mapping(reference, other, image_size, path_stem, label_ref, label_other,
     reference, other: {camera: model}; observed: {camera: (N, 2) detected corners}.
     """
     from scipy.spatial import cKDTree
-    fig, axes = plt.subplots(2, len(reference), figsize=(7.2, 4.6), sharex=True, sharey="row",
+    fig, axes = plt.subplots(2, len(reference), figsize=(3.6 * len(reference) + (1.2 if len(reference) == 1 else 0), 4.6),
+                             squeeze=False, sharex=True, sharey="row",
                              constrained_layout=True)
     angles = np.radians(np.arange(0, 360, 5))
     r = np.arange(12.5, 1000, 25.0)
@@ -326,45 +339,53 @@ def ray_mapping(reference, other, image_size, path_stem, label_ref, label_other,
 
 
 # ====== RESIDUAL VECTORS (QUIVER) ======
-def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=None):
+def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=None, gains=None):
     """Mean held-out residual vector (observed - reprojected) per image cell, one panel per technique and
-    camera, ONE arrow gain for the whole figure so arrow lengths compare across panels. Systematic error
-    shows as coherent arrow fields (radial: distortion/focal; uniform: principal point); noise averages
-    out. Each panel is titled with its RMS. Cells with fewer than min_points_per_cell points are empty."""
+    camera. Systematic error shows as coherent arrow fields (radial: distortion/focal; uniform: principal
+    point); noise averages out. Each panel is titled with its RMS and arrow gain. Cells with fewer than
+    min_points_per_cell points are empty.
+
+    gains: {technique index: arrow gain}, so techniques whose errors differ by orders of magnitude (the
+    in-air ones against those fitted in water) can share one figure; each distinct gain gets its own key, in
+    the first panel that uses it. Without it, ONE gain is chosen for the whole figure, set by the
+    90th-percentile cell so a few large cells do not shrink every other arrow to a dot."""
     w, h = image_size
     nx, ny = cfg.get("quiver_cells", cfg["grid_cells"])
     shown = list(range(len(techniques))) if subset is None else list(subset)
     grids = {(col, c): metrics.grid_stats(*_select(points, t, c)[:, 4:8].T, image_size, (nx, ny),
                                           cfg["min_points_per_cell"])
-             for col, t in enumerate(shown) for c in range(len(data.CAMERAS))}
+             for col, t in enumerate(shown) for c in SHOWN}
     # The gain is set by the 90th-percentile cell, so a few large cells (drawn longer than a cell) do not
     # shrink every other arrow to a dot.
-    lengths = np.concatenate([np.hypot(g["mean_du"], g["mean_dv"])[g["valid"]] for g in grids.values()])
-    typical = float(np.percentile(lengths, 90))
-    gain = _nice(0.9 * (w / nx) / typical)
-    ref = _nice(typical)
+    if gains is None:
+        lengths = np.concatenate([np.hypot(g["mean_du"], g["mean_dv"])[g["valid"]] for g in grids.values()])
+        gains = dict.fromkeys(shown, _nice(0.9 * (w / nx) / float(np.percentile(lengths, 90))))
+    keyed = set()
     X, Y = np.meshgrid((np.arange(nx) + 0.5) * w / nx, (np.arange(ny) + 0.5) * h / ny)
-    # At most 4 techniques across; each technique is a column with its left camera above its right.
+    # At most 4 techniques across; each technique is a column with its cameras stacked (left above right).
     ncol = min(4, len(shown))
-    nrow = 2 * int(np.ceil(len(shown) / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 2.45 * nrow), squeeze=False, constrained_layout=True)
-    for ax in axes.ravel()[2 * len(shown):]:
-        ax.axis("off")
+    per = len(SHOWN)
+    nrow = per * int(np.ceil(len(shown) / ncol))
+    fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 2.45 * nrow + 0.4), squeeze=False, constrained_layout=True)
     for ax in axes.ravel():
         ax.axis("off")
     for (col, c), g in grids.items():
         t = shown[col]
-        ax = axes[2 * (col // ncol) + c, col % ncol]
+        row = SHOWN.index(c)
+        ax = axes[per * (col // ncol) + row, col % ncol]
         ax.axis("on")
         sel = _select(points, t, c)
         v = g["valid"]
+        gain = gains[t]
         q = ax.quiver(X[v], Y[v], g["mean_du"][v] * gain, g["mean_dv"][v] * gain, angles="xy", scale_units="xy",
                       scale=1, color=SERIES[t], width=0.011, headwidth=3, headlength=3.5, headaxislength=3,
                       minlength=0.5)
         K = np.array(params_all[techniques[t].key][data.CAMERAS[c]]["camera_matrix"])
         ax.plot(K[0, 2], K[1, 2], "+", color=INK, ms=7)
-        if col == 0 and c == 0:
-            ax.quiverkey(q, 0.55, 0.06, ref * gain, f"{ref:g} px", labelpos="E", coordinates="axes",
+        if gain not in keyed:                # a key drawn at most about one cell long
+            keyed.add(gain)
+            ref = _nice(0.9 * (w / nx) / gain)
+            ax.quiverkey(q, 0.45, 0.06, ref * gain, f"{ref:g} px (x {gain:g})", labelpos="E", coordinates="axes",
                          color=INK, labelcolor=INK, fontproperties={"size": 7})
         ax.set_xlim(0, w)
         ax.set_ylim(h, 0)
@@ -372,13 +393,13 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
         ax.set_xticks([0, w // 2, w])
         ax.set_yticks([0, h // 2, h])
         ax.grid(False)
-        ax.set_title((techniques[t].label + "\n" if c == 0 else "") + f"{data.CAMERAS[c]}: RMS {metrics.rms(sel[:, 6], sel[:, 7]):.2f} px",
+        ax.set_title((techniques[t].label + "\n" if row == 0 else "")
+                     + f"{data.CAMERAS[c]}: RMS {metrics.rms(sel[:, 6], sel[:, 7]):.2f} px, arrows x {gain:g}",
                      fontsize=7.5)
-    fig.suptitle(f"Mean held-out residual vector per cell ({nx} x {ny} grid), arrows drawn x {gain:g}; "
-                 f"key in the first panel; + = principal point; no board was seen below v ~ 850 px", fontsize=8, color=INK_2)
+    fig.suptitle(f"Mean held-out residual vector per cell ({nx} x {ny} grid); arrow gain in each panel title; "
+                 f"+ = principal point; no board was seen below v ~ 850 px", fontsize=8, color=INK_2)
     save(fig, path_stem)
-    return {"arrow_gain": float(gain), "arrow_key_px": float(ref), "cells": [nx, ny],
-            "techniques": [techniques[t].key for t in shown]}
+    return {"arrow_gains": {techniques[t].key: float(gains[t]) for t in shown}, "cells": [nx, ny]}
 
 
 # ====== SEPARATE TARGET (WaterComparison tags) ======
