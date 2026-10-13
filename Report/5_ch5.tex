@@ -521,11 +521,99 @@ BC + axial, close-range training & 0.288 {\scriptsize[0.219, 0.379]} & 0.269 {\s
 % and make exceeding clear scaling differenece due to dwarfing. Lets have both left and right cameras
 % I like the blue plots but hard to add the in air and clearly explain scale refrence
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/fig_quiver.pdf}
+    \caption[short caption]{\textbf{Quiver plot of X.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
+
+
 % Error magnitude vs distance from principal point, normalised is very useful
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/fig_radial.pdf}
+    \caption[short caption]{\textbf{Quiver plot of X.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
+
+
 
 
 
 \subsubsection{Stereo scale - held-out pairs}
+\begin{table}[H]
+\centering
+\caption{Triangulated scale bars (250--450~mm) on held-out stereo pairs, in mm: mean over the 28 splits, with the
+2.5--97.5 percentile range in brackets. Bias is the mean signed length error, RMS the root-mean-square length
+error; \emph{far} restricts both to boards at 1000--1500~mm. Baseline is the length of the fitted stereo
+translation.}
+\label{tab:scalebars}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+Technique & Bias & RMS & Far bias & Far RMS & Baseline \\
+\midrule
+T1 In-air calibration, unchanged & $-29.51$ {\scriptsize[$-41.25$, $-20.81$]} & 35.01 {\scriptsize[23.98, 49.38]} & $-25.62$ {\scriptsize[$-37.32$, $-15.75$]} & 29.33 {\scriptsize[16.49, 43.81]} & 150.36 {\scriptsize[150.36, 150.36]} \\
+T2 Pinax (air + refraction) & 1.83 {\scriptsize[0.58, 4.22]} & 4.40 {\scriptsize[2.08, 8.37]} & 0.04 {\scriptsize[$-0.44$, 0.92]} & 2.72 {\scriptsize[1.57, 4.08]} & 150.37 {\scriptsize[150.00, 150.54]} \\
+T3 Brown-Conrady & 0.15 {\scriptsize[$-0.84$, 0.82]} & 1.28 {\scriptsize[0.67, 2.55]} & 0.12 {\scriptsize[$-1.45$, 1.32]} & 1.68 {\scriptsize[0.99, 3.20]} & 150.12 {\scriptsize[149.65, 150.43]} \\
+T4 Kannala-Brandt & 0.15 {\scriptsize[$-1.02$, 1.02]} & 1.44 {\scriptsize[0.80, 2.64]} & 0.21 {\scriptsize[$-1.66$, 1.95]} & 1.94 {\scriptsize[1.12, 3.73]} & 150.09 {\scriptsize[149.54, 150.49]} \\
+T5 Brown-Conrady + axial shift & 0.02 {\scriptsize[$-0.79$, 0.64]} & 1.11 {\scriptsize[0.64, 2.08]} & 0.03 {\scriptsize[$-1.31$, 1.15]} & 1.50 {\scriptsize[0.95, 2.81]} & 150.10 {\scriptsize[149.66, 150.38]} \\
+\midrule
+Brown-Conrady, close-range training & 0.04 {\scriptsize[$-1.22$, 1.19]} & 1.51 {\scriptsize[0.78, 3.00]} & $-0.11$ {\scriptsize[$-2.21$, 1.71]} & 1.97 {\scriptsize[1.12, 4.11]} & 150.21 {\scriptsize[149.87, 150.47]} \\
+BC + axial, close-range training & 0.01 {\scriptsize[$-0.94$, 0.87]} & 1.25 {\scriptsize[0.73, 2.39]} & $-0.03$ {\scriptsize[$-1.66$, 1.39]} & 1.68 {\scriptsize[1.06, 3.09]} & 150.16 {\scriptsize[149.87, 150.39]} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/fig_scale.pdf}
+    \caption[short caption]{\textbf{Quiver plot of X.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
+
+
+\subsubsection{Separate WaterComparison target}
+
+
+\begin{table}[H]
+\centering
+\caption{WaterComparison target: tag error (median edge length $-$ 145~mm) at each distance label, in mm, with
+the number of tags found in both cameras in brackets; then over all tags, the median error in mm and as a
+percentage of the tag size, and the RMS error over every edge. The calibration boards reached about 1.4~m, so
+the 150--250~cm labels are extrapolation; the 250~cm label has a single tag.}
+\label{tab:target}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\toprule
+ & \multicolumn{5}{c}{Tag error per distance label (mm)} & \multicolumn{3}{c}{All tags} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-9}
+Technique & 50~cm & 100~cm & 150~cm & 200~cm & 250~cm & Median (mm) & Median (\%) & Edge RMS (mm) \\
+\midrule
+T1 In-air calibration, unchanged & $-5.7$ (4) & $-6.9$ (6) & $-10.2$ (6) & $-12.2$ (6) & $-14.1$ (1) & $-9.93$ & $-6.85$ & 9.86 \\
+T2 Pinax (air + refraction)      & 0.0 (4)    & $-2.1$ (6) & $-4.2$ (6)  & $-4.4$ (6)  & $-2.6$ (1)  & $-2.59$ & $-1.79$ & 4.99 \\
+T3 Brown-Conrady                 & $-0.5$ (4) & $-1.5$ (6) & $-3.6$ (6)  & $-3.5$ (6)  & 0.0 (1)     & $-2.16$ & $-1.49$ & 4.35 \\
+T4 Kannala-Brandt                & $-0.5$ (4) & $-1.5$ (6) & $-3.6$ (6)  & $-3.4$ (6)  & 0.4 (1)     & $-2.25$ & $-1.55$ & 4.37 \\
+T5 Brown-Conrady + axial shift   & $-0.5$ (4) & $-1.5$ (6) & $-3.7$ (6)  & $-3.6$ (6)  & $-0.3$ (1)  & $-2.15$ & $-1.48$ & 4.30 \\
+\midrule
+Brown-Conrady, close-range training & $-0.5$ (4) & $-1.6$ (6) & $-3.8$ (6) & $-3.8$ (6) & $-0.4$ (1) & $-2.30$ & $-1.59$ & 4.43 \\
+BC + axial, close-range training    & $-0.5$ (4) & $-1.6$ (6) & $-3.8$ (6) & $-3.7$ (6) & $-0.5$ (1) & $-2.22$ & $-1.53$ & 4.35 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/fig_target.pdf}
+    \caption[short caption]{\textbf{Quiver plot of X.} Description.}
+    \label{fig:ch5.channel_overlap}
+\end{figure}
+
+
+\subsubsection{Parameter deviation}
 
 
 % OUTPUTS:
