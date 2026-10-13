@@ -1,0 +1,52 @@
+%---------------------------------------------------------------------
+% Appendix E
+%---------------------------------------------------------------------
+
+\chapter*{Appendix E: Supplementary material}
+\addcontentsline{toc}{chapter}{Appendix E: Supplementary material}
+\label{app:supplementary}
+
+%---------------------------------------------------------------------
+\section*{Detector parameter configurations}
+\phantomsection
+\addcontentsline{toc}{section}{Detector parameter configurations}
+\label{app:detector_configs}
+% Referenced from Chapter 5: the OpenCV DetectorParameters sweep (TABLE X).
+
+
+%---------------------------------------------------------------------
+\section*{Recordings and train/held-out splits}
+\phantomsection
+\addcontentsline{toc}{section}{Recordings and train/held-out splits}
+\label{app:splits}
+% Referenced from Chapter 5: the 8 underwater recordings and the 28 splits.
+\begin{table}[H]
+\centering
+\caption{Held-out reprojection error of the right camera, in pixels: mean over the 28 splits, with the
+2.5--97.5 percentile range in brackets. Zones and bands are defined in Appendix~\ref{app:heldout}; the last
+column is a ratio.}
+\label{tab:heldout_right}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrrrr}
+\toprule
+Technique & Held-out & Centre & Mid & Outer & Near & Far & Far/near (centre) \\
+\midrule
+T1 In-air, unchanged & 7.505 {\scriptsize[4.982, 9.186]} & 4.434 {\scriptsize[3.627, 5.098]} & 9.460 {\scriptsize[4.908, 13.418]} & 21.234 {\scriptsize[9.086, 35.307]} & 11.575 {\scriptsize[8.153, 13.045]} & 2.297 {\scriptsize[1.359, 3.116]} & 0.27 {\scriptsize[0.17, 0.41]} \\
+T2 Pinax (air + refraction) & 1.037 {\scriptsize[0.760, 1.295]} & 0.551 {\scriptsize[0.439, 0.611]} & 1.036 {\scriptsize[0.599, 1.520]} & 3.717 {\scriptsize[1.831, 6.080]} & 1.725 {\scriptsize[1.131, 2.634]} & 0.353 {\scriptsize[0.272, 0.456]} & 0.36 {\scriptsize[0.24, 0.62]} \\
+T3 Brown-Conrady & 0.271 {\scriptsize[0.205, 0.346]} & 0.267 {\scriptsize[0.208, 0.337]} & 0.282 {\scriptsize[0.200, 0.414]} & 0.351 {\scriptsize[0.167, 0.549]} & 0.294 {\scriptsize[0.169, 0.388]} & 0.255 {\scriptsize[0.211, 0.323]} & 0.96 {\scriptsize[0.71, 1.19]} \\
+T4 Kannala-Brandt & 0.274 {\scriptsize[0.205, 0.371]} & 0.271 {\scriptsize[0.208, 0.361]} & 0.283 {\scriptsize[0.200, 0.416]} & 0.332 {\scriptsize[0.158, 0.476]} & 0.296 {\scriptsize[0.162, 0.450]} & 0.257 {\scriptsize[0.210, 0.324]} & 0.98 {\scriptsize[0.71, 1.32]} \\
+T5 Brown-Conrady + axial shift & 0.270 {\scriptsize[0.201, 0.361]} & 0.266 {\scriptsize[0.199, 0.334]} & 0.282 {\scriptsize[0.196, 0.467]} & 0.331 {\scriptsize[0.179, 0.619]} & 0.296 {\scriptsize[0.171, 0.418]} & 0.252 {\scriptsize[0.209, 0.322]} & 0.97 {\scriptsize[0.66, 1.25]} \\
+\midrule
+Brown-Conrady, close-range training & 0.282 {\scriptsize[0.207, 0.419]} & 0.277 {\scriptsize[0.210, 0.365]} & 0.297 {\scriptsize[0.202, 0.559]} & 0.349 {\scriptsize[0.168, 0.661]} & 0.310 {\scriptsize[0.171, 0.502]} & 0.260 {\scriptsize[0.211, 0.333]} & 0.94 {\scriptsize[0.63, 1.21]} \\
+BC + axial, close-range training & 0.275 {\scriptsize[0.204, 0.397]} & 0.269 {\scriptsize[0.200, 0.346]} & 0.288 {\scriptsize[0.200, 0.525]} & 0.331 {\scriptsize[0.187, 0.655]} & 0.300 {\scriptsize[0.175, 0.471]} & 0.254 {\scriptsize[0.210, 0.326]} & 0.96 {\scriptsize[0.63, 1.28]} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+%---------------------------------------------------------------------
+\section*{Right camera reprojection errors}
+\phantomsection
+\addcontentsline{toc}{section}{Right camera reprojection errors}
+\label{app:right_camera}
+% Referenced from Chapter 5: right-camera counterpart of the left-camera table.
+
