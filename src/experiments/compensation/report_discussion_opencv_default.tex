@@ -1,0 +1,57 @@
+% Hand-written discussion for the detector check (config_full_opencv_default.json). make_report.py flags it
+% when the run it is built with is a different one.
+% written for run: 2026-10-13T13:21:54
+\section{Discussion: does the detector tuning favour one method?}
+Reprojection numbers are for the left (reference) camera; stereo numbers use both cameras. The comparison
+of record uses the \texttt{water\_final} detector preset, which the parameter sweep chose by running
+\texttt{calibrateCamera} (Brown-Conrady) on each candidate. If that tuning had favoured Brown-Conrady, the
+ranking could be an artefact of the detector. This run repeats the whole comparison with the untuned
+\texttt{opencv\_default} preset: new calibrations (in water and in air), the same 28 splits, and the same
+WaterComparison test.
+
+\subsection{The default detector finds half the corners}
+With the default parameters the pipeline keeps 68 left and 76 right images (against 84 and 80) and
+9\,476 left-camera corners (against 18\,772), with 54 stereo pairs (against 77). The loss is uneven:
+\texttt{Water\_C6\_frames} keeps 3 of 8 images and \texttt{Water\_L5\_Frames} 4 of 11, the most distant
+boards are lost (the farthest is now 1.38~m), and the remaining images have fewer tags each. The image
+coverage is unchanged (no corner below $v \approx 850$~px in either run).
+
+\subsection{The ranking does not change}
+\begin{itemize}
+\item \textbf{The underwater fits stay equivalent.} Held-out RMS is 0.280 (Brown-Conrady), 0.269
+(Kannala-Brandt) and 0.281~px (axial shift), against 0.286, 0.275 and 0.285~px with \texttt{water\_final}.
+Every paired difference between them is still within noise, as is close-range training. Kannala-Brandt is
+again marginally lower by the same 0.011~px. If the tuning had favoured Brown-Conrady, the gap to the other
+models would have opened with the default detector; it did not.
+\item \textbf{Brown-Conrady's parameters barely move.} Fitted on all recordings, the left camera's
+$f_x$ is 952.79 against 952.73~px, the principal point moves by 0.6~px, and $k_1$, $k_2$, $k_3$ change in the
+third decimal place, from half the data. The calibration is a property of the optics, not of the detector.
+\item \textbf{Pinax and the in-air calibration stay far behind}: 1.36 and 9.1~px held-out. Pinax is better
+in the outer zone than before (5.1 against 9.5~px) because the default detector loses many near, frame-filling
+boards, where Pinax's edge errors are largest; it is still 5 times Brown-Conrady.
+\item \textbf{The axial shift is still not supported}: it changes nothing within noise. Its fitted spread is
+larger (0.9 against 0.5~mm at $37^\circ$ off-axis), consistent with a parameter that the smaller data set
+constrains even less.
+\end{itemize}
+
+\subsection{What the detector does change}
+\begin{itemize}
+\item \textbf{Stereo scale is less precise}: scale-bar RMS 1.6 against 1.3~mm for Brown-Conrady, with much
+wider ranges over splits (up to 4.9 against 2.6~mm), because there are fewer and less complete stereo pairs.
+The biases stay within noise of zero.
+\item \textbf{The far/near ratio drops} from 0.92 to 0.80: with the distant boards gone, the far band is made
+of fewer, closer boards. This is a change in which boards are left, not in the models; all the underwater
+models move together.
+\item \textbf{The WaterComparison error is smaller}: Brown-Conrady measures the 145~mm tags 0.3, 0.9, 2.1 and
+2.6~mm short at 50--200~cm (against 0.5, 1.5, 3.6 and 3.5~mm), and the default detector also finds two tags at
+250~cm instead of one. All the underwater models again agree with each other to about 0.2~mm. The target's
+error therefore follows the detector, not the camera model, which supports the earlier conclusion that it is a
+corner-localisation effect.
+\end{itemize}
+
+\subsection{Conclusion}
+The sweep did not tilt the comparison towards Brown-Conrady. With the untuned detector every conclusion of the
+main comparison holds: the in-air calibration and Pinax are clearly worse, and Brown-Conrady, Kannala-Brandt and
+the non-single-viewpoint extension are equivalent within noise, with near-identical Brown-Conrady parameters.
+What the tuned detector buys is data: twice the corners, the distant boards, and so tighter, more precise
+stereo results. It does not buy a different answer to which model is best.

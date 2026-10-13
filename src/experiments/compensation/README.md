@@ -52,6 +52,13 @@ src/venv/bin/python src/experiments/compensation/run_comparison.py --config src/
 ```
 `reproduce.py compensation` runs all three configs and builds the report.
 
+`config_full_opencv_default.json` is the detector check. It is the same comparison, but every detection uses the
+untuned `opencv_default` preset instead of the sweep-chosen `water_final`, because the sweep scored candidates
+by running `calibrateCamera`, which could favour Brown-Conrady. It has its own calibrations
+(`results/experiments/compensation/calibration_opencv_default/`), output (`.../full_comparison_opencv_default/`)
+and discussion (`report_discussion_opencv_default.tex`). Run it with
+`src/venv/bin/python src/experiments/reproduce.py compensation --config src/experiments/compensation/config_full_opencv_default.json`.
+
 Other configs:
 - `config_axial.json` is the earlier axial-only benchmark.
 - `single_viewpoint.py` + `config_single_viewpoint.json` is the stand-alone tag-size-vs-distance test of the `water_final` calibration.

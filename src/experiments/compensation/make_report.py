@@ -7,7 +7,8 @@ Use (from the project root, after run_comparison.py --config src/experiments/com
 
 Reads <output>/{summary.csv, comparisons.csv, run_info.json, params/*.json, target.json, covariance.json,
 fig_*.pdf}; writes <output>/report/methods_report.tex and builds methods_report.pdf with pdflatex (run twice
-for the references). The discussion section is hand-written in report_discussion.tex beside this script,
+for the references). The discussion section is hand-written: report_discussion.tex beside this script, or the
+file the config's report.discussion names,
 because what the numbers mean is a judgement, not a computation; it is dated and names the run it was
 written for, and the report flags it if the run is newer.
 """
@@ -403,10 +404,11 @@ def section_results(out_dir, summary, comparisons, info, params, target, cov, te
     return "\n".join(s)
 
 
-def section_discussion(info):
-    if not os.path.exists(DISCUSSION):
-        return r"\section{Discussion}" + "\nNo discussion written yet (report\\_discussion.tex).\n"
-    with open(DISCUSSION, encoding="utf-8") as fh:
+def section_discussion(info, path=DISCUSSION):
+    """The hand-written discussion: the config's report.discussion file, or report_discussion.tex here."""
+    if not os.path.exists(path):
+        return r"\section{Discussion}" + f"\nNo discussion written yet ({tex(os.path.basename(path))}).\n"
+    with open(path, encoding="utf-8") as fh:
         text = fh.read()
     written_for = next((ln.split(":", 1)[1].strip() for ln in text.splitlines() if ln.startswith("% written for run:")), None)
     warn = ""
@@ -447,7 +449,8 @@ def main(argv=None):
         section_overview(info, techs), MATHS,
         section_running(info, os.path.relpath(os.path.abspath(args.config), PROJECT_ROOT).replace("_", r"_")),
         section_results(out_dir, summary, comparisons, info, params, target, cov, techs),
-        section_discussion(info), r"\end{document}", ""])
+        section_discussion(info, project_path(cfg.get("report", {}).get("discussion", DISCUSSION))),
+        r"\end{document}", ""])
     report_dir = os.path.join(out_dir, "report")
     os.makedirs(report_dir, exist_ok=True)
     tex_path = os.path.join(report_dir, "methods_report.tex")
