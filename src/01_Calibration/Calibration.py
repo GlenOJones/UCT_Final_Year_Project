@@ -51,7 +51,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 # Board config used: kalibr_create_target_pdf --type apriltag --nx 10 --ny 7 --tsize 0.050 --tspace 0.3
 # TAG_SIZE should be MEASURED on the print with callipers, not taken from the PDF: printers scale,
 # and a 1% size error goes straight into the baseline and every reconstructed distance.
-TAG_SIZE = 35.36            # mm, edge of the outer black square as printed
+TAG_SIZE =  35.355339           # mm, edge of the outer black square as printed
 TAG_GAP = TAG_SIZE * 0.3    # mm, white gap between tags
 PITCH = TAG_SIZE + TAG_GAP  # mm, centre to centre
 N_TAGS = 70                 # 10 across x 7 up, ids 0..69

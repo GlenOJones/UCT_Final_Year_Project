@@ -24,6 +24,7 @@ texturing.
 Usage (setup: python3 -m venv src/venv && src/venv/bin/pip install -r src/requirements.txt):
     PY=src/venv/bin/python
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug all --step 20
+    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug all --start 120 --end 450
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug select --gray
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 select --gray --name C1
     $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 all --out data/Calibration/18_Sep/C1_frames
@@ -31,13 +32,15 @@ Usage (setup: python3 -m venv src/venv && src/venv/bin/pip install -r src/requir
 Viewer keys (select mode, right camera with matched left alongside):
     a/d or left/right   back/forward 1      s/w or down/up, A/D   back/forward 10
     space               mark/unmark         enter                 save pairs
+    r                   range: press at the first frame, move, press again at the last
+                        frame to mark every frame between (unmarks them if all were marked)
     q/esc               quit (press twice if there are unsaved changes)
 Select mode starts with nothing marked. Both modes refuse to start if the output directory
 already has frames or pairs.csv, unless --overwrite is given; saving then replaces them.
 
 Labels (select mode with --name PREFIX): marking a frame asks for a label, typed
 in the viewer (letters, digits, - _ .; enter confirms, esc cancels, empty uses
-the frame number). The pair is saved as left/PREFIX_Left_LABEL.png and
+the frame number; range marks use the frame number). The pair is saved as left/PREFIX_Left_LABEL.png and
 right/PREFIX_Right_LABEL.png, e.g. --name C1 and label 20mm give C1_Left_20mm.png.
 Without --name, files are numbered 0000.png, 0001.png, ...
 """
@@ -66,7 +69,7 @@ BACKSPACE_KEYS = (8, 65288, 0x1000003)
 LABEL_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.")
 WHITE, GREEN, RED, YELLOW = (255, 255, 255), (0, 255, 0), (0, 0, 255), (0, 255, 255)
 MAX_DT_MS = 10.0  # default max left/right gap: just above the ~8.75 ms offset of our free-running cameras
-HELP = "a/d: -1/+1   s/w: -10/+10   space: mark   enter: save   q: quit"
+HELP = "a/d: -1/+1   s/w: -10/+10   space: mark   r: mark range   enter: save   q: quit"
 
 
 def probe(video):
@@ -287,7 +290,7 @@ def run_select(rec, out, max_dt_ms, screen, gray, prefix=None):
     With a prefix, marking a frame first asks for its label (typed in the window).
     """
     n, win = len(rec["right"]["pts"]), "stereo frame select"
-    i, marks, saved, status, armed, typing = 0, {}, {}, "", False, None
+    i, marks, saved, status, armed, typing, range_start = 0, {}, {}, "", False, None, None
     cv2.namedWindow(win, cv2.WINDOW_AUTOSIZE | cv2.WINDOW_GUI_NORMAL)
     cv2.imshow(win, render(rec, i, marks, max_dt_ms, screen, status))
     while (k := cv2.waitKeyEx(100)) != -1 or window_open(win):
@@ -310,6 +313,22 @@ def run_select(rec, out, max_dt_ms, screen, gray, prefix=None):
                 typing += chr(k)
         elif step:
             i = int(np.clip(i + step, 0, n - 1))
+        elif k in (ord("r"), ord("R")) and range_start is None:
+            range_start = i
+        elif k in (ord("r"), ord("R")):
+            span = range(min(range_start, i), max(range_start, i) + 1)
+            range_start = None
+            if all(j in marks for j in span):
+                for j in span:
+                    del marks[j]
+                status = f"unmarked {span.start}..{span.stop - 1}"
+            else:
+                used = set(marks.values())
+                new = [j for j in span if j not in marks and not (prefix and f"{j:04d}" in used)]
+                marks.update({j: f"{j:04d}" if prefix else None for j in new})
+                status = f"marked {len(new)} frames in {span.start}..{span.stop - 1}"
+        elif k == 27 and range_start is not None:
+            range_start, status = None, "range cancelled"
         elif k == ord(" ") and i in marks:
             del marks[i]
         elif k == ord(" "):
@@ -329,6 +348,8 @@ def run_select(rec, out, max_dt_ms, screen, gray, prefix=None):
             if marks == saved or quit_armed:
                 break
             armed, status = True, "unsaved changes - press q again to quit"
+        if range_start is not None and not status:
+            status = f"range from {range_start}: move and press r at the last frame (esc cancels)"
         cv2.imshow(win, render(rec, i, marks, max_dt_ms, screen, status, typing))
     if window_open(win):
         cv2.destroyAllWindows()
@@ -341,6 +362,8 @@ def main():
     ap.add_argument("folder", type=Path, help="recording folder with left/right .mkv and _timestamps.csv")
     ap.add_argument("mode", choices=["all", "select"])
     ap.add_argument("--step", type=int, default=1, help="all mode: take every Nth right frame")
+    ap.add_argument("--start", type=int, default=0, help="all mode: first right frame to extract (default 0)")
+    ap.add_argument("--end", type=int, help="all mode: last right frame to extract, inclusive (default: last frame)")
     ap.add_argument("--max-dt-ms", type=float, default=MAX_DT_MS, help=f"max left/right time gap (default: {MAX_DT_MS:g})")
     ap.add_argument("--screen", type=lambda s: tuple(map(int, s.split("x"))), default=(1880, 1000),
                     help="viewer size limit WxH (default 1880x1000)")
@@ -362,7 +385,12 @@ def main():
     if args.mode == "select":
         run_select(rec, out, max_dt_ms, args.screen, args.gray, args.name)
     else:
-        write_pairs(rec, pair_up(rec, range(0, n, max(args.step, 1)), max_dt_ms), out, args.gray, args.name)
+        end = n - 1 if args.end is None else args.end
+        if not 0 <= args.start <= end < n:
+            sys.exit(f"need 0 <= --start <= --end <= {n - 1} (got start {args.start}, end {end})")
+        print(f"extracting right frames {args.start}..{end} (step {max(args.step, 1)})")
+        write_pairs(rec, pair_up(rec, range(args.start, end + 1, max(args.step, 1)), max_dt_ms),
+                    out, args.gray, args.name)
 
 
 if __name__ == "__main__":
