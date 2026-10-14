@@ -750,32 +750,10 @@ BC + axial, close-range training    & $-0.5$ (4) & $-1.6$ (6) & $-3.8$ (6) & $-3
 
 \subsubsection{Parameter deviation}
 
-
-% OUTPUTS:
-RMS error on test data (matching detections)
-Error on the other 4x4 aprilgrid tags
-2D Residual Vector (Quiver) Plot
-Error Magnitude vs. Distance from Optical Center
-Parameter Covariance \& Correlation Matrix Heatmap
-Any and all others you want to.test.
-
-DO these tests in a repeatable manner, with explanations on how to run the scripts
-When the tests are done, generate a pdf report explaining the maths, what was run, what the outputs were, what it means
-I'm not going to be able to say yes mid run, I'm going away so ask any questions you need now.
-
-
-% 
-% TBH I dont need to , standard two work well.
-These set of tests look at three different compensation techniques for underwater environments. The same 1DOF rail and adjustable calibration
-board dataset is used as the previous tests. Metrics used are the same, with the inclusion of a heatmap, showing what areas of the image has the 
-most calibration errors. The optimised OpenCV paramters are not used in this section. %CONSIDER SWAPPING THE OEPNCV Par sweep to after this section
-
 \subsubsection{Brown-Crady} - maybe move to theory 
 This is the baseline technique. This uses the standard OpenCV \texttt{cv2.calibrateCamera}. This is the standard value test that was used in (SECTION X)'s
 openCV parameter sweep. 
 
-
-I WANT TO MAKE SURE THE LABELS ARE CORRECT. GO LOOK AT ALL THE PHOTOS IN data/Calibration/FinalComparison/Air, AND PRINT A TABLE WITH MEASURED DISTANCE TO THE CALIBRATION BOARD VS NAME
 
 
 \subsubsection{Kannala-Brandt}
@@ -783,62 +761,32 @@ This is run via the OpenCV \texttt{cv2fisheye.calibrate} with \texttt{RECOMPUTE\
 %θd = θ(1 + k1θ2 + k2θ4 + k3θ6 + k4θ8)
 
 \subsubsection{Compensation testing}
-The four sets run calibration seperately, generate their camera intrinsic matrix and then are tested on the same held out against heldout test data
 % What set is used to generate each camera matrix
 % Where the matrices are all stored
 % How they are read in for the comparison
 % What is compared (which held out frames)
 % How it is outputted
 
-
-
-\subsection{Analysis}
-
-
 \subsection{Calibration and Compensation conclusion}
+% Conclude that the standard is the best option, within noise looking acrcoss left and right cameras.
+
+% Continue on with
+
+
+
+% Final mention of what images were used for actual calibration (with full coverage) - especcially of the bottom area
+
+% FullCalibration_water_final_merge_corners.json
+% Higher baseline error, likely due to movement
+% Slightly higher RMS error but still acceptable
 
 
 
 
-\section{Experiment 2: Reconstruction of known objects}
-\label{sec:ch5.exp2_knownobjects}
-%=====================================================================
-
-
-%=====================================================================
-\section{Experiment 3: Upward-facing reconstruction of a sea ice model}
-\label{sec:ch5.exp3_seaice}
-%=====================================================================
-
-\subsection{Colour choice}
-Blue to represent 
-
-% https://en.wikisource.org/wiki/Page:The_Botany_of_the_Antarctic_Voyage.djvu/539
-% https://archive.org/details/botanyofantarcti01hook
-
-"Pancake-Ice a pale ochreous colour."
-"uniformly stained brown"
-
-Ito et al. (2025), JGR: Oceans. https://doi.org/10.1029/2024JC021689
-"ice turned clearly ochre during a phytoplankton bloom"
-
-\url{https://doi.pangaea.de/10.1594/PANGAEA.870704?format=html#download}
-"Lighting conditions"
 
 
 
 
-\subsection{Material choice}
-
-\subsection{Manufacturing process}
-- DIY foam cutting, live cad model, Lidar scanned.
-\subsection{Physical properties}
--Holes (few mm to 1 mm wide to miimic drainage channels)
-- Overhangs wheree the lip hides surface from one camera- Step discontinuities
-- A resolution strip
-- Small ride or keel
 
 
-%*********************************************************************
-% END
-%*********************************************************************
+

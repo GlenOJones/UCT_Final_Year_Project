@@ -1,0 +1,292 @@
+%*********************************************************************
+%	CHAPTER 6 - 3D RECONSTRUCTION
+%*********************************************************************
+\chapter{3D Reconstruction}
+\label{ch:reconstruction}
+%---------------------------------------------------------------------
+% OVERVIEW - of section not just experiments
+% Plan is to do intro,  then explain the three different approaches, then what data is collected, then Results and analysis
+% TBH maybe bring the two sets of $3D# reconstruction together.
+% Intro section - DO last
+This set of experiments looks to test the accuracy of two different underwater reconstruction pipelines, scanning $3D$ printed shapes
+and comparing the generated mesh files their respective STL ground truths. While this set of tests are focussed on detection accuracy, the 
+detection coverage shows insight into how each approach performs% Explain which ones are being tested
+
+Three different approaches for 3D reconstruction using stereo cameras are tested for the pipeline. First a standard SGBM implemented through openCV.
+Second, COLMAP multi view stere reconstruction, annd astly two learnt models are compared (UnderwaterStereo and FoundationStudio).
+
+
+%========================================================
+\section{Seeing Double: Depth from a Stereo Camera}
+
+% Maths done in intro
+% Rough explain OpenCVSGBM, FoundationStereo, AquaStereo, COLMAP (different approach)
+% Show breif comparison with analysis - NOt sure what metric
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.5 \textwidth]{figs/Ch5/MattDamon.png}
+    \caption[short caption]{\textbf{POV me atm}}
+    \label{fig:ch5.testreconstrcut}
+\end{figure}
+
+
+
+\section{Strike a Pose: Camera Localisation from Frames}
+% This section is background theory about the exact approaches chosen. In Th
+(Ref BackGRound theory section) examines how depth can be generated from an image. Looking toward's 3D reconstruction however, requires multiple
+viewpoints of the same scene. To merge these frames together, we need to understand where the cameras are relative to the scene - we need pose
+estimation. This can be done in a number of ways, three of which are explained and tested in this section.
+
+\subsection{Using Tag poses}
+Apriltags are useful beyond creating an occlusion freidnly calibration board. Placing apriltags within a scene, Like in figure X,
+create easily identifianble locations, from which their 3D location measurements allow camea relative position to be calculated in following steps,
+implemented through \texttt{tag\_poses.py}:
+\begin{enumerate}   % TODO: MAKE INTO A SLIDING DIAGRAM
+    \item \textbf{Find tag corners (L \& R):} Detect each AprilTag and locate its four corners.
+    \item \textbf{Triangulate corners:} Convert each matched corner into a 3D point in the left camera frame.
+    \item \textbf{Fit the tag layout:} Combine overlapping observations from all frames into one map.
+    \item \textbf{Fit layout to frame:} For each frame, find the rotation and translation that line the map up with the measured corners.
+    \item \textbf{Pose per frame:} The Step 4 transform is \texttt{T\_cam\_board}, and its inverse gives the camera's pose in the board frame.
+\end{enumerate}
+% TODO - ADD VISUALISATION
+
+
+\subsection{ICP}
+ICP (Iterative Closest Point) as explained in intro, is a standard technique for this ? is it?
+It uses the shape of each frames $3D$ point cloud to estimate camera motion Each cloud is slid and rotated until it matches the previous one.
+The amount of movement between clouds is the amount the camera has moved. It works one frame at a time, looping back for the next frame.
+
+\begin{enumerate}
+    \item \textbf{Depth points (per frame):} Each frame's stereo depth map is turned into a 3D point cloud, one point per valid pixel. This is done using \texttt{depth\_frames.py}. The quality of the stereo depth map feeds into ICP.
+    \item \textbf{Thinning of the cloud:} Each cloud has too many points, so it is thinned to one point per 4\,mm cube. Each point gets a normal to estimate which direction a surface is facing.
+    \item \textbf{Guess the motion:} Assume the camera repeats its last motion as a starting guess.
+    \item \textbf{Align to last frame:} Pair each point with its nearest neighbour and shift the cloud to fit, targeting either the last frame or the last 10 frames.
+    \item \textbf{Pose per frame:} Add each frame's motion to the previous pose to get \texttt{T\_cam\_world}.
+\end{enumerate}
+
+
+
+
+%============
+\subsection{COLMAP}
+COLMAP uses texter to find patterns in the image and matches them across the frames. 
+\begin{enumerate}
+    \item \textbf{SIFT keypoints:} Find distinctive spots in every image.
+    \item \textbf{Match neighbours (L and R):} Match the keypoints between each image and those within $\pm 12$ frames.
+    \item \textbf{Add frames:} Start from a well-matched pair and add frames, finding each new frame's pose from the existing 3D points.
+    \item \textbf{Bundle adjustment:} Optimise the camera positions and 3D points together to minimise the reprojection error.
+    \item \textbf{Pose per frame:} Read out each frame's pose as \texttt{T\_cam\_world}.
+\end{enumerate}
+Becaue it reli
+
+
+% MAYBE DEPTH ESTIMATION APPLICATIONS FIRS SECTION
+% COVERAGE AND RUNTIME PER FRAME
+% THEN POSE ESTIMATION
+% THEN JOINING FRAMES - Voxel voting
+
+% TODO: ADD VISUALISATION
+
+
+
+Explain relavent metrics for testing.
+
+\subsection{OpenCV's SGBM Semi-Global Block Mapping}
+
+
+\subsection{COLMAP: }
+
+SO c
+\subsection{Learnt models: AquaStereo and FoundationStereo}
+% Explain overlap with learnt approaches, math, style, meaning and implications
+
+\subsubsection{FoundationStereo}
+
+\subsubsection{AquaStereo}
+
+
+
+\subsection{Testing Pipeline}
+% Diagram explaining what fits where
+
+
+\section{3D Reconstruction of known objects}
+% What data is being used
+% Intro - why
+% FOllow same methodolgy as A Comparison and Evaluation of Multi-View Stereo Reconstruction Algorithms" by Steven M. Seitz, Brian Curless, James Diebel, Daniel Scharstein, and Richard Szeliski (CVPR 2006)
+% range from classical local and global optimization algorithms to deep learning architectures.
+
+
+For these sets of test, attatchements were designed for the sliding rail used in (REF EXPERIMENT 1 CHAPTER) to rotate the ROV 90 degree's along its horizontal.
+This allows for it to slide past the 3D printed objects at set distances, stopping at $10cm$ intervals. The setup is shown in figure X below.
+
+\subsection{Ice Models and testing procedure}
+% Explain rationale behind using these 3D prints
+% Explain how and why pose is necessary here
+% Explain the test rig
+
+% OUt of water image, gopro underwater image side by side
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.air_water_comp}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.dist_comp}
+    \end{subfigure}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.air_vs_water}
+\end{figure}
+
+
+\texttt{tag\_poses.py} works out where the rig is in every frame by triangulating the AprilTags That puts every frame into one board frame.
+\textbf{Match} each pair frame, then \textbf{pair}, then \textbf{fuse} all the frames into one cloud. It is then \textbf{cleaned} and scored
+against the original CAD files.
+
+
+
+
+% Taxonomy of methods:
+
+
+% Scored on two metrics:
+% - Accuracy
+% Completeness (percentage of gound truth points that lie within 1.25mm of the reconstruction)
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/TestPipeline.png}
+    \caption[short caption]{\textbf{Temp Diagram explanation} Description.}
+    \label{fig:ch5.testreconstrcut}
+\end{figure}
+
+
+
+
+
+% NB PLANNED EXPERIMENTATIONN:
+\section{Generating Pose}
+Three methods are tested for determining pose, each using different image properties. Figure X below gives an overview of how each 
+method determines per frame pose. Note, fo r
+
+
+
+
+
+
+%First testing Pose generation. There are three options here:
+51. Using the APRILTAGS - Cheating for real world, great reference but only as accurate as calibration. Dont drift. Single tag frames are weaker
+%2. Using COLMAP's  - (prev result wihtin 0.3\% . Finds SIFT deatures on everything (including the tags..) Need to block out the tag areas from scan
+%(Apparently COLMAP allows this)
+%3. ICP - Comes from per frame 3D points, can use depth map from SGBM or foundation studio. Maybe trail all
+
+%Planned test:
+%Run all 3 Poses and compare position accuracy results (brief - very brief) - 2 pages max
+
+
+%I want to compare different methods for pose genration (if this is the right term?). Up until now, we have been using the aprilGrid tags
+%55to determine the position within the frame. For actual deployment, Im scanning ice and wont have these in the images. I want to also test:
+%COLMAP's POSE estimation and ICP using the depth map from SGBM and Foundationstudio (tested seperately). Lets do it on S30 frames.
+
+
+
+
+Pose provides initial guesses aswell as generating a reference board. The under-ice environment hazey environment can make it difficult for 
+algorithms to determine pose and matching position between frames. Within this section, three pose estimation techniques are compared. First 
+is based on the apriltag grids. (Explain how). The second, is based on ICP, the third uses's COLMAP's SfM. Each method uses different aspects of the
+image.
+
+
+\subsection{Tag poses}
+
+
+
+
+
+
+% ERROR METRICS:
+% Depth and 3D Accuracy , RMSE , AbsRel, RMSE and δ<1.25 i
+% Point-cloud metrics: Accuracy, completeness, F-score
+
+
+
+
+% COMPARE YUYV VS MJPEG FOR NUMBER OF FRAMES If you have time - 
+%=====================================================================
+\section{Experiment 3: Upward-facing reconstruction of a sea ice model}
+\label{sec:ch5.exp3_seaice}
+%=====================================================================
+
+\subsection{Colour choice}
+Blue to represent 
+
+% https://en.wikisource.org/wiki/Page:The_Botany_of_the_Antarctic_Voyage.djvu/539
+% https://archive.org/details/botanyofantarcti01hook
+
+"Pancake-Ice a pale ochreous colour."
+"uniformly stained brown"
+
+Ito et al. (2025), JGR: Oceans. https://doi.org/10.1029/2024JC021689
+"ice turned clearly ochre during a phytoplankton bloom"
+
+\url{https://doi.pangaea.de/10.1594/PANGAEA.870704?format=html#download}
+"Lighting conditions"
+
+
+
+
+
+\subsection{Material choice}
+
+\subsection{Manufacturing process}
+- DIY foam cutting, live cad model, Lidar scanned.
+\subsection{Physical properties}
+-Holes (few mm to 1 mm wide to miimic drainage channels)
+- Overhangs wheree the lip hides surface from one camera- Step discontinuities
+- A resolution strip
+- Small ride or keel
+
+
+%*********************************************************************
+% END
+%*********************************************************************
+he sweep is finished. COLMAP gives the most accurate overall trajectory, and ICP on FoundationStereo depth with a local map comes close behind. This is one 850 mm pass on s30, every 5th frame (344 frames), with the tags masked from the markerless methods and the tag poses as the reference.
+
+Estimator	Posed	Position error RMSE (ATE)	Worst error	Orientation RMSE	Motion error over 50 mm (RPE), median	Scale	Time
+COLMAP	344/344	2.43 mm	5.4 mm	0.49°	4.1%	0.999	12 min
+ICP, FoundationStereo, local map	340/344	2.89 mm	7.1 mm	0.38°	2.5%	0.990	1.5 min + 26 min depth
+ICP, FoundationStereo, local map, coloured	340/344	2.88 mm	7.2 mm	0.38°	2.5%	0.990	4 min + depth
+ICP, FoundationStereo, frame-to-frame	340/344	4.36 mm	14.4 mm	0.48°	4.0%	0.997	46 s + depth
+ICP, SGBM, local map	344/344	5.22 mm	17.9 mm	0.57°	3.3%	0.981	72 s + 18 min depth
+ICP, SGBM, local map, coloured	344/344	5.34 mm	19.0 mm	0.58°	3.3%	0.980	4.5 min + depth
+ICP, SGBM, frame-to-frame	338/344	10.10 mm	26.2 mm	1.26°	5.6%	1.041	33 s + depth
+What the numbers say:
+
+COLMAP has the smallest overall error and the right scale. The fixed 150 mm baseline gives it metric scale, and solving every frame together keeps drift down.
+ICP is better over short stretches but drifts. With FoundationStereo depth and a local map it has the best motion error (2.5% over 50 mm) and orientation. Its overall error is still slightly higher, and its scale is 1% off, because small errors add up along the pass.
+The depth source decides ICP. FoundationStereo roughly halves ICP's error compared with SGBM.
+A local map beats frame-to-frame by about 2×.
+Coloured ICP adds nothing: the grey levels change the result by less than 0.02 mm.
+The scene only weakly pins down sliding. The translation constraint is 0.05–0.13. That's where ICP's drift comes from, and it will be worse on flat ice.
+Things you should know before using this in the thesis:
+
+I fixed two ICP problems after seeing this data. The first version let one wild step run away; it now rejects steps over 20 mm or 5° instead of repeating them. Its motion guess also repeated rotation, which grew about 1.5× per frame on the flat scene; it now extrapolates translation only. Both are documented in \texttt{icp\_poses.py}. Because they were found on s30, the ICP rows are tuned on the same data they're scored on. A second recording would make the comparison fairer.
+The surroundings help both methods. Only about 14% of depth points lie on the board; the rest are bricks, the tray and sand. Ice will give both methods far less texture and shape, so treat these numbers as a best case.
+The reference has its own noise (layout fit residual about 0.3 mm), so differences below that mean nothing. 17 of the 344 frames had no tag found, so their tags may still be visible to the estimators.
+
+-------------------------------------------------
+
+
+%*********************************************************************
+% END
+%*********************************************************************
+

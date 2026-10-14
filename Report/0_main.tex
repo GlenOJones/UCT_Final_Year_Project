@@ -274,7 +274,7 @@
 % CLAUDE: fast preview -- only typeset chapter 3. Other chapters keep their
 % numbering/refs from their .aux files. Comment out for a full build.
 % 0_documentproperties must stay listed: it defines \titl, \auth, etc.
-\includeonly{0_documentproperties,3_ch3,5_ch5,9_appendix}
+\includeonly{0_documentproperties,3_ch3,5_ch5,5b_reconstruction,9_appendix}
 %---------------------------------------------------------------------
 %	DOCUMENT
 %---------------------------------------------------------------------
@@ -371,15 +371,19 @@
 %---------------------------------------------------------------------
 \include{5_ch5}
 %---------------------------------------------------------------------
-% Chapter 6: Results and observations
+% Chapter 6: 3D Reconstruction
+%---------------------------------------------------------------------
+\include{5b_reconstruction}
+%---------------------------------------------------------------------
+% Chapter 7: Results and observations
 %---------------------------------------------------------------------
 \include{6_results}
 %---------------------------------------------------------------------
-% Chapter 7: Discussion and analysis of pipeline performance
+% Chapter 8: Discussion and analysis of pipeline performance
 %---------------------------------------------------------------------
 \include{7_discussion}
 %---------------------------------------------------------------------
-% Chapter 8: Conclusions and recommendations
+% Chapter 9: Conclusions and recommendations
 %---------------------------------------------------------------------
 \include{8_conclusions}
 %   Marks the last page of the body. Everything after this (appendices,
