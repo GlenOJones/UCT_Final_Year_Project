@@ -52,10 +52,12 @@ MERGE_EVERY = 10          # frames between voxel merges, which keeps memory boun
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Fuse per-frame stereo depth into one point cloud.")
     paths.add_scan_arguments(ap)
-    ap.add_argument("--matcher", default="sgbm", choices=("sgbm", "raft", "aquastereo"),
+    ap.add_argument("--matcher", default="sgbm", choices=("sgbm", "raft", "aquastereo", "ffs", "foundationstereo"),
                     help="sgbm (OpenCV semi-global block matching); raft (RAFT-Stereo, learned; run with "
                          "envs/raft, see raft_matcher.py); aquastereo (AquaStereo, learned for underwater "
-                         "images; run with envs/aquastereo, see aquastereo_matcher.py)")
+                         "images; run with envs/aquastereo, see aquastereo_matcher.py); ffs (Fast-FoundationStereo, "
+                         "learned, zero-shot; run with envs/ffs, see ffs_matcher.py); foundationstereo (its larger, slower "
+                         "teacher; run with envs/ffs, see foundationstereo_matcher.py)")
     # The method name is the output folder, so a variant run (other block size, say) can be kept
     # beside the default as e.g. --method sgbm_block5.
     ap.add_argument("--method", default=None, help="output folder name (default: the matcher's name)")
@@ -84,6 +86,13 @@ def parse_args(argv=None):
                     help="which published RAFT-Stereo weights (default middlebury)")
     ap.add_argument("--aqua-model", default="vitb", choices=("vitb", "vits"),
                     help="AquaStereo checkpoint: DINOv2 ViT-B or the lighter ViT-S (default vitb)")
+    ap.add_argument("--ffs-model", default="23-36-37", choices=("23-36-37", "20-26-39", "20-30-48", "15-44-51"),
+                    help="Fast-FoundationStereo checkpoint, most accurate first (default 23-36-37)")
+    ap.add_argument("--ffs-max-disp", type=int, default=416,
+                    help="px at the network's input scale; the cost-volume span of Fast-FoundationStereo "
+                         "and FoundationStereo (default 416)")
+    ap.add_argument("--fs-model", default="vitl", choices=("vitl", "vits"),
+                    help="FoundationStereo checkpoint: ViT-L (23-51-11) or the lighter ViT-S (11-33-40) (default vitl)")
     # Settings shared by the learned matchers (--raft-* names kept as aliases for older commands).
     ap.add_argument("--net-iters", "--raft-iters", dest="net_iters", type=int, default=32,
                     help="update iterations of a learned matcher (default 32)")
@@ -328,6 +337,16 @@ def main():
         network = AquaStereoMatcher(model=args.aqua_model, iterations=args.net_iters, scale=args.net_scale,
                                     lr_tolerance=args.lr_tolerance)
         name = f"AquaStereo ({args.aqua_model})"
+    elif args.matcher == "ffs":
+        from ffs_matcher import FastFoundationStereoMatcher   # run with envs/ffs/bin/python
+        network = FastFoundationStereoMatcher(model=args.ffs_model, iterations=args.net_iters, scale=args.net_scale,
+                                              lr_tolerance=args.lr_tolerance, max_disp=args.ffs_max_disp)
+        name = f"Fast-FoundationStereo ({args.ffs_model})"
+    elif args.matcher == "foundationstereo":
+        from foundationstereo_matcher import FoundationStereoMatcher   # run with envs/ffs/bin/python
+        network = FoundationStereoMatcher(model=args.fs_model, iterations=args.net_iters, scale=args.net_scale,
+                                          lr_tolerance=args.lr_tolerance, max_disp=args.ffs_max_disp)
+        name = f"FoundationStereo ({args.fs_model})"
     if network is not None:
         print(f"matcher {name}: {args.net_iters} iterations, scale {args.net_scale}, "
               f"left-right check {args.lr_tolerance} px")
