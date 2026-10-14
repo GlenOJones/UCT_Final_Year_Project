@@ -1,0 +1,61 @@
+{
+ "_what": "Experiment 4: markerless pose estimation. Each estimator poses every frame_step'th frame pair of a recording WITHOUT the reference tags (they are masked out of every image it sees), and is scored against the tag poses (tag_poses.py) of the same frames. To test a new recording, add it to recordings.",
+ "out_dir": "results/experiments/pose_estimation",
+ "work_dir": "work/experiments/pose_estimation",
+ "python": {
+  "default": "src/venv/bin/python",
+  "ffs": "envs/ffs/bin/python"
+ },
+ "recordings": [
+  {
+   "name": "3DPrintFinal_s30",
+   "frames": "data/3DRecon/3DPrintFinal/30_frames_range",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "tag_size_mm": 50,
+   "depth_min_mm": 250,
+   "depth_max_mm": 600
+  }
+ ],
+ "frame_step": 5,
+ "reference": {
+  "_why": "tag_poses.py at its defaults; its poses are the ground truth.",
+  "max_reprojection_px": 0.8
+ },
+ "tag_masks": {
+  "_why": "Hide the tags (and their white surround) from every markerless estimator: ice has no tags.",
+  "enabled": true,
+  "scale": 1.6
+ },
+ "depth": {
+  "sgbm": {
+   "python": "default",
+   "argv": ["--matcher", "sgbm", "--block-size", "9", "--uniqueness", "5", "--voxel", "1"]
+  },
+  "foundationstereo": {
+   "_why": "The fs_s05 settings used for the 3DPrintFinal reconstructions.",
+   "python": "ffs",
+   "argv": ["--matcher", "foundationstereo", "--fs-model", "vitl", "--net-scale", "0.5", "--net-iters", "32",
+            "--lr-tolerance", "3", "--fs-max-disp", "416", "--voxel", "1"]
+  }
+ },
+ "estimators": [
+  {"name": "colmap", "kind": "colmap", "argv": ["--window", "12", "--gpu", "0"]},
+  {"name": "icp_sgbm_f2f_plane", "kind": "icp", "depth": "sgbm",
+   "argv": ["--target", "f2f", "--metric", "plane", "--scales", "4", "2", "--max-distance", "2.5", "--iterations", "30", "--map-frames", "10", "--min-fitness", "0.3", "--max-step", "20", "--max-rotation", "5"]},
+  {"name": "icp_sgbm_map_plane", "kind": "icp", "depth": "sgbm",
+   "argv": ["--target", "map", "--metric", "plane", "--scales", "4", "2", "--max-distance", "2.5", "--iterations", "30", "--map-frames", "10", "--min-fitness", "0.3", "--max-step", "20", "--max-rotation", "5"]},
+  {"name": "icp_sgbm_map_colored", "kind": "icp", "depth": "sgbm",
+   "argv": ["--target", "map", "--metric", "colored", "--scales", "4", "2", "--max-distance", "2.5", "--iterations", "30", "--map-frames", "10", "--min-fitness", "0.3", "--max-step", "20", "--max-rotation", "5"]},
+  {"name": "icp_fs_f2f_plane", "kind": "icp", "depth": "foundationstereo",
+   "argv": ["--target", "f2f", "--metric", "plane", "--scales", "4", "2", "--max-distance", "2.5", "--iterations", "30", "--map-frames", "10", "--min-fitness", "0.3", "--max-step", "20", "--max-rotation", "5"]},
+  {"name": "icp_fs_map_plane", "kind": "icp", "depth": "foundationstereo",
+   "argv": ["--target", "map", "--metric", "plane", "--scales", "4", "2", "--max-distance", "2.5", "--iterations", "30", "--map-frames", "10", "--min-fitness", "0.3", "--max-step", "20", "--max-rotation", "5"]},
+  {"name": "icp_fs_map_colored", "kind": "icp", "depth": "foundationstereo",
+   "argv": ["--target", "map", "--metric", "colored", "--scales", "4", "2", "--max-distance", "2.5", "--iterations", "30", "--map-frames", "10", "--min-fitness", "0.3", "--max-step", "20", "--max-rotation", "5"]}
+ ],
+ "evaluation": {
+  "_why": "Drift is measured over windows of this much reference travel.",
+  "rpe_distance_mm": 50,
+  "align_lever_mm": 400
+ }
+}

@@ -3,11 +3,10 @@
 A large stereo network trained for zero-shot use on a million photorealistic synthetic pairs. Its
 features come from a side-tuned Depth Anything V2 (DINOv2) monocular depth backbone plus a CNN, its
 cost volume is filtered with long-range attention, and disparity is refined iteratively like
-RAFT-Stereo. Fast-FoundationStereo (ffs_matcher.py) is its distilled, much faster student; this is
-the slower teacher, run when accuracy matters more than time.
+RAFT-Stereo.
 
-Needs PyTorch, timm, open3d, pandas and huggingface_hub; it shares envs/ffs with Fast-FoundationStereo
-(see external/README.md):
+Needs PyTorch, timm, open3d, pandas and huggingface_hub, kept out of the main venv in envs/ffs (the
+name is historical; see external/README.md):
 
     envs/ffs/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2 \
         --matcher foundationstereo --net-scale 0.5

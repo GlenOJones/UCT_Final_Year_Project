@@ -75,9 +75,16 @@ def parse_args(argv=None):
                          "from that frame (default 0.8)")
     ap.add_argument("--tag-size", type=float, default=TAG_SIZE,
                     help=f"mm, printed edge of the reference tags' outer black square (default {TAG_SIZE:g})")
+    # For frames outside data/<kind>/<session>/<scan>/frames (e.g. a range picked from a longer recording)
+    # and for experiments that keep their own results.
+    ap.add_argument("--frames-dir", default=None,
+                    help="frame pairs (left/, right/) to pose instead of the scan's frames/ folder")
+    ap.add_argument("--out", default=None,
+                    help="poses YAML to write instead of results/<session>/<scan>/poses/tag_poses.yaml")
     args = ap.parse_args(argv)
-    paths.require_scan(args, ap)
-    args.frames_dir = paths.frames_dir(args.session, args.scan)
+    if not (args.frames_dir and args.out and args.calibration):
+        paths.require_scan(args, ap)
+    args.frames_dir = args.frames_dir or paths.frames_dir(args.session, args.scan)
     args.calibration = args.calibration or paths.default_calibration(args.session)
     return args
 
@@ -268,8 +275,8 @@ def write_yaml(path, args, rig, reference, layout, frames):
     fs.write("created", datetime.datetime.now().isoformat(timespec="seconds"))
     fs.write("script", "src/03_Reconstruction/tag_poses.py")
     fs.write("opencv_version", cv2.__version__)
-    fs.write("session", args.session)
-    fs.write("scan", args.scan)
+    fs.write("session", args.session or "")
+    fs.write("scan", args.scan or "")
     fs.write("frames_dir", rel(args.frames_dir))
     fs.write("calibration", rel(args.calibration))
     fs.write("baseline_mm", rig.baseline_mm)
@@ -313,9 +320,9 @@ def write_yaml(path, args, rig, reference, layout, frames):
     fs.release()
 
 
-def main():
+def main(argv=None):
     global TAG_SIZE, TAG_MODEL
-    args = parse_args()
+    args = parse_args(argv)
     TAG_MODEL = TAG_MODEL * args.tag_size / TAG_SIZE
     TAG_SIZE = args.tag_size
     rig = load_rig(args.calibration)
@@ -345,7 +352,7 @@ def main():
                        "reprojection_px": float(np.mean(list(tag_errors.values()))) if tag_errors else None})
     report(layout, frames, observations)
 
-    out_path = paths.poses_path(args.session, args.scan)
+    out_path = args.out or paths.poses_path(args.session, args.scan)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     write_yaml(out_path, args, rig, reference, layout, frames)
     print(f"\nsaved poses to {rel(out_path)}")

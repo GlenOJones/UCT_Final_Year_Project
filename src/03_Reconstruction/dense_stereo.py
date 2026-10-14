@@ -49,15 +49,37 @@ DISP12_MAX_DIFF = 1       # px, left-right consistency check
 MERGE_EVERY = 10          # frames between voxel merges, which keeps memory bounded
 
 
+def add_matcher_arguments(ap):
+    """The matcher and its settings: shared with depth_frames.py, which runs the same matchers without poses."""
+    ap.add_argument("--matcher", default="sgbm", choices=("sgbm", "raft", "aquastereo", "foundationstereo"),
+                    help="sgbm (OpenCV semi-global block matching); raft (RAFT-Stereo, learned; run with "
+                         "envs/raft, see raft_matcher.py); aquastereo (AquaStereo, learned for underwater "
+                         "images; run with envs/aquastereo, see aquastereo_matcher.py); foundationstereo "
+                         "(FoundationStereo, learned, zero-shot; run with envs/ffs, see foundationstereo_matcher.py)")
+    ap.add_argument("--block-size", type=int, default=9, help="SGBM window, px, odd (default 9)")
+    ap.add_argument("--uniqueness", type=int, default=5,
+                    help="SGBM uniqueness ratio, %%: best match must beat the next by this (default 5)")
+    ap.add_argument("--raft-model", default="middlebury", choices=("middlebury", "eth3d", "rvc"),
+                    help="which published RAFT-Stereo weights (default middlebury)")
+    ap.add_argument("--aqua-model", default="vitb", choices=("vitb", "vits"),
+                    help="AquaStereo checkpoint: DINOv2 ViT-B or the lighter ViT-S (default vitb)")
+    ap.add_argument("--fs-max-disp", type=int, default=416,
+                    help="px at the network's input scale; FoundationStereo's cost-volume span (default 416)")
+    ap.add_argument("--fs-model", default="vitl", choices=("vitl", "vits"),
+                    help="FoundationStereo checkpoint: ViT-L (23-51-11) or the lighter ViT-S (11-33-40) (default vitl)")
+    # Settings shared by the learned matchers (--raft-* names kept as aliases for older commands).
+    ap.add_argument("--net-iters", "--raft-iters", dest="net_iters", type=int, default=32,
+                    help="update iterations of a learned matcher (default 32)")
+    ap.add_argument("--net-scale", "--raft-scale", dest="net_scale", type=float, default=1.0,
+                    help="image scale fed to a learned matcher, e.g. 0.5 for speed or memory (default 1)")
+    ap.add_argument("--lr-tolerance", "--raft-lr-tolerance", dest="lr_tolerance", type=float, default=1.0,
+                    help="px; left-right consistency check for a learned matcher, 0 to switch it off (default 1)")
+
+
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Fuse per-frame stereo depth into one point cloud.")
     paths.add_scan_arguments(ap)
-    ap.add_argument("--matcher", default="sgbm", choices=("sgbm", "raft", "aquastereo", "ffs", "foundationstereo"),
-                    help="sgbm (OpenCV semi-global block matching); raft (RAFT-Stereo, learned; run with "
-                         "envs/raft, see raft_matcher.py); aquastereo (AquaStereo, learned for underwater "
-                         "images; run with envs/aquastereo, see aquastereo_matcher.py); ffs (Fast-FoundationStereo, "
-                         "learned, zero-shot; run with envs/ffs, see ffs_matcher.py); foundationstereo (its larger, slower "
-                         "teacher; run with envs/ffs, see foundationstereo_matcher.py)")
+    add_matcher_arguments(ap)
     # The method name is the output folder, so a variant run (other block size, say) can be kept
     # beside the default as e.g. --method sgbm_block5.
     ap.add_argument("--method", default=None, help="output folder name (default: the matcher's name)")
@@ -79,27 +101,6 @@ def parse_args(argv=None):
                     help="mm kept around the tags in x and y (default 60)")
     ap.add_argument("--z-min", type=float, default=-15.0, help="mm, behind the board plane (default -15)")
     ap.add_argument("--z-max", type=float, default=150.0, help="mm, in front of the board (default 150)")
-    ap.add_argument("--block-size", type=int, default=9, help="SGBM window, px, odd (default 9)")
-    ap.add_argument("--uniqueness", type=int, default=5,
-                    help="SGBM uniqueness ratio, %%: best match must beat the next by this (default 5)")
-    ap.add_argument("--raft-model", default="middlebury", choices=("middlebury", "eth3d", "rvc"),
-                    help="which published RAFT-Stereo weights (default middlebury)")
-    ap.add_argument("--aqua-model", default="vitb", choices=("vitb", "vits"),
-                    help="AquaStereo checkpoint: DINOv2 ViT-B or the lighter ViT-S (default vitb)")
-    ap.add_argument("--ffs-model", default="23-36-37", choices=("23-36-37", "20-26-39", "20-30-48", "15-44-51"),
-                    help="Fast-FoundationStereo checkpoint, most accurate first (default 23-36-37)")
-    ap.add_argument("--ffs-max-disp", type=int, default=416,
-                    help="px at the network's input scale; the cost-volume span of Fast-FoundationStereo "
-                         "and FoundationStereo (default 416)")
-    ap.add_argument("--fs-model", default="vitl", choices=("vitl", "vits"),
-                    help="FoundationStereo checkpoint: ViT-L (23-51-11) or the lighter ViT-S (11-33-40) (default vitl)")
-    # Settings shared by the learned matchers (--raft-* names kept as aliases for older commands).
-    ap.add_argument("--net-iters", "--raft-iters", dest="net_iters", type=int, default=32,
-                    help="update iterations of a learned matcher (default 32)")
-    ap.add_argument("--net-scale", "--raft-scale", dest="net_scale", type=float, default=1.0,
-                    help="image scale fed to a learned matcher, e.g. 0.5 for speed or memory (default 1)")
-    ap.add_argument("--lr-tolerance", "--raft-lr-tolerance", dest="lr_tolerance", type=float, default=1.0,
-                    help="px; left-right consistency check for a learned matcher, 0 to switch it off (default 1)")
     ap.add_argument("--save-frames", action="store_true",
                     help="also keep each frame's points (1 mm voxels, board frame) and pose in frames/, "
                          "for refine_frames.py to re-align and re-fuse without re-running the matcher")
@@ -227,6 +228,32 @@ def frame_points(rectifier, left_path, right_path, T_cam_board, low, high, args,
     return xyz[inside], left[valid][inside], left, disparity, (minimum, count)
 
 
+def make_network(args):
+    """The learned matcher args.matcher names (None for SGBM), loaded once; prints what will match."""
+    network = None
+    if args.matcher == "raft":
+        from raft_matcher import RaftMatcher   # needs PyTorch: run with envs/raft/bin/python
+        network = RaftMatcher(model=args.raft_model, iterations=args.net_iters, scale=args.net_scale,
+                              lr_tolerance=args.lr_tolerance)
+        name = f"RAFT-Stereo ({args.raft_model})"
+    elif args.matcher == "aquastereo":
+        from aquastereo_matcher import AquaStereoMatcher   # run with envs/aquastereo/bin/python
+        network = AquaStereoMatcher(model=args.aqua_model, iterations=args.net_iters, scale=args.net_scale,
+                                    lr_tolerance=args.lr_tolerance)
+        name = f"AquaStereo ({args.aqua_model})"
+    elif args.matcher == "foundationstereo":
+        from foundationstereo_matcher import FoundationStereoMatcher   # run with envs/ffs/bin/python
+        network = FoundationStereoMatcher(model=args.fs_model, iterations=args.net_iters, scale=args.net_scale,
+                                          lr_tolerance=args.lr_tolerance, max_disp=args.fs_max_disp)
+        name = f"FoundationStereo ({args.fs_model})"
+    if network is not None:
+        print(f"matcher {name}: {args.net_iters} iterations, scale {args.net_scale}, "
+              f"left-right check {args.lr_tolerance} px")
+    else:
+        print(f"matcher SGBM: block {args.block_size}, uniqueness {args.uniqueness}")
+    return network
+
+
 # ====== FUSION ======
 class VoxelGrid:
     """Running per-voxel sums: position, grey, point count and the number of frames that hit it."""
@@ -326,32 +353,7 @@ def main():
     print(f"{len(used)} of {len(frames)} posed frames from {rel(frames_dir)}")
     print(f"box (board frame, mm): x {low[0]:.0f}..{high[0]:.0f}, y {low[1]:.0f}..{high[1]:.0f}, "
           f"z {low[2]:.0f}..{high[2]:.0f}; voxel {args.voxel} mm")
-    network = None
-    if args.matcher == "raft":
-        from raft_matcher import RaftMatcher   # needs PyTorch: run with envs/raft/bin/python
-        network = RaftMatcher(model=args.raft_model, iterations=args.net_iters, scale=args.net_scale,
-                              lr_tolerance=args.lr_tolerance)
-        name = f"RAFT-Stereo ({args.raft_model})"
-    elif args.matcher == "aquastereo":
-        from aquastereo_matcher import AquaStereoMatcher   # run with envs/aquastereo/bin/python
-        network = AquaStereoMatcher(model=args.aqua_model, iterations=args.net_iters, scale=args.net_scale,
-                                    lr_tolerance=args.lr_tolerance)
-        name = f"AquaStereo ({args.aqua_model})"
-    elif args.matcher == "ffs":
-        from ffs_matcher import FastFoundationStereoMatcher   # run with envs/ffs/bin/python
-        network = FastFoundationStereoMatcher(model=args.ffs_model, iterations=args.net_iters, scale=args.net_scale,
-                                              lr_tolerance=args.lr_tolerance, max_disp=args.ffs_max_disp)
-        name = f"Fast-FoundationStereo ({args.ffs_model})"
-    elif args.matcher == "foundationstereo":
-        from foundationstereo_matcher import FoundationStereoMatcher   # run with envs/ffs/bin/python
-        network = FoundationStereoMatcher(model=args.fs_model, iterations=args.net_iters, scale=args.net_scale,
-                                          lr_tolerance=args.lr_tolerance, max_disp=args.ffs_max_disp)
-        name = f"FoundationStereo ({args.fs_model})"
-    if network is not None:
-        print(f"matcher {name}: {args.net_iters} iterations, scale {args.net_scale}, "
-              f"left-right check {args.lr_tolerance} px")
-    else:
-        print(f"matcher SGBM: block {args.block_size}, uniqueness {args.uniqueness}")
+    network = make_network(args)
 
     grid = VoxelGrid(args.voxel)
     start = time.time()

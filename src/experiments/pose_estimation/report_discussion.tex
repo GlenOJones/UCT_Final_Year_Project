@@ -1,0 +1,69 @@
+% Hand-written discussion for make_report.py. It interprets the numbers of one evaluation run; make_report.py
+% flags it when the run it is built with is a different one.
+% written for run: 2026-10-14T21:27:23
+\section{Discussion}
+
+\subsection{COLMAP gives the most accurate trajectory overall}
+COLMAP posed all 344 frames (all 688 images in one model) with a position error of 2.43~mm RMS and 5.4~mm at
+worst over 848~mm of travel, an orientation error of 0.49$^\circ$, and a best-fit scale of 0.999. It solves every
+frame together and holds the calibrated 150~mm baseline fixed, so its error is spread evenly along the pass rather
+than accumulating (Figure~\ref{fig:fig_components}), and its scale is metric without any tag. It needs no depth,
+which makes it the cheapest method here once the depth needed by ICP is counted (12 minutes against 19--28).
+
+\subsection{ICP is better locally but drifts}
+ICP on FoundationStereo depth with a local map comes close: 2.89~mm RMS, 7.1~mm worst. Locally it is the better of
+the two. Its motion over 50~mm is wrong by 2.5\% (median) against COLMAP's 4.1\%, and its orientation error is
+lower (0.38$^\circ$). Over the whole pass the small errors add up: its scale is 1\% short (0.990), which shows as
+the steady slope of the along-track error in Figure~\ref{fig:fig_components}. The whole difference between the two
+methods is in that slope: one is a chain, the other a joint solution. A pass several times longer would separate
+them further, unless ICP is anchored by something like COLMAP or loop closure.
+
+\subsection{The depth decides ICP}
+On SGBM depth every ICP variant is about twice as wrong as on FoundationStereo depth (5.2 against 2.9~mm with the
+local map; 10.1 against 4.4~mm frame-to-frame). SGBM keeps about half as many points per frame and leaves the
+dark, weakly textured prints and much of the tray empty, which are exactly the surfaces that face along the track
+and hold ICP against sliding. Its median translation constraint is 0.05 against 0.13 for FoundationStereo.
+
+\subsection{A local map halves ICP's error; colour adds nothing}
+Registering onto the last ten frames instead of only the previous one halves the error with either depth source.
+A larger overlap gives more surface facing along the track, and one noisy frame pulls the chain less. Coloured ICP
+changed nothing: within 0.02~mm with FoundationStereo and 0.1~mm with SGBM, at three to four times the run time.
+At Open3D's default weighting (geometry 0.968, colour 0.032), and on a grey image whose texture is mostly dark
+prints on a white board, the colour term barely moves the solution.
+
+\subsection{What holds the methods in place, and what that means for ice}
+Figures~\ref{fig:det_a} and~\ref{fig:det_b} show where the grip comes from. COLMAP's features sit on edges and
+speckle: the brick texture, the tray rim and handle, the outlines of the objects, the seams between the board
+panels and specks of debris on the white board. The flat white board and the inside of the dark prints give
+almost nothing. Where the bricks are in view they are the single largest source (only 38\% of the triangulated
+features of frame 0610 lie on the board). ICP's grip against the slide comes from the pyramid faces, the object
+walls and the curved tray rim. The board itself, flat and parallel to the motion, only holds ICP in depth.
+
+Both methods therefore lean on structure that a bare ice surface may not have. These results are a best case
+for both. The translation constraint is the number to watch on ice: here it is 0.05--0.13, already low. A
+smooth, flat sheet of ice would push it towards zero, and point-to-plane ICP would then drift along the track
+with nothing to stop it. Ice with ridges, cracks, frost texture or embedded particles could serve both methods,
+and only footage of the real surface can say which.
+
+\subsection{Limitations}
+\begin{itemize}
+\item One recording, one pass, one distance (s30), every 5th frame. The ICP fixes of Section~\ref{sec:dev} were
+made on this recording.
+\item The tag poses carry their own noise (0.28~mm median layout residual), and 17 of the 344 frames had no tag
+found, so a tag may stay visible in them.
+\item Only the poses are scored. Whether a 2--3~mm pose error matters depends on what it does to the fused
+surface, which this experiment does not yet measure.
+\end{itemize}
+
+\subsection{Next steps}
+\begin{enumerate}
+\item Fuse the per-frame depth with each pose set and score the pyramid against CAD, to see whether the 2.4 against
+2.9~mm difference in pose shows in the surface.
+\item Repeat on a second recording (another distance, e.g.\ s40) with the settings frozen, to give the ICP rows an
+untuned test.
+\item Hide everything except the board (a mask of the surroundings) to see how each method fares with only what
+ice-like surfaces offer.
+\item Run every estimator on a clip over real ice: no reference, but registration rate and translation
+constraint still show whether they hold.
+\item Try COLMAP poses refined by ICP, which combines COLMAP's global consistency with ICP's local accuracy.
+\end{enumerate}

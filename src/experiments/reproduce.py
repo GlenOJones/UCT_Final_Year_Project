@@ -4,6 +4,7 @@
     src/venv/bin/python src/experiments/reproduce.py detector_sweep    # experiment 2: OpenCV parameter sweep
     src/venv/bin/python src/experiments/reproduce.py compensation      # experiment 3: underwater calibration methods
                                                                        # (+ the methods report PDF)
+    src/venv/bin/python src/experiments/reproduce.py pose_estimation   # experiment 4: markerless pose estimation
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -24,7 +25,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _experiment in ("channels", "detector_sweep", "compensation"):
+for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation"):
     sys.path.insert(0, os.path.join(HERE, _experiment))
 sys.path.insert(0, HERE)
 import common  # noqa: E402
@@ -142,7 +143,23 @@ def compensation(config, skip_existing):
                           configs, inputs, presets, runs)
 
 
-EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation}
+# ====== EXPERIMENT 4: MARKERLESS POSE ESTIMATION ======
+def pose_estimation(config, skip_existing):
+    """Reference tag poses, tag masks, per-frame depth and every markerless estimator (run_poses.py), then their
+    scores against the tag poses (evaluate_poses.py)."""
+    import evaluate_poses
+    import run_poses
+
+    config = config or os.path.join(HERE, "pose_estimation", "config.json")
+    cfg = common.load_config(config)
+    runs = run_poses.main(["--config", config] + (["--skip-existing"] if skip_existing else []))
+    evaluate_poses.main(["--config", config])
+    common.write_manifest(common.project_path(cfg["out_dir"]), "pose_estimation", [config],
+                          [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
+
+
+EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation,
+               "pose_estimation": pose_estimation}
 
 
 def main(argv=None):

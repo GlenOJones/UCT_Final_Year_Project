@@ -3,7 +3,7 @@
 Every result in the thesis comes from one command:
 
 ```
-src/venv/bin/python src/experiments/reproduce.py <experiment>      # channels | detector_sweep | compensation | all
+src/venv/bin/python src/experiments/reproduce.py <experiment>      # channels | detector_sweep | compensation | pose_estimation | all
 ```
 
 It starts from the raw frames in `data/`, makes the experiment's pipeline runs, runs its analyses and draws its
@@ -34,6 +34,7 @@ rejection ran (`calibration_board/outlier_rejection`).
 | 1 | `channels` | Which image channel should the detector see? Gray, Y, R, G, B and merged, in air and water, with OpenCV's defaults | `channels/config.json` | `channels/` | ch. 5: `fig_recall_mean_by_medium`, `table_channel_summary`, `fig_channel_overlap_L3`, `fig_air_vs_water_C1_right_60`, `air_vs_water_crops/fig_single_tag_close_far` |
 | 2 | `detector_sweep` | Which `DetectorParameters` find the most tags without misreading them, and do they calibrate better? | `detector_sweep/config.json` | `detector_sweep/` (`sweep/`, `calibration/`, `presets/summary.md`, `accuracy/`) | not yet |
 | 3 | `compensation` | Which calibration model suits the flat-port underwater cameras: Brown-Conrady, Kannala-Brandt, close-range training, or Pinax refraction from an in-air calibration? | `compensation/config.json`, `compensation/config_pinax_sensitivity.json` | `compensation/` | `compensation/methods_draft.md` |
+| 4 | `pose_estimation` | Without reference tags (ice), how well do COLMAP SfM and ICP on SGBM or FoundationStereo depth recover the rig pose of every frame? Scored against the tag poses | `pose_estimation/config.json` | `pose_estimation/<recording>/` (`poses/`, `evaluation/`) | not yet |
 
 ### 1. channels
 Steps: one `Calibration.py` run per medium and channel (`run_study.py`) → detection, triangulated tag size and
@@ -53,6 +54,12 @@ hand; its `_why` in `detector_presets.json` gives the evidence.
 Steps: the `Calibration.py` runs listed under `pipeline_runs` in each config → `run_comparison.py` for each
 config (28 leave-two-recordings-out splits). See `compensation/README.md`. Unit tests:
 `src/venv/bin/python -m unittest discover -s src/experiments/compensation/tests -v`.
+
+### 4. pose_estimation
+Steps: reference tag poses (`tag_poses.py`) → tag masks (`make_tag_masks.py`) → per-frame camera-frame depth for
+each depth source (`depth_frames.py`) → every estimator (`colmap_poses.py`, `icp_poses.py`) → scores against the
+tag poses (`evaluate_poses.py`). Steps run as subprocesses with the interpreter each needs (FoundationStereo:
+`envs/ffs`). See `pose_estimation/README.md`.
 
 ## Adding an experiment
 

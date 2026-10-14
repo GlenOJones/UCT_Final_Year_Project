@@ -186,8 +186,9 @@ def full_opencv_params(rig, camera):
     return [K[0, 0], K[1, 1], K[0, 2], K[1, 2], k1, k2, p1, p2, k3, 0.0, 0.0, 0.0]
 
 
-def stage_features(ws, rig, names, gpu):
-    """SIFT on each camera's images separately, so each camera is created with its own intrinsics."""
+def stage_features(ws, rig, names, gpu, mask_path=None):
+    """SIFT on each camera's images separately, so each camera is created with its own intrinsics.
+    mask_path: optional folder of COLMAP masks (<mask_path>/<camera>/<name>.png, 0 = no features there)."""
     database = os.path.join(ws, "database.db")
     if os.path.exists(database):
         os.remove(database)
@@ -202,6 +203,7 @@ def stage_features(ws, rig, names, gpu):
             "ImageReader.camera_model": "FULL_OPENCV",
             "ImageReader.single_camera": 1,
             "ImageReader.camera_params": ",".join(f"{v:.10g}" for v in full_opencv_params(rig, camera)),
+            **({"ImageReader.mask_path": mask_path} if mask_path else {}),
         }, optional={"FeatureExtraction.use_gpu": 0 if gpu == "-1" else 1,
                      "FeatureExtraction.gpu_index": gpu,
                      # The board is low-texture, so take every feature there is (default 8192).
