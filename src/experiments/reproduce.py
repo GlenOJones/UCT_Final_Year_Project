@@ -5,6 +5,7 @@
     src/venv/bin/python src/experiments/reproduce.py compensation      # experiment 3: underwater calibration methods
                                                                        # (+ the methods report PDF)
     src/venv/bin/python src/experiments/reproduce.py pose_estimation   # experiment 4: markerless pose estimation
+    src/venv/bin/python src/experiments/reproduce.py depth_matchers    # experiment 5: depth map generation
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -25,7 +26,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation"):
+for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation", "depth_matchers"):
     sys.path.insert(0, os.path.join(HERE, _experiment))
 sys.path.insert(0, HERE)
 import common  # noqa: E402
@@ -158,8 +159,22 @@ def pose_estimation(config, skip_existing):
                           [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
 
 
+# ====== EXPERIMENT 5: DEPTH MAP GENERATION ======
+def depth_matchers(config, skip_existing):
+    """depth_frames.py for every recording and matcher (run_depth.py), then the table and figures (analyse_depth.py)."""
+    import analyse_depth
+    import run_depth
+
+    config = config or os.path.join(HERE, "depth_matchers", "config.json")
+    cfg = common.load_config(config)
+    runs = run_depth.main(["--config", config] + (["--skip-existing"] if skip_existing else []))
+    analyse_depth.main(["--config", config])
+    common.write_manifest(common.project_path(cfg["out_dir"]), "depth_matchers", [config],
+                          [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
+
+
 EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation,
-               "pose_estimation": pose_estimation}
+               "pose_estimation": pose_estimation, "depth_matchers": depth_matchers}
 
 
 def main(argv=None):

@@ -1,0 +1,84 @@
+{
+ "_what": "Experiment 5: depth map generation. Each matcher makes a depth map of every frame_step'th frame pair of each recording with depth_frames.py (no poses, only a camera depth range), and is scored on points per frame and seconds per frame. To test a new recording or matcher, add it below.",
+ "out_dir": "results/experiments/depth_matchers",
+ "work_dir": "work/experiments/depth_matchers",
+ "python": {
+  "default": "src/venv/bin/python",
+  "ffs": "envs/ffs/bin/python",
+  "aquastereo": "envs/aquastereo/bin/python"
+ },
+ "recordings": [
+  {
+   "name": "3DPrintFinal_s30",
+   "frames": "data/3DRecon/3DPrintFinal/30_frames_range",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Board at about 300-550 mm; the same range as the pose experiment.",
+   "depth_min_mm": 250,
+   "depth_max_mm": 600,
+   "_frame_step": "1716 frames: every 25th (69 frames) keeps it the same size as the ice recordings' runs.",
+   "frame_step": 25
+  },
+  {
+   "name": "ice_pyramid_sun_py2_pass1",
+   "frames": "data/3DRecon/Ice/Pyramid/Sun/py2_frames_pass1",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Backlit, tags barely detected, so the board distance is not measured; same range as the shade pass.",
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400
+  },
+  {
+   "name": "ice_pyramid_shade_pyr1_pass4",
+   "frames": "data/3DRecon/Ice/Pyramid/Shade/pyr1_frames_pass4_730mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Tag 2 measured at 674-839 mm (mean 735); the ice stands in front of the board.",
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400
+  }
+ ],
+ "_frame_step": "Default for recordings that do not set their own.",
+ "frame_step": 5,
+ "matchers": {
+  "sgbm": {
+   "_why": "dense_stereo.py's defaults: MODE_HH, block 9, uniqueness 5.",
+   "python": "default",
+   "argv": ["--matcher", "sgbm", "--block-size", "9", "--uniqueness", "5", "--voxel", "1"]
+  },
+  "aquastereo": {
+   "_why": "Same scale, iterations and left-right check as FoundationStereo, so the learned matchers meet on equal terms.",
+   "python": "aquastereo",
+   "argv": ["--matcher", "aquastereo", "--aqua-model", "vitb", "--net-scale", "0.5", "--net-iters", "32",
+            "--lr-tolerance", "3", "--voxel", "1"]
+  },
+  "foundationstereo": {
+   "_why": "The fs_s05 settings used for the 3DPrintFinal reconstructions.",
+   "python": "ffs",
+   "argv": ["--matcher", "foundationstereo", "--fs-model", "vitl", "--net-scale", "0.5", "--net-iters", "32",
+            "--lr-tolerance", "3", "--fs-max-disp", "416", "--voxel", "1"]
+  }
+ },
+ "figures": {
+  "_why": "Depth images of every frame; and for one frame per recording (frame_index into the frames used), the left-right correspondences of a grid of pixels, the same pixels for every matcher.",
+  "frame_index": "middle",
+  "grid": [12, 9],
+  "image_scale": 0.5,
+  "combined": {
+   "_why": "The report figure: the three recordings side by side on one depth scale (250-1400 mm, the union of their ranges).",
+   "name": "depth_compare_all",
+   "recordings": ["3DPrintFinal_s30", "ice_pyramid_shade_pyr1_pass4", "ice_pyramid_sun_py2_pass1"],
+   "titles": {"3DPrintFinal_s30": "S30 (lab)", "ice_pyramid_shade_pyr1_pass4": "Ice, shade",
+              "ice_pyramid_sun_py2_pass1": "Ice, sun"}
+  },
+  "crops": {
+   "_why": "Close-ups of the objects in the figure frames (box: x0, y0, x1, y1 in the full-size rectified left image, square).",
+   "name": "depth_crops",
+   "_common_scale": "true: one depth scale and key for all rows; false: a scale per row, fitted to its crop.",
+   "common_scale": true,
+   "tile_height": 420,
+   "rows": [
+    {"recording": "3DPrintFinal_s30", "box": [825, 540, 1165, 880], "title": "S30: 2x2 pyramids"},
+    {"recording": "ice_pyramid_shade_pyr1_pass4", "box": [665, 0, 1145, 480], "title": "Ice, shade"},
+    {"recording": "ice_pyramid_sun_py2_pass1", "box": [795, 0, 1355, 560], "title": "Ice, sun"}
+   ]
+  }
+ }
+}

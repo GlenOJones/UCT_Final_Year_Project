@@ -37,14 +37,14 @@ import project_paths as paths  # noqa: E402
 # ====== SGBM ======
 # Matching is on grey: the frames are the single-channel luma (Y) plane that extract_stereo_frames.py
 # --gray saves; the scene is achromatic and the MJPG chroma is half resolution, so colour would add
-# little. Block size and uniqueness are arguments. The rest, measured on Sep24/mjpg_pyr2 frame 0110 (board plain wood, pyramid matte black):
+# little. Every SGBM setting is an argument (add_matcher_arguments); the defaults were set on Sep24/mjpg_pyr2
+# frame 0110 (board plain wood, pyramid matte black):
 #   MODE_HH (8 paths) instead of 3WAY removes the horizontal streaking on the low-texture board
 #   block 9 / uniqueness 5 finds ~1.7x the pyramid points of block 5 / uniqueness 10
 #   CLAHE before matching does NOT help: it adds speckle at wrong depths all over the board
-SGBM_MODE = cv2.STEREO_SGBM_MODE_HH
-SPECKLE_WINDOW = 200      # px, connected disparity blobs smaller than this are removed
-SPECKLE_RANGE = 2         # disparity steps allowed within a blob
-DISP12_MAX_DIFF = 1       # px, left-right consistency check
+# src/experiments/depth_matchers/tune_sgbm.py searches them against the tag planes.
+SGBM_MODES = {"hh": cv2.STEREO_SGBM_MODE_HH, "sgbm": cv2.STEREO_SGBM_MODE_SGBM,
+              "3way": cv2.STEREO_SGBM_MODE_SGBM_3WAY, "hh4": cv2.STEREO_SGBM_MODE_HH4}
 
 MERGE_EVERY = 10          # frames between voxel merges, which keeps memory bounded
 
@@ -59,6 +59,21 @@ def add_matcher_arguments(ap):
     ap.add_argument("--block-size", type=int, default=9, help="SGBM window, px, odd (default 9)")
     ap.add_argument("--uniqueness", type=int, default=5,
                     help="SGBM uniqueness ratio, %%: best match must beat the next by this (default 5)")
+    ap.add_argument("--sgbm-mode", default="hh", choices=tuple(SGBM_MODES),
+                    help="SGBM paths: hh (8, full), sgbm (5), 3way, hh4 (default hh)")
+    ap.add_argument("--p1", type=float, default=8, help="SGBM small-step penalty, times block size squared (default 8)")
+    ap.add_argument("--p2", type=float, default=32, help="SGBM large-step penalty, times block size squared (default 32)")
+    ap.add_argument("--speckle-window", type=int, default=200,
+                    help="px; connected disparity blobs smaller than this are removed, 0 = off (default 200)")
+    ap.add_argument("--speckle-range", type=int, default=2, help="disparity steps allowed within a blob (default 2)")
+    ap.add_argument("--disp12-max-diff", type=int, default=1,
+                    help="px; SGBM's left-right consistency check, -1 = off (default 1)")
+    ap.add_argument("--prefilter-cap", type=int, default=0,
+                    help="SGBM's clip of the x-derivative prefilter; 0 = OpenCV's default, which uses 15 (default 0)")
+    ap.add_argument("--sgbm-scale", type=float, default=1.0,
+                    help="image scale SGBM matches at, e.g. 0.5; disparity is scaled back to full size (default 1)")
+    ap.add_argument("--median-filter", type=int, default=0,
+                    help="median filter on SGBM's disparity, kernel px (3 or 5), 0 = off (default 0)")
     ap.add_argument("--raft-model", default="middlebury", choices=("middlebury", "eth3d", "rvc"),
                     help="which published RAFT-Stereo weights (default middlebury)")
     ap.add_argument("--aqua-model", default="vitb", choices=("vitb", "vits"),
@@ -187,24 +202,44 @@ class Rectifier:
         return minimum, count
 
 
-def match(left, right, minimum, count, block_size, uniqueness):
-    """SGBM disparity (px, float) of a rectified pair; pixels with no match are below minimum.
+def match(left, right, minimum, count, sgbm):
+    """SGBM disparity (px, float, full resolution) of a rectified pair; pixels with no match are below minimum.
+
+    sgbm: the SGBM arguments of add_matcher_arguments (block_size, uniqueness, sgbm_mode, p1, ...).
 
     SGBM leaves the first minimum + count columns unmatched, which with the ~230 + ~200 px search
     this rig needs is a quarter of the image. Padding both images on the left by that much moves
     the dead band into the padding, and it is cropped off again afterwards.
     """
+    scale = sgbm.sgbm_scale
+    if scale != 1.0:
+        # Match a smaller pair, with the search scaled to match, and bring the disparity back to full size.
+        size = (int(round(left.shape[1] * scale)), int(round(left.shape[0] * scale)))
+        small = [cv2.resize(image, size, interpolation=cv2.INTER_AREA) for image in (left, right)]
+        small_min = int(np.floor(minimum * scale))
+        small_count = int(np.ceil(count * scale / 16) * 16)
+        disparity = match(*small, small_min, small_count, argparse.Namespace(**{**vars(sgbm), "sgbm_scale": 1.0}))
+        valid = cv2.resize((disparity >= small_min).astype(np.uint8), left.shape[::-1], interpolation=cv2.INTER_NEAREST) > 0
+        full = cv2.resize(disparity, left.shape[::-1], interpolation=cv2.INTER_NEAREST) / scale
+        return np.where(valid & (full >= minimum), full, minimum - 1).astype(np.float32)
+
     pad = minimum + count
     padded = [cv2.copyMakeBorder(image, 0, 0, pad, 0, cv2.BORDER_CONSTANT, value=0) for image in (left, right)]
+    block = sgbm.block_size
     matcher = cv2.StereoSGBM.create(
-        minDisparity=minimum, numDisparities=count, blockSize=block_size,
-        P1=8 * block_size ** 2, P2=32 * block_size ** 2,
-        disp12MaxDiff=DISP12_MAX_DIFF, uniquenessRatio=uniqueness,
-        speckleWindowSize=SPECKLE_WINDOW, speckleRange=SPECKLE_RANGE, mode=SGBM_MODE)
+        minDisparity=minimum, numDisparities=count, blockSize=block,
+        P1=int(round(sgbm.p1 * block ** 2)), P2=int(round(sgbm.p2 * block ** 2)),
+        disp12MaxDiff=sgbm.disp12_max_diff, preFilterCap=sgbm.prefilter_cap, uniquenessRatio=sgbm.uniqueness,
+        speckleWindowSize=sgbm.speckle_window, speckleRange=sgbm.speckle_range, mode=SGBM_MODES[sgbm.sgbm_mode])
     disparity = matcher.compute(*padded)[:, pad:].astype(np.float32) / 16.0
     # A left pixel whose match would lie left of the right image's edge can only have matched the
     # padding, so it is not a measurement.
     disparity[disparity > np.arange(left.shape[1], dtype=np.float32)] = minimum - 1
+    if sgbm.median_filter:
+        # Median of the matched pixels only: unmatched ones would drag edges towards minimum - 1.
+        matched = disparity >= minimum
+        filtered = cv2.medianBlur(disparity, sgbm.median_filter)
+        disparity = np.where(matched & (filtered >= minimum), filtered, minimum - 1).astype(np.float32)
     return disparity
 
 
@@ -214,7 +249,7 @@ def frame_points(rectifier, left_path, right_path, T_cam_board, low, high, args,
     left, right = rectifier.rectify("left", left_path), rectifier.rectify("right", right_path)
     minimum, count = rectifier.disparity_range(T_cam_board, low, high)
     if network is None:
-        disparity = match(left, right, minimum, count, args.block_size, args.uniqueness)
+        disparity = match(left, right, minimum, count, args)
     else:
         # A learned matcher searches every disparity by itself; the box's range only decides what
         # is kept.
@@ -250,7 +285,10 @@ def make_network(args):
         print(f"matcher {name}: {args.net_iters} iterations, scale {args.net_scale}, "
               f"left-right check {args.lr_tolerance} px")
     else:
-        print(f"matcher SGBM: block {args.block_size}, uniqueness {args.uniqueness}")
+        print(f"matcher SGBM: block {args.block_size}, uniqueness {args.uniqueness}, mode {args.sgbm_mode}, "
+              f"P1/P2 {args.p1:g}/{args.p2:g}, speckle {args.speckle_window}/{args.speckle_range}, "
+              f"left-right {args.disp12_max_diff}, prefilter cap {args.prefilter_cap}, scale {args.sgbm_scale:g}, "
+              f"median {args.median_filter}")
     return network
 
 

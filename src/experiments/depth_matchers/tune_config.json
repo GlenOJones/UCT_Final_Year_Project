@@ -1,0 +1,53 @@
+{
+ "_what": "SGBM tuning for experiment 5. A coordinate-descent search over dense_stereo.py's SGBM settings, scored against the tag planes (board_truth.py) on frames NOT used by the depth comparison: other passes of the shade pyramid and S30 frames offset from the test set. The winner becomes the sgbm_tuned matcher in config.json.",
+ "out_dir": "results/experiments/depth_matchers/sgbm_tuning",
+ "work_dir": "work/experiments/depth_matchers/sgbm_tuning",
+ "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+ "sets": [
+  {
+   "name": "s30_tune",
+   "_frames": "Every 50th from frame 12: none of them is one of the test set's every-25th from 0.",
+   "frames": "data/3DRecon/3DPrintFinal/30_frames_range",
+   "step": 50, "offset": 12,
+   "depth_min_mm": 250, "depth_max_mm": 600
+  },
+  {
+   "name": "pyr1_pass2",
+   "frames": "data/3DRecon/Ice/Pyramid/Shade/pyr1_frames_pass2_940mm",
+   "step": 10, "offset": 0,
+   "depth_min_mm": 400, "depth_max_mm": 1400
+  },
+  {
+   "name": "pyr1_pass3",
+   "frames": "data/3DRecon/Ice/Pyramid/Shade/pyr1_frames_pass3_870mm",
+   "step": 10, "offset": 0,
+   "depth_min_mm": 400, "depth_max_mm": 1400
+  }
+ ],
+ "tolerance_px": 1.0,
+ "_objective": "Mean over the scenes of the F1 of precision and recall on the tag regions, so S30 (larger regions) and the ice count equally. S30 is one scene; pyr1_pass2 and pyr1_pass3 are averaged into one ice score first.",
+ "scenes": {"s30": ["s30_tune"], "ice_shade": ["pyr1_pass2", "pyr1_pass3"]},
+ "min_gain": 0.002,
+ "rounds": 3,
+ "_workers": "SGBM's full 8-path mode (hh) holds the whole cost volume: 3.0 GB peak per process on a full-size S30 frame (384 px search). 4 workers fit the ~12 GB free on this 30 GB machine.",
+ "workers": 4,
+ "start": {
+  "_why": "dense_stereo.py's defaults, so the search starts from (and is compared with) the current pipeline.",
+  "block_size": 9, "uniqueness": 5, "sgbm_mode": "hh", "p1": 8, "p2": 32, "speckle_window": 200,
+  "speckle_range": 2, "disp12_max_diff": 1, "prefilter_cap": 0, "sgbm_scale": 1.0, "median_filter": 0
+ },
+ "candidates": {
+  "block_size": [3, 5, 7, 9, 11, 15],
+  "uniqueness": [0, 2, 5, 10, 15],
+  "sgbm_mode": ["hh", "sgbm", "3way", "hh4"],
+  "p1": [2, 4, 8, 16],
+  "p2": [16, 32, 64, 128],
+  "speckle_window": [0, 50, 100, 200, 400, 800],
+  "speckle_range": [1, 2, 4],
+  "disp12_max_diff": [-1, 0, 1, 2, 3],
+  "prefilter_cap": [0, 31, 63],
+  "sgbm_scale": [1.0, 0.5],
+  "median_filter": [0, 3, 5]
+ },
+ "timing_frames": 8
+}

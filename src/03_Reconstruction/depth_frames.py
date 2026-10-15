@@ -17,7 +17,9 @@ dense_stereo.py, and the only limits are camera-frame ones:
     envs/ffs/bin/python src/03_Reconstruction/depth_frames.py ... --matcher foundationstereo --net-scale 0.5 --lr-tolerance 3
 
 Writes <out-dir>/frames/<frame>.npz (xyz: float32 points in the left camera frame, mm, one per --voxel
-cube, the mean of the pixels in it; grey: uint8) and <out-dir>/depth_frames.json (settings, timing).
+cube, the mean of the pixels in it; grey: uint8) and <out-dir>/depth_frames.json (settings, and per frame
+the matching time, the pixels with depth and the points kept). --save-disparity also keeps each frame's
+disparity map.
 """
 import argparse
 import datetime
@@ -48,6 +50,11 @@ def parse_args(argv=None):
     ap.add_argument("--voxel", type=float, default=1.0, help="mm, points kept per frame: one per cube (default 1)")
     ap.add_argument("--masks", default=None, help="folder with left/<frame name> masks, 0 = ignore (default none)")
     ap.add_argument("--skip-existing", action="store_true", help="keep frames already in <out-dir>/frames")
+    ap.add_argument("--save-disparity", action="store_true",
+                    help="also save each frame's disparity in the rectified left image, as <out-dir>/disparity/"
+                         "<frame>.png (uint16, 1/16 px, 0 = no depth kept), for depth images and figures")
+    ap.add_argument("--max-frames", type=int, default=None,
+                    help="stop after this many pairs (after --step), for a quick trial run (default: all)")
     return ap.parse_args(argv)
 
 
@@ -69,14 +76,19 @@ def voxel_means(xyz, grey, voxel):
 
 
 def frame_points(rectifier, network, left_path, right_path, mask, args, search):
-    """Left-camera-frame points and grey of one pair, within the depth limits and outside the mask."""
+    """Left-camera-frame points and grey of one pair, within the depth limits and outside the mask.
+
+    Also returns the disparity (px, 0 where no point was kept) and the seconds the matcher alone took.
+    """
     left, right = rectifier.rectify("left", left_path), rectifier.rectify("right", right_path)
     minimum, count = search
+    start = time.perf_counter()
     if network is None:
-        disparity = match(left, right, minimum, count, args.block_size, args.uniqueness)
+        disparity = match(left, right, minimum, count, args)
     else:
         disparity = network.disparity(left, right)
         disparity[disparity < minimum] = minimum - 1
+    match_seconds = time.perf_counter() - start
     valid = disparity >= minimum
     if mask is not None:
         # The mask is drawn on the original image; carry it into the rectified one like the image itself.
@@ -84,23 +96,28 @@ def frame_points(rectifier, network, left_path, right_path, mask, args, search):
     xyz_rect = cv2.reprojectImageTo3D(disparity, rectifier.rig.Q)[valid].astype(np.float64)
     keep = (xyz_rect[:, 2] >= args.depth_min) & (xyz_rect[:, 2] <= args.depth_max)
     xyz = transform(rectifier.T_cam_rect, xyz_rect[keep])
-    return xyz, left[valid][keep]
+    kept = valid.copy()
+    kept[valid] = keep
+    return xyz, left[valid][keep], np.where(kept, disparity, 0).astype(np.float32), match_seconds
 
 
 def main(argv=None):
     args = parse_args(argv)
     rig = load_rig(args.calibration)
     rectifier = Rectifier(rig)
-    pairs = find_frame_pairs(args.frames_dir)[args.step_offset::args.step]
+    pairs = find_frame_pairs(args.frames_dir)[args.step_offset::args.step][:args.max_frames]
     search = disparity_range(rectifier, args.depth_min, args.depth_max)
     out_frames = os.path.join(args.out_dir, "frames")
     os.makedirs(out_frames, exist_ok=True)
+    out_disparity = os.path.join(args.out_dir, "disparity")
+    if args.save_disparity:
+        os.makedirs(out_disparity, exist_ok=True)
     print(f"{len(pairs)} frame pairs from {rel(args.frames_dir)} (every {args.step}th); depth "
           f"{args.depth_min:.0f}..{args.depth_max:.0f} mm = disparity {search[0]}+{search[1]} px"
           + (f"; masks from {rel(args.masks)}" if args.masks else ""))
     network = make_network(args)
 
-    start, made, points = time.time(), 0, []
+    start, made, points, per_frame = time.time(), 0, [], []
     for k, (name, left_path, right_path) in enumerate(pairs):
         out_path = os.path.join(out_frames, os.path.splitext(name)[0] + ".npz")
         if args.skip_existing and os.path.exists(out_path):
@@ -109,8 +126,16 @@ def main(argv=None):
         if args.masks:
             mask_path = os.path.join(args.masks, "left", name)
             mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE) if os.path.exists(mask_path) else None
-        xyz, grey = frame_points(rectifier, network, left_path, right_path, mask, args, search)
+        frame_start = time.perf_counter()
+        xyz, grey, disparity, match_seconds = frame_points(rectifier, network, left_path, right_path, mask, args, search)
+        pixels = len(xyz)
         xyz, grey = voxel_means(xyz, grey, args.voxel) if len(xyz) else (xyz, grey)
+        if args.save_disparity:
+            cv2.imwrite(os.path.join(out_disparity, os.path.splitext(name)[0] + ".png"),
+                        np.clip(np.round(disparity * 16), 0, 65535).astype(np.uint16))
+        per_frame.append({"name": name, "match_seconds": round(match_seconds, 3),
+                          "frame_seconds": round(time.perf_counter() - frame_start, 3),
+                          "pixels": pixels, "points": len(xyz)})
         np.savez(out_path, xyz=xyz.astype(np.float32), grey=np.clip(np.round(grey), 0, 255).astype(np.uint8))
         made += 1
         points.append(len(xyz))
@@ -125,7 +150,10 @@ def main(argv=None):
               "frames_made": made, "seconds": round(seconds, 1),
               "seconds_per_frame": round(seconds / made, 3) if made else None,
               "points_per_frame_median": float(np.median(points)) if points else None,
-              "disparity_search": list(search)}
+              # The matcher alone, median over frames, so a learned matcher's first (warm-up) frame does not count.
+              "match_seconds_median": float(np.median([f["match_seconds"] for f in per_frame])) if per_frame else None,
+              "pixels_per_frame_median": float(np.median([f["pixels"] for f in per_frame])) if per_frame else None,
+              "disparity_search": list(search), "per_frame": per_frame}
     with open(os.path.join(args.out_dir, "depth_frames.json"), "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=1)
     print(f"{made} frames in {seconds:.0f} s -> {rel(out_frames)}/")

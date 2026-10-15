@@ -1,0 +1,406 @@
+"""Table and figures of the depth experiment, from what depth_frames.py saved (run_depth.py first).
+
+    results/<out_dir>/summary.csv, .md, .tex           per recording and matcher: frames, median seconds per
+                                                       frame (matcher alone, and the whole frame), median pixels
+                                                       with depth (and as % of the image), median points (1 mm voxels)
+    results/<out_dir>/<recording>/<matcher>/depth/     every frame: rectified left image | depth map
+    results/<out_dir>/<recording>/matches_<matcher>.jpg  one frame: rectified left above right, a line from each
+                                                       grid pixel to where the matcher put it in the right image
+    results/<out_dir>/<recording>/matches.jpg          the matches figures side by side, one per matcher
+    results/<out_dir>/<recording>/depth_compare.jpg    the same frame's depth map from every matcher
+    results/<out_dir>/depth_compare_all.png            figures.combined: one column per recording (its image, then
+                                                       every matcher's depth map), one depth scale for all
+    results/<out_dir>/depth_crops.png                  figures.crops: a close-up of each recording's object, its
+                                                       image then every matcher's depth, each row on its own scale
+
+    src/venv/bin/python src/experiments/depth_matchers/analyse_depth.py [--trial N] [the options run_depth.py took]
+
+Seconds per frame: the median, so a learned matcher's first frame (CUDA warm-up, several seconds) does not count.
+Pixels with depth are counted after the depth limits; points are those pixels merged into 1 mm voxels, which is
+what the reconstruction uses, so a matcher that fills a surface densely is not rewarded for pixels beyond 1 per mm.
+"""
+import argparse
+import csv
+import json
+import os
+import sys
+
+import cv2
+import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "03_Reconstruction"))
+import common  # noqa: E402
+import depth_config  # noqa: E402
+from dense_stereo import Rectifier  # noqa: E402
+from stereo_rig import find_frame_pairs, load_rig  # noqa: E402
+
+NO_DEPTH = (60, 60, 60)        # BGR of pixels with no depth
+INK = (255, 255, 255)
+FONT = cv2.FONT_HERSHEY_SIMPLEX
+MATCH_FONT_SCALE = 1.4
+
+
+# ====== INPUTS ======
+def load_run(cfg, recording, matcher):
+    """(depth_frames.json record, folder) of one run, or (None, folder) if it has not been made."""
+    folder = depth_config.depth_dir(cfg, recording, matcher)
+    path = os.path.join(folder, "depth_frames.json")
+    if not os.path.exists(path):
+        return None, folder
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh), folder
+
+
+def read_disparity(folder, name):
+    """Disparity (px, float) of one frame; 0 where no depth was kept."""
+    raw = cv2.imread(os.path.join(folder, "disparity", os.path.splitext(name)[0] + ".png"), cv2.IMREAD_UNCHANGED)
+    return None if raw is None else raw.astype(np.float32) / 16.0
+
+
+def rectified_colour(rectifier, camera, path):
+    """The frame rectified like the matcher saw it, but in colour (the matchers see grey)."""
+    return cv2.remap(cv2.imread(path, cv2.IMREAD_COLOR), *rectifier.maps[camera], cv2.INTER_LINEAR)
+
+
+def depth_of(rectifier, disparity):
+    """Camera depth (mm) per pixel, NaN where there is none."""
+    z = cv2.reprojectImageTo3D(disparity, rectifier.rig.Q)[..., 2]
+    return np.where(disparity > 0, z, np.nan)
+
+
+# ====== TABLE ======
+def summarise(cfg):
+    rows = []
+    for recording in cfg["recordings"]:
+        for matcher in cfg["matchers"]:
+            record, _ = load_run(cfg, recording, matcher)
+            if record is None:
+                print(f"  {recording['name']} / {matcher}: not run yet")
+                continue
+            frames = record["per_frame"]
+            first = cv2.imread(find_frame_pairs(common.project_path(recording["frames"]))[0][1], cv2.IMREAD_GRAYSCALE)
+            pixels = np.median([f["pixels"] for f in frames])
+            rows.append({"recording": recording["name"], "matcher": matcher, "frames": len(frames),
+                         "match_s_median": round(float(np.median([f["match_seconds"] for f in frames])), 2),
+                         "frame_s_median": round(float(np.median([f["frame_seconds"] for f in frames])), 2),
+                         "pixels_median": int(pixels), "coverage_pct": round(100 * pixels / first.size, 1),
+                         "points_median": int(np.median([f["points"] for f in frames]))})
+    out = depth_config.result_dir(cfg)
+    os.makedirs(out, exist_ok=True)
+    if not rows:
+        return rows
+    with open(os.path.join(out, "summary.csv"), "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    lines = ["| Recording | Matcher | Frames | s/frame (matcher) | s/frame (total) | Pixels with depth | Coverage | Points (1 mm voxels) |",
+             "|---|---|---|---|---|---|---|---|"]
+    lines += [f"| {r['recording']} | {r['matcher']} | {r['frames']} | {r['match_s_median']:.2f} | {r['frame_s_median']:.2f} | "
+              f"{r['pixels_median']:,} | {r['coverage_pct']:.1f}% | {r['points_median']:,} |" for r in rows]
+    with open(os.path.join(out, "summary.md"), "w", encoding="utf-8") as fh:
+        fh.write("Medians over frames. Seconds: matcher alone, and the whole frame (rectify, match, points, save).\n\n")
+        fh.write("\n".join(lines) + "\n")
+    with open(os.path.join(out, "summary.tex"), "w", encoding="utf-8") as fh:
+        fh.write(latex_table(cfg, rows))
+    print("\n".join(lines))
+    return rows
+
+
+MATCHER_NAMES = {"sgbm": "SGBM", "sgbm_tuned": "SGBM (tuned)", "aquastereo": "AquaStereo",
+                 "foundationstereo": "FoundationStereo"}
+
+
+def latex_table(cfg, rows):
+    """summary rows as a booktabs table (needs booktabs and multirow), one block of rows per recording."""
+    titles = cfg["figures"].get("combined", {}).get("titles", {})
+    lines = [r"% Made by src/experiments/depth_matchers/analyse_depth.py from depth_frames.py's output; do not edit.",
+             r"\begin{table}[H]", r"\centering",
+             r"\caption{Depth map generation per matcher: medians over the frames used. Time is the matcher alone; "
+             r"pixels with depth are those within the recording's depth range; points are those pixels merged into "
+             r"1~mm voxels.}",
+             r"\label{tab:depth_matchers}",
+             r"\begin{tabular}{llrrrr}", r"\toprule",
+             r"Scene & Matcher & Time (s/frame) & Pixels with depth ($\times10^3$) & Coverage (\%) & "
+             r"Points ($\times10^3$) \\", r"\midrule"]
+    # The combined figure's column order, so table and figure read the same way; the config's order otherwise.
+    recordings = [r["name"] for r in cfg["recordings"]]
+    order = cfg["figures"].get("combined", {}).get("recordings", [])
+    recordings = [n for n in order if n in recordings] + [n for n in recordings if n not in order]
+    for i, name in enumerate(recordings):
+        block = [r for r in rows if r["recording"] == name]
+        if not block:
+            continue
+        scene = f"{titles.get(name, name).replace('_', r'\_')}, {block[0]['frames']} frames"
+        for j, r in enumerate(block):
+            first = rf"\multirow{{{len(block)}}}{{*}}{{{scene}}}" if j == 0 else ""
+            lines.append(f"{first} & {MATCHER_NAMES.get(r['matcher'], r['matcher'])} & {r['match_s_median']:.2f} & "
+                         f"{r['pixels_median'] / 1000:,.0f} & {r['coverage_pct']:.1f} & {r['points_median'] / 1000:,.0f} \\\\")
+        if i < len(recordings) - 1:
+            lines.append(r"\midrule")
+    lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
+    return "\n".join(lines)
+
+
+# ====== FIGURES ======
+def colour_depth(depth, depth_min, depth_max):
+    """Depth as colour: viridis, near = yellow, far = purple; no depth = dark grey."""
+    t = np.clip((depth_max - np.nan_to_num(depth, nan=depth_max)) / (depth_max - depth_min), 0, 1)
+    image = cv2.applyColorMap((t * 255).astype(np.uint8), cv2.COLORMAP_VIRIDIS)
+    image[np.isnan(depth)] = NO_DEPTH
+    return image
+
+
+def round_ticks(depth_min, depth_max, count=5):
+    """Fractions along the key for about count round depths (multiples of 50, 100, 250 or 500 mm) in the range."""
+    step = next(s for s in (5, 10, 20, 25, 50, 100, 250, 500, 1000) if (depth_max - depth_min) / s <= count)
+    values = np.arange(np.ceil(depth_min / step) * step, depth_max + 1e-6, step)
+    return tuple((v - depth_min) / (depth_max - depth_min) for v in values)
+
+
+def colour_bar(height, depth_min, depth_max, width=90, font=0.45, ticks=(0, 0.5, 1)):
+    """A vertical key for colour_depth, labelled in mm."""
+    bar_width = int(24 * font / 0.45)
+    t = np.linspace(1, 0, height)[:, None].repeat(bar_width, 1)
+    bar = cv2.applyColorMap((t * 255).astype(np.uint8), cv2.COLORMAP_VIRIDIS)
+    key = np.zeros((height, width, 3), np.uint8)
+    key[:, 6:6 + bar_width] = bar
+    text_x, thickness, pad = 18 + bar_width, max(1, int(round(font * 2))), int(28 * font)
+    cv2.putText(key, "mm", (text_x, pad + pad // 3), FONT, font, INK, thickness, cv2.LINE_AA)
+    for frac in ticks:
+        y = int(np.clip(frac * (height - 1), pad, height - pad // 2))
+        if y < 2.5 * pad:   # would collide with the unit at the top
+            continue
+        label = f"{depth_min + frac * (depth_max - depth_min):.0f}"
+        cv2.line(key, (6, y), (6 + bar_width + 4, y), INK, thickness)
+        cv2.putText(key, label, (text_x, y + pad // 3), FONT, font, INK, thickness, cv2.LINE_AA)
+    return key
+
+
+def label(image, text, scale=0.8):
+    cv2.putText(image, text, (12, int(34 * scale)), FONT, scale, (0, 0, 0), 4, cv2.LINE_AA)
+    cv2.putText(image, text, (12, int(34 * scale)), FONT, scale, INK, 2, cv2.LINE_AA)
+    return image
+
+
+def depth_panel(rectifier, recording, left_colour, disparity, title, scale):
+    """Rectified left | depth map | key, scaled for saving."""
+    depth = colour_depth(depth_of(rectifier, disparity), recording["depth_min_mm"], recording["depth_max_mm"])
+    small = [cv2.resize(i, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) for i in (left_colour, depth)]
+    panel = np.hstack([small[0], small[1], colour_bar(small[1].shape[0], recording["depth_min_mm"], recording["depth_max_mm"])])
+    return label(panel, title)
+
+
+def depth_images(cfg, recording, matcher, rectifier, pairs):
+    """The depth panel of every frame the run made."""
+    record, folder = load_run(cfg, recording, matcher)
+    out = os.path.join(depth_config.result_dir(cfg, recording), matcher, "depth")
+    os.makedirs(out, exist_ok=True)
+    for f in record["per_frame"]:
+        disparity = read_disparity(folder, f["name"])
+        left = rectified_colour(rectifier, "left", pairs[f["name"]][0])
+        panel = depth_panel(rectifier, recording, left, disparity,
+                            f"{matcher}  {f['name']}  {f['pixels']:,} px with depth  {f['match_seconds']:.2f} s",
+                            cfg["figures"]["image_scale"])
+        cv2.imwrite(os.path.join(out, os.path.splitext(f["name"])[0] + ".jpg"), panel, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    print(f"  {recording['name']} / {matcher}: {len(record['per_frame'])} depth images -> {common.rel(out)}/")
+
+
+def grid_pixels(shape, grid):
+    """Pixel centres of a cols x rows grid over the image, inset by half a cell."""
+    cols, rows = grid
+    xs = (np.arange(cols) + 0.5) * shape[1] / cols
+    ys = (np.arange(rows) + 0.5) * shape[0] / rows
+    return [(int(x), int(y)) for y in ys for x in xs]
+
+
+def matches_figure(rectifier, recording, left, right, disparity, grid, title):
+    """Rectified left above right; a line from each grid pixel to where the matcher found it in the right image,
+    coloured by its depth; a grey cross where the matcher kept no depth. In a rectified pair every match lies on
+    the same row, so each line drops straight down and leans left by the disparity."""
+    height = left.shape[0]
+    canvas = np.vstack([left, right])
+    depth = depth_of(rectifier, disparity)
+    found = 0
+    for x, y in grid_pixels(left.shape, grid):
+        d = disparity[y, x]
+        if d <= 0:
+            cv2.drawMarker(canvas, (x, y), (150, 150, 150), cv2.MARKER_TILTED_CROSS, 18, 3, cv2.LINE_AA)
+            continue
+        found += 1
+        colour = tuple(int(c) for c in colour_depth(np.array([[depth[y, x]]]), recording["depth_min_mm"],
+                                                    recording["depth_max_mm"])[0, 0])
+        end = (int(round(x - d)), y + height)
+        cv2.line(canvas, (x, y), end, (0, 0, 0), 6, cv2.LINE_AA)
+        cv2.line(canvas, (x, y), end, colour, 3, cv2.LINE_AA)
+        for point in ((x, y), end):
+            cv2.circle(canvas, point, 7, (0, 0, 0), -1, cv2.LINE_AA)
+            cv2.circle(canvas, point, 5, colour, -1, cv2.LINE_AA)
+    label(canvas, f"{title}: {found}/{len(grid_pixels(left.shape, grid))} grid pixels matched", MATCH_FONT_SCALE)
+    cv2.putText(canvas, "left (rectified)", (12, height - 16), FONT, MATCH_FONT_SCALE, INK, 3, cv2.LINE_AA)
+    cv2.putText(canvas, "right (rectified)", (12, 2 * height - 16), FONT, MATCH_FONT_SCALE, INK, 3, cv2.LINE_AA)
+    cv2.line(canvas, (0, height), (canvas.shape[1], height), INK, 2)
+    return canvas
+
+
+def figure_frame(cfg, recording):
+    """(frame name, {matcher: run folder}) of the figures' frame: one every matcher made, at frame_index."""
+    runs = {m: load_run(cfg, recording, m) for m in cfg["matchers"]}
+    runs = {m: folder for m, (record, folder) in runs.items() if record is not None}
+    if not runs:
+        return None, runs
+    names = sorted(set.intersection(*[{f["name"] for f in load_run(cfg, recording, m)[0]["per_frame"]} for m in runs]))
+    index = cfg["figures"]["frame_index"]
+    return (names[len(names) // 2] if index == "middle" else names[min(int(index), len(names) - 1)]), runs
+
+
+def frame_figures(cfg, recording, rectifier, pairs):
+    """For one frame: every matcher's correspondences, side by side, and every matcher's depth map, stacked."""
+    name, runs = figure_frame(cfg, recording)
+    if not runs:
+        return
+    left = rectified_colour(rectifier, "left", pairs[name][0])
+    right = rectified_colour(rectifier, "right", pairs[name][1])
+    scale, out = cfg["figures"]["image_scale"], depth_config.result_dir(cfg, recording)
+    matches, panels = [], []
+    for matcher, folder in runs.items():
+        disparity = read_disparity(folder, name)
+        figure = matches_figure(rectifier, recording, left, right, disparity, cfg["figures"]["grid"], f"{matcher}, {name}")
+        figure = cv2.resize(figure, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        cv2.imwrite(os.path.join(out, f"matches_{matcher}.jpg"), figure, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        matches.append(figure)
+        panels.append(depth_panel(rectifier, recording, left, disparity, f"{matcher}  {name}", scale))
+    gap = lambda shape, axis: np.full((shape[0], 12, 3) if axis else (12, shape[1], 3), 255, np.uint8)  # noqa: E731
+    cv2.imwrite(os.path.join(out, "matches.jpg"),
+                np.hstack([x for m in matches for x in (m, gap(m.shape, 1))][:-1]), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    cv2.imwrite(os.path.join(out, "depth_compare.jpg"),
+                np.vstack([x for p in panels for x in (p, gap(p.shape, 0))][:-1]), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    print(f"  {recording['name']}: frame {name} -> matches.jpg, depth_compare.jpg")
+
+
+def combined_figure(cfg, spec):
+    """One figure across recordings: a column per recording (in spec's order) holding its rectified left image and
+    then every matcher's depth map of its figure frame, all coloured on one depth scale, with one key on the right.
+
+    One scale has to span every recording's depth range, so a recording that fills only part of it (S30, 250-600 mm,
+    on a 250-1400 mm scale) shows less depth contrast than its own depth_compare.jpg."""
+    recordings = {r["name"]: r for r in cfg["recordings"]}
+    columns = [recordings[n] for n in spec["recordings"] if n in recordings]
+    if not columns:
+        return
+    depth_min = spec.get("depth_min_mm", min(r["depth_min_mm"] for r in columns))
+    depth_max = spec.get("depth_max_mm", max(r["depth_max_mm"] for r in columns))
+    scale, gap = cfg["figures"]["image_scale"], 12
+    tiles = []   # per column: [image, depth per matcher]
+    for recording in columns:
+        name, runs = figure_frame(cfg, recording)
+        rectifier = Rectifier(load_rig(common.project_path(recording["calibration"])))
+        pairs = {n: (l, r) for n, l, r in find_frame_pairs(common.project_path(recording["frames"]))}
+        left = rectified_colour(rectifier, "left", pairs[name][0])
+        column = [label(cv2.resize(left, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA),
+                        f"{spec.get('titles', {}).get(recording['name'], recording['name'])}  ({name})")]
+        for matcher in cfg["matchers"]:
+            if matcher not in runs:
+                column.append(None)
+                continue
+            depth = colour_depth(depth_of(rectifier, read_disparity(runs[matcher], name)), depth_min, depth_max)
+            column.append(label(cv2.resize(depth, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA), matcher))
+        tiles.append(column)
+        print(f"  combined: {recording['name']} frame {name}")
+    h, w = tiles[0][0].shape[:2]
+    rows = len(tiles[0])
+    key_width = 170
+    canvas = np.full((rows * h + (rows - 1) * gap, len(tiles) * w + len(tiles) * gap + key_width, 3), 255, np.uint8)
+    for c, column in enumerate(tiles):
+        for r, tile in enumerate(column):
+            y, x = r * (h + gap), c * (w + gap)
+            canvas[y:y + h, x:x + w] = NO_DEPTH if tile is None else cv2.resize(tile, (w, h))
+    # One key for the depth rows, beside them.
+    top = h + gap
+    canvas[top:, -key_width:] = colour_bar(canvas.shape[0] - top, depth_min, depth_max, width=key_width, font=1.0,
+                                           ticks=round_ticks(depth_min, depth_max))
+    out = os.path.join(depth_config.result_dir(cfg), spec.get("name", "depth_compare_all") + ".png")
+    cv2.imwrite(out, canvas)
+    print(f"  combined figure ({depth_min:.0f}-{depth_max:.0f} mm) -> {common.rel(out)}")
+
+
+def crop_figure(cfg, spec):
+    """Close-ups for the report: a row per recording (spec["rows"]: recording, box [x0, y0, x1, y1] in the rectified
+    left image at full size, title), holding the crop of the image and then every matcher's depth of it.
+
+    The depth range of a crop is the 5th-95th percentile of every matcher's depths there, plus 10%. With
+    spec["common_scale"] every row is coloured on one range spanning all the crops, with one key down the right;
+    otherwise each row has its own range and key, which shows more of an object's few cm of relief."""
+    recordings = {r["name"]: r for r in cfg["recordings"]}
+    tile, gap, key_width = spec.get("tile_height", 420), 12, 170
+    white = lambda h, w: np.full((h, w, 3), 255, np.uint8)  # noqa: E731
+    fit = lambda image: cv2.resize(image, (tile, tile), interpolation=cv2.INTER_AREA)  # noqa: E731
+
+    rows = []   # (row spec, image crop, {matcher: depth crop}, (low, high))
+    for row in spec["rows"]:
+        recording = recordings.get(row["recording"])
+        if recording is None:
+            continue
+        name, runs = figure_frame(cfg, recording)
+        rectifier = Rectifier(load_rig(common.project_path(recording["calibration"])))
+        pairs = {n: (l, r) for n, l, r in find_frame_pairs(common.project_path(recording["frames"]))}
+        x0, y0, x1, y1 = row["box"]
+        depths = {m: depth_of(rectifier, read_disparity(runs[m], name))[y0:y1, x0:x1] for m in cfg["matchers"] if m in runs}
+        low, high = np.percentile(np.concatenate([d[np.isfinite(d)] for d in depths.values()]), [5, 95])
+        rows.append((row, rectified_colour(rectifier, "left", pairs[name][0])[y0:y1, x0:x1], depths,
+                     (low - 0.1 * (high - low), high + 0.1 * (high - low))))
+        print(f"  crops: {recording['name']} frame {name}, depth {rows[-1][3][0]:.0f}-{rows[-1][3][1]:.0f} mm")
+    if not rows:
+        return
+    common_scale = spec.get("common_scale", False)
+    if common_scale:
+        shared = (min(r[3][0] for r in rows), max(r[3][1] for r in rows))
+
+    strips = []
+    for row, image, depths, own in rows:
+        low, high = shared if common_scale else own
+        tiles = [label(fit(image), row.get("title", row["recording"]))]
+        for matcher in cfg["matchers"]:
+            depth = fit(colour_depth(depths[matcher], low, high)) if matcher in depths else \
+                np.full((tile, tile, 3), NO_DEPTH, np.uint8)
+            tiles.append(label(depth, MATCHER_NAMES.get(matcher, matcher)))
+        if not common_scale:
+            tiles.append(colour_bar(tile, low, high, width=key_width, font=0.8, ticks=round_ticks(low, high)))
+        strips.append(np.hstack([x for t in tiles for x in (t, white(tile, gap))][:-1]))
+    figure = np.vstack([x for strip in strips for x in (strip, white(gap, strip.shape[1]))][:-1])
+    if common_scale:
+        key = colour_bar(figure.shape[0], *shared, width=key_width, font=0.8, ticks=round_ticks(*shared, count=8))
+        figure = np.hstack([figure, white(figure.shape[0], gap), key])
+        print(f"  crops: one scale, {shared[0]:.0f}-{shared[1]:.0f} mm")
+    out = os.path.join(depth_config.result_dir(cfg), spec.get("name", "depth_crops") + ".png")
+    cv2.imwrite(out, figure)
+    print(f"  crops figure -> {common.rel(out)}")
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    depth_config.add_arguments(ap)
+    ap.add_argument("--no-depth-images", action="store_true", help="skip the per-frame depth images (slowest part)")
+    args = ap.parse_args(argv)
+    cfg = depth_config.resolve(args, ap)
+    rows = summarise(cfg)
+    for recording in cfg["recordings"]:
+        rectifier = Rectifier(load_rig(common.project_path(recording["calibration"])))
+        pairs = {name: (left, right) for name, left, right in find_frame_pairs(common.project_path(recording["frames"]))}
+        if not args.no_depth_images:
+            for matcher in cfg["matchers"]:
+                if load_run(cfg, recording, matcher)[0] is not None:
+                    depth_images(cfg, recording, matcher, rectifier, pairs)
+        frame_figures(cfg, recording, rectifier, pairs)
+    if cfg["figures"].get("combined"):
+        combined_figure(cfg, cfg["figures"]["combined"])
+    if cfg["figures"].get("crops"):
+        crop_figure(cfg, cfg["figures"]["crops"])
+    print(f"results in {common.rel(depth_config.result_dir(cfg))}/")
+    return rows
+
+
+if __name__ == "__main__":
+    main()

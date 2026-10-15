@@ -143,7 +143,6 @@ def merge(recent, scales):
         merged[voxel] = cloud.voxel_down_sample(voxel)
     return merged
 
-
 def main(argv=None):
     args = parse_args(argv)
     paths = sorted(glob.glob(os.path.join(args.depth_dir, "frames", "*.npz")))
