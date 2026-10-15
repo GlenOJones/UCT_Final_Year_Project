@@ -75,9 +75,9 @@
    "common_scale": true,
    "tile_height": 420,
    "rows": [
-    {"recording": "3DPrintFinal_s30", "box": [825, 540, 1165, 880], "title": "S30: 2x2 pyramids"},
-    {"recording": "ice_pyramid_shade_pyr1_pass4", "box": [665, 0, 1145, 480], "title": "Ice, shade"},
-    {"recording": "ice_pyramid_sun_py2_pass1", "box": [795, 0, 1355, 560], "title": "Ice, sun"}
+    {"recording": "3DPrintFinal_s30", "box": [755, 470, 1235, 950], "title": "S30: 2x2 pyramids"},
+    {"recording": "ice_pyramid_shade_pyr1_pass4", "box": [575, 0, 1235, 660], "title": "Ice, shade"},
+    {"recording": "ice_pyramid_sun_py2_pass1", "box": [695, 0, 1455, 760], "title": "Ice, sun"}
    ]
   }
  }
