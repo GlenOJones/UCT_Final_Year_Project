@@ -70,6 +70,7 @@ my @BODY = qw(
     3_ch3.tex
     4_ch4.tex
     5_ch5.tex
+    5b_reconstruction.tex
     6_results.tex
     7_discussion.tex
     8_conclusions.tex
