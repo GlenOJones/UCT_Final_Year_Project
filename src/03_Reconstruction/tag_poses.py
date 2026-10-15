@@ -31,6 +31,7 @@ import collections
 import datetime
 import os
 import sys
+import time
 
 import cv2
 import numpy as np
@@ -260,7 +261,7 @@ def report(layout, frames, observations):
               f"({', '.join(f'{v:.3f}' for v in Vt[0])}), {off_line:.1f} mm RMS off a straight line")
 
 
-def write_yaml(path, args, rig, reference, layout, frames):
+def write_yaml(path, args, rig, reference, layout, frames, seconds):
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     fs.writeComment("=====================================================================")
     fs.writeComment("RIG POSE PER FRAME, FROM STEREO-TRIANGULATED REFERENCE TAGS")
@@ -281,6 +282,9 @@ def write_yaml(path, args, rig, reference, layout, frames):
     fs.write("calibration", rel(args.calibration))
     fs.write("baseline_mm", rig.baseline_mm)
     fs.write("max_reprojection_px", args.max_reprojection)
+    fs.write("frames", len(frames))
+    fs.write("frames_posed", sum(f["T_cam_board"] is not None for f in frames))
+    fs.write("seconds", round(seconds, 1))
     fs.endWriteStruct()
 
     fs.startWriteStruct("tags", cv2.FileNode_MAP)
@@ -328,6 +332,7 @@ def main(argv=None):
     rig = load_rig(args.calibration)
     pairs = find_frame_pairs(args.frames_dir)
     detector = make_detector()
+    start = time.time()
     print(f"{len(pairs)} frame pairs in {rel(args.frames_dir)}, baseline {rig.baseline_mm:.2f} mm")
 
     observations, errors, n_rejected = [], [], 0
@@ -350,11 +355,12 @@ def main(argv=None):
         frames.append({"name": name, "tags": sorted(t for t in tags if t in layout),
                        "T_cam_board": T, "fit_rms_mm": fit,
                        "reprojection_px": float(np.mean(list(tag_errors.values()))) if tag_errors else None})
+    seconds = time.time() - start
     report(layout, frames, observations)
 
     out_path = args.out or paths.poses_path(args.session, args.scan)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    write_yaml(out_path, args, rig, reference, layout, frames)
+    write_yaml(out_path, args, rig, reference, layout, frames, seconds)
     print(f"\nsaved poses to {rel(out_path)}")
 
 

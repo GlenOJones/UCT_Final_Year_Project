@@ -12,6 +12,10 @@ envs/ffs), with every setting taken from config.json. Per recording:
     src/venv/bin/python src/experiments/pose_estimation/run_poses.py --config src/experiments/pose_estimation/config.json
 
 With skip_existing, a step whose output exists is not run again.
+
+A recording may set its own frame_step, and icp_argv (appended to every ICP estimator's argv, so it overrides
+them: e.g. a larger --max-step where the rig moves faster). One with "tags": false (no tag anywhere in it) gets
+no reference and no masks; its estimators still run.
 """
 import argparse
 import os
@@ -52,18 +56,27 @@ def run(python, script, argv, output, skip_existing, runs, label):
     runs.append({**record, "seconds": round(time.time() - start, 1)})
 
 
+def frame_step(cfg, recording):
+    return recording.get("frame_step", cfg["frame_step"])
+
+
+def has_tags(recording):
+    return recording.get("tags", True)
+
+
 def run_recording(cfg, recording, skip_existing):
     p = recording_paths(cfg, recording)
-    py, step, runs = cfg["python"], str(cfg["frame_step"]), []
+    py, step, runs = cfg["python"], str(frame_step(cfg, recording)), []
     frames, calibration = common.project_path(recording["frames"]), common.project_path(recording["calibration"])
 
-    run(py["default"], os.path.join(RECON, "tag_poses.py"),
-        ["--frames-dir", frames, "--calibration", calibration, "--tag-size", str(recording["tag_size_mm"]),
-         "--max-reprojection", str(cfg["reference"]["max_reprojection_px"]), "--out", p["reference"]],
-        p["reference"], skip_existing, runs, f"{recording['name']}: reference tag poses")
+    if has_tags(recording):
+        run(py["default"], os.path.join(RECON, "tag_poses.py"),
+            ["--frames-dir", frames, "--calibration", calibration, "--tag-size", str(recording["tag_size_mm"]),
+             "--max-reprojection", str(cfg["reference"]["max_reprojection_px"]), "--out", p["reference"]],
+            p["reference"], skip_existing, runs, f"{recording['name']}: reference tag poses")
 
     masks = []
-    if cfg["tag_masks"]["enabled"]:
+    if cfg["tag_masks"]["enabled"] and has_tags(recording):
         run(py["default"], os.path.join("src", "experiments", "pose_estimation", "make_tag_masks.py"),
             ["--frames-dir", frames, "--poses", p["reference"], "--out-dir", p["masks"], "--step", step,
              "--scale", str(cfg["tag_masks"]["scale"])],
@@ -86,7 +99,8 @@ def run_recording(cfg, recording, skip_existing):
                     "--step", step, *masks, *estimator["argv"]]
             script = os.path.join(RECON, "colmap_poses.py")
         elif estimator["kind"] == "icp":
-            argv = ["--depth-dir", p["depth"](estimator["depth"]), "--out", out, *estimator["argv"]]
+            argv = ["--depth-dir", p["depth"](estimator["depth"]), "--out", out, *estimator["argv"],
+                    *recording.get("icp_argv", [])]
             script = os.path.join(RECON, "icp_poses.py")
         else:
             raise SystemExit(f"unknown estimator kind {estimator['kind']!r}")

@@ -6,6 +6,7 @@
                                                                        # (+ the methods report PDF)
     src/venv/bin/python src/experiments/reproduce.py pose_estimation   # experiment 4: markerless pose estimation
     src/venv/bin/python src/experiments/reproduce.py depth_matchers    # experiment 5: depth map generation
+    src/venv/bin/python src/experiments/reproduce.py pose_comparison   # experiment 4 on experiment 5's recordings
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -173,8 +174,26 @@ def depth_matchers(config, skip_existing):
                           [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
 
 
+def pose_comparison(config, skip_existing):
+    """Experiment 4 on the depth-test recordings, one mode per method (pose_estimation/config_comparison.json):
+    the pipeline runs (run_poses.py), grip and detection images (detection_figures.py), then the table
+    (compare_poses.py)."""
+    import compare_poses
+    import detection_figures
+    import run_poses
+
+    config = config or os.path.join(HERE, "pose_estimation", "config_comparison.json")
+    cfg = common.load_config(config)
+    runs = run_poses.main(["--config", config] + (["--skip-existing"] if skip_existing else []))
+    detection_figures.main(["--config", config])
+    compare_poses.main(["--config", config])
+    common.write_manifest(common.project_path(cfg["out_dir"]), "pose_comparison", [config],
+                          [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
+
+
 EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation,
-               "pose_estimation": pose_estimation, "depth_matchers": depth_matchers}
+               "pose_estimation": pose_estimation, "depth_matchers": depth_matchers,
+               "pose_comparison": pose_comparison}
 
 
 def main(argv=None):

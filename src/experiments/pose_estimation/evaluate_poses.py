@@ -129,13 +129,13 @@ def evaluate(reference, estimate, diagnostics, names, cfg):
     return result, trace
 
 
-def plot(path, traces, recording):
+def plot(path, traces, recording, reference_label="tags"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(1, 2, figsize=(15, 5.5))
     first = next(iter(traces.values()))
-    ax[0].plot(first["xy_ref"][:, 0], first["xy_ref"][:, 1], "k-", lw=3, alpha=0.35, label="tags (reference)")
+    ax[0].plot(first["xy_ref"][:, 0], first["xy_ref"][:, 1], "k-", lw=3, alpha=0.35, label=f"{reference_label} (reference)")
     for name, tr in traces.items():
         if name == "tags":
             continue
