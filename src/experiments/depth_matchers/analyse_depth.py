@@ -72,22 +72,66 @@ def depth_of(rectifier, disparity):
 
 
 # ====== TABLE ======
+TOLERANCE_PX = 1.0   # the tuning's tolerance (tune_config.json), so the test scores mean the same thing
+
+
+def test_truth(cfg, recording, names):
+    """{frame name: plane disparity} for the frames with a usable tag (board_truth.py), cached in the work folder."""
+    import board_truth
+    import tag_poses
+    folder = os.path.join(common.project_path(cfg["work_dir"]), recording["name"], "truth")
+    os.makedirs(folder, exist_ok=True)
+    rectifier, detector = Rectifier(load_rig(common.project_path(recording["calibration"]))), tag_poses.make_detector()
+    pairs = {n: (l, r) for n, l, r in find_frame_pairs(common.project_path(recording["frames"]))}
+    truth = {}
+    for name in names:
+        path = os.path.join(folder, os.path.splitext(name)[0] + ".npz")
+        if not os.path.exists(path):
+            t = board_truth.frame_truth(rectifier, detector, *pairs[name])
+            np.savez_compressed(path, disparity=np.zeros(0, np.float32) if t is None else t["disparity"])
+        disparity = np.load(path)["disparity"]
+        if disparity.size:
+            truth[name] = disparity
+    return truth
+
+
+def accuracy(cfg, recording, matcher, truth):
+    """Precision, recall, F1 and median error (px) of a run on the tag planes of the test frames, or None."""
+    import board_truth
+    record, folder = load_run(cfg, recording, matcher)
+    counts = []
+    for f in record["per_frame"]:
+        if f["name"] in truth:
+            plane = truth[f["name"]]
+            counts.append(board_truth.score(read_disparity(folder, f["name"]), {"region": plane > 0, "disparity": plane},
+                                            TOLERANCE_PX))
+    return board_truth.summarise(counts, TOLERANCE_PX) if counts else None
+
+
 def summarise(cfg):
     rows = []
     for recording in cfg["recordings"]:
-        for matcher in cfg["matchers"]:
-            record, _ = load_run(cfg, recording, matcher)
+        runs = {m: load_run(cfg, recording, m)[0] for m in cfg["matchers"]}
+        names = sorted({f["name"] for r in runs.values() if r for f in r["per_frame"]})
+        truth = test_truth(cfg, recording, names)
+        for matcher, record in runs.items():
             if record is None:
                 print(f"  {recording['name']} / {matcher}: not run yet")
                 continue
             frames = record["per_frame"]
             first = cv2.imread(find_frame_pairs(common.project_path(recording["frames"]))[0][1], cv2.IMREAD_GRAYSCALE)
             pixels = np.median([f["pixels"] for f in frames])
+            score = accuracy(cfg, recording, matcher, truth)
             rows.append({"recording": recording["name"], "matcher": matcher, "frames": len(frames),
                          "match_s_median": round(float(np.median([f["match_seconds"] for f in frames])), 2),
                          "frame_s_median": round(float(np.median([f["frame_seconds"] for f in frames])), 2),
                          "pixels_median": int(pixels), "coverage_pct": round(100 * pixels / first.size, 1),
-                         "points_median": int(np.median([f["points"] for f in frames]))})
+                         "points_median": int(np.median([f["points"] for f in frames])),
+                         "tag_frames": score["frames"] if score else 0,
+                         "precision": round(score["precision"], 3) if score else None,
+                         "recall": round(score["recall"], 3) if score else None,
+                         "f1": round(score["f1"], 3) if score else None,
+                         "median_error_px": round(score["median_error_px"], 2) if score and score["median_error_px"] is not None else None})
     out = depth_config.result_dir(cfg)
     os.makedirs(out, exist_ok=True)
     if not rows:
@@ -96,12 +140,18 @@ def summarise(cfg):
         writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
         writer.writeheader()
         writer.writerows(rows)
-    lines = ["| Recording | Matcher | Frames | s/frame (matcher) | s/frame (total) | Pixels with depth | Coverage | Points (1 mm voxels) |",
-             "|---|---|---|---|---|---|---|---|"]
+    dash = lambda v, f: "-" if v is None else format(v, f)  # noqa: E731
+    lines = ["| Recording | Matcher | Frames | s/frame (matcher) | s/frame (total) | Pixels with depth | Coverage | "
+             "Points (1 mm voxels) | Tag frames | Precision | Recall | F1 | Median error (px) |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     lines += [f"| {r['recording']} | {r['matcher']} | {r['frames']} | {r['match_s_median']:.2f} | {r['frame_s_median']:.2f} | "
-              f"{r['pixels_median']:,} | {r['coverage_pct']:.1f}% | {r['points_median']:,} |" for r in rows]
+              f"{r['pixels_median']:,} | {r['coverage_pct']:.1f}% | {r['points_median']:,} | {r['tag_frames']} | "
+              f"{dash(r['precision'], '.3f')} | {dash(r['recall'], '.3f')} | {dash(r['f1'], '.3f')} | "
+              f"{dash(r['median_error_px'], '.2f')} |" for r in rows]
     with open(os.path.join(out, "summary.md"), "w", encoding="utf-8") as fh:
-        fh.write("Medians over frames. Seconds: matcher alone, and the whole frame (rectify, match, points, save).\n\n")
+        fh.write("Medians over frames. Seconds: matcher alone, and the whole frame (rectify, match, points, save).\n"
+                 f"Precision, recall, F1, median error: on the tag planes (board_truth.py) of the test frames with a "
+                 f"usable tag, tolerance {TOLERANCE_PX:g} px of disparity.\n\n")
         fh.write("\n".join(lines) + "\n")
     with open(os.path.join(out, "summary.tex"), "w", encoding="utf-8") as fh:
         fh.write(latex_table(cfg, rows))
@@ -118,33 +168,38 @@ def latex_table(cfg, rows):
     titles = cfg["figures"].get("combined", {}).get("titles", {})
     lines = [r"% Made by src/experiments/depth_matchers/analyse_depth.py from depth_frames.py's output; do not edit.",
              r"\begin{table}[H]", r"\centering",
-             r"\caption{Depth map generation per matcher: medians over the frames used. Time is the matcher alone; "
-             r"pixels with depth are those within the recording's depth range; points are those pixels merged into "
-             r"1~mm voxels.}",
+             r"\caption{Depth map generation per matcher, medians over the frames used. Time is the matcher alone. "
+             r"Coverage is the share of the image with depth in the recording's depth range; points are those pixels "
+             r"merged into 1~mm voxels. Precision, recall and median error are measured against the plane of each tag "
+             r"and its white surround, in the frames where a tag was found in both cameras (none in the sun "
+             rf"recording): precision is the share of the matcher's depth there within {TOLERANCE_PX:g}~px of "
+             r"disparity of the plane, recall the share of the tag regions it covers within that tolerance.}",
              r"\label{tab:depth_matchers}",
-             r"\begin{tabular}{llrrrr}", r"\toprule",
-             r"Scene & Matcher & Time (s/frame) & Pixels with depth ($\times10^3$) & Coverage (\%) & "
-             r"Points ($\times10^3$) \\", r"\midrule"]
-    # The combined figure's column order, so table and figure read the same way; the config's order otherwise.
+             r"\begin{tabular}{llrrrrrr}", r"\toprule",
+             r"Scene & Matcher & Time & Coverage & Points & Precision & Recall & Median error \\",
+             r" & & (s/frame) & (\%) & ($\times10^3$) & & & (px) \\", r"\midrule"]
     recordings = [r["name"] for r in cfg["recordings"]]
     order = cfg["figures"].get("combined", {}).get("recordings", [])
     recordings = [n for n in order if n in recordings] + [n for n in recordings if n not in order]
+    dash = lambda v, f: "--" if v is None else format(v, f)  # noqa: E731
     for i, name in enumerate(recordings):
         block = [r for r in rows if r["recording"] == name]
         if not block:
             continue
-        scene = f"{titles.get(name, name).replace('_', r'\_')}, {block[0]['frames']} frames"
+        tag_frames = max(r["tag_frames"] for r in block)
+        scene = f"{titles.get(name, name).replace('_', r'\_')}"
+        detail = f"{block[0]['frames']} frames" + (f", {tag_frames} with tags" if tag_frames else "")
         for j, r in enumerate(block):
-            first = rf"\multirow{{{len(block)}}}{{*}}{{{scene}}}" if j == 0 else ""
+            first = scene if j == 0 else (detail if j == 1 else "")
             lines.append(f"{first} & {MATCHER_NAMES.get(r['matcher'], r['matcher'])} & {r['match_s_median']:.2f} & "
-                         f"{r['pixels_median'] / 1000:,.0f} & {r['coverage_pct']:.1f} & {r['points_median'] / 1000:,.0f} \\\\")
+                         f"{r['coverage_pct']:.1f} & {r['points_median'] / 1000:,.0f} & {dash(r['precision'], '.2f')} & "
+                         f"{dash(r['recall'], '.2f')} & {dash(r['median_error_px'], '.2f')} \\\\")
         if i < len(recordings) - 1:
             lines.append(r"\midrule")
     lines += [r"\bottomrule", r"\end{tabular}", r"\end{table}", ""]
     return "\n".join(lines)
 
 
-# ====== FIGURES ======
 def colour_depth(depth, depth_min, depth_max):
     """Depth as colour: viridis, near = yellow, far = purple; no depth = dark grey."""
     t = np.clip((depth_max - np.nan_to_num(depth, nan=depth_max)) / (depth_max - depth_min), 0, 1)
@@ -160,28 +215,34 @@ def round_ticks(depth_min, depth_max, count=5):
     return tuple((v - depth_min) / (depth_max - depth_min) for v in values)
 
 
-def colour_bar(height, depth_min, depth_max, width=90, font=0.45, ticks=(0, 0.5, 1)):
-    """A vertical key for colour_depth, labelled in mm."""
+def colour_bar(height, depth_min, depth_max, width=90, font=0.45, ticks=(0, 0.5, 1), light=False):
+    """A vertical key for colour_depth, labelled in mm. light: dark text on white, for figures on a white page
+    (ticks then sit beside the bar); otherwise white text on black, with ticks across the bar."""
     bar_width = int(24 * font / 0.45)
     t = np.linspace(1, 0, height)[:, None].repeat(bar_width, 1)
     bar = cv2.applyColorMap((t * 255).astype(np.uint8), cv2.COLORMAP_VIRIDIS)
-    key = np.zeros((height, width, 3), np.uint8)
+    ink = (40, 40, 40) if light else INK
+    key = np.full((height, width, 3), 255 if light else 0, np.uint8)
     key[:, 6:6 + bar_width] = bar
-    text_x, thickness, pad = 18 + bar_width, max(1, int(round(font * 2))), int(28 * font)
-    cv2.putText(key, "mm", (text_x, pad + pad // 3), FONT, font, INK, thickness, cv2.LINE_AA)
+    if light:
+        cv2.rectangle(key, (6, 0), (5 + bar_width, height - 1), ink, 1)
+    text_x, thickness, pad = 28 + bar_width, max(1, int(round(font * 2))), int(28 * font)
+    cv2.putText(key, "mm", (text_x, pad + pad // 3), FONT, font, ink, thickness, cv2.LINE_AA)
     for frac in ticks:
         y = int(np.clip(frac * (height - 1), pad, height - pad // 2))
         if y < 2.5 * pad:   # would collide with the unit at the top
             continue
         label = f"{depth_min + frac * (depth_max - depth_min):.0f}"
-        cv2.line(key, (6, y), (6 + bar_width + 4, y), INK, thickness)
-        cv2.putText(key, label, (text_x, y + pad // 3), FONT, font, INK, thickness, cv2.LINE_AA)
+        start = 6 + bar_width if light else 6
+        cv2.line(key, (start, y), (6 + bar_width + (7 if light else 4), y), ink, thickness)
+        cv2.putText(key, label, (text_x, y + pad // 3), FONT, font, ink, thickness, cv2.LINE_AA)
     return key
 
 
 def label(image, text, scale=0.8):
-    cv2.putText(image, text, (12, int(34 * scale)), FONT, scale, (0, 0, 0), 4, cv2.LINE_AA)
-    cv2.putText(image, text, (12, int(34 * scale)), FONT, scale, INK, 2, cv2.LINE_AA)
+    thick = max(2, int(round(2.5 * scale)))
+    cv2.putText(image, text, (12, int(38 * scale)), FONT, scale, (0, 0, 0), thick + 3, cv2.LINE_AA)
+    cv2.putText(image, text, (12, int(38 * scale)), FONT, scale, INK, thick, cv2.LINE_AA)
     return image
 
 
@@ -335,6 +396,7 @@ def crop_figure(cfg, spec):
     otherwise each row has its own range and key, which shows more of an object's few cm of relief."""
     recordings = {r["name"]: r for r in cfg["recordings"]}
     tile, gap, key_width = spec.get("tile_height", 420), 12, 170
+    text = spec.get("label_scale", 0.8)
     white = lambda h, w: np.full((h, w, 3), 255, np.uint8)  # noqa: E731
     fit = lambda image: cv2.resize(image, (tile, tile), interpolation=cv2.INTER_AREA)  # noqa: E731
 
@@ -358,21 +420,37 @@ def crop_figure(cfg, spec):
     if common_scale:
         shared = (min(r[3][0] for r in rows), max(r[3][1] for r in rows))
 
+    # Names go outside the tiles, in dark text on white: column headings once along the top, row names once
+    # down the left (read bottom to top), so they never compete with the image content.
+    ink, thick = (30, 30, 30), max(2, int(round(2.2 * text)))
+
+    def caption(width, height, words, vertical=False):
+        box = white(width, height) if vertical else white(height, width)
+        (w, h), _ = cv2.getTextSize(words, FONT, text, thick)
+        cv2.putText(box, words, ((box.shape[1] - w) // 2, (box.shape[0] + h) // 2), FONT, text, ink, thick, cv2.LINE_AA)
+        return cv2.rotate(box, cv2.ROTATE_90_COUNTERCLOCKWISE) if vertical else box
+
+    header_h, side_w = int(64 * text), int(64 * text)
     strips = []
     for row, image, depths, own in rows:
         low, high = shared if common_scale else own
-        tiles = [label(fit(image), row.get("title", row["recording"]))]
+        tiles = [caption(side_w, tile, row.get("title", row["recording"]), vertical=True), fit(image)]
         for matcher in cfg["matchers"]:
-            depth = fit(colour_depth(depths[matcher], low, high)) if matcher in depths else \
-                np.full((tile, tile, 3), NO_DEPTH, np.uint8)
-            tiles.append(label(depth, MATCHER_NAMES.get(matcher, matcher)))
+            tiles.append(fit(colour_depth(depths[matcher], low, high)) if matcher in depths else
+                         np.full((tile, tile, 3), NO_DEPTH, np.uint8))
         if not common_scale:
-            tiles.append(colour_bar(tile, low, high, width=key_width, font=0.8, ticks=round_ticks(low, high)))
+            tiles.append(colour_bar(tile, low, high, width=key_width, font=0.8, ticks=round_ticks(low, high), light=True))
         strips.append(np.hstack([x for t in tiles for x in (t, white(tile, gap))][:-1]))
-    figure = np.vstack([x for strip in strips for x in (strip, white(gap, strip.shape[1]))][:-1])
+    body = np.vstack([x for strip in strips for x in (strip, white(gap, strip.shape[1]))][:-1])
+    headings = [white(header_h, side_w), caption(tile, header_h, "Image")] + \
+        [caption(tile, header_h, MATCHER_NAMES.get(m, m)) for m in cfg["matchers"]]
+    header = np.hstack([x for t in headings for x in (t, white(header_h, gap))][:-1])
+    header = np.hstack([header, white(header_h, body.shape[1] - header.shape[1])])
+    figure = np.vstack([header, body])
     if common_scale:
-        key = colour_bar(figure.shape[0], *shared, width=key_width, font=0.8, ticks=round_ticks(*shared, count=8))
-        figure = np.hstack([figure, white(figure.shape[0], gap), key])
+        key = colour_bar(body.shape[0], *shared, width=key_width, font=0.8, ticks=round_ticks(*shared, count=8),
+                         light=True)
+        figure = np.hstack([figure, white(figure.shape[0], gap), np.vstack([white(header_h, key_width), key])])
         print(f"  crops: one scale, {shared[0]:.0f}-{shared[1]:.0f} mm")
     out = os.path.join(depth_config.result_dir(cfg), spec.get("name", "depth_crops") + ".png")
     cv2.imwrite(out, figure)

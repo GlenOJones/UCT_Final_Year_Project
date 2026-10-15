@@ -43,6 +43,13 @@
    "python": "default",
    "argv": ["--matcher", "sgbm", "--block-size", "9", "--uniqueness", "5", "--voxel", "1"]
   },
+  "sgbm_tuned": {
+   "_why": "tune_sgbm.py's winner (results/experiments/depth_matchers/sgbm_tuning/tuning.json), tuned against the tag planes on frames this comparison does not use: F1 0.718 -> 0.834, 2.57 -> 0.32 s/frame.",
+   "python": "default",
+   "argv": ["--matcher", "sgbm", "--block-size", "11", "--uniqueness", "0", "--sgbm-mode", "hh", "--p1", "16", "--p2", "32",
+            "--speckle-window", "200", "--speckle-range", "2", "--disp12-max-diff", "1", "--prefilter-cap", "63",
+            "--sgbm-scale", "0.5", "--median-filter", "0", "--voxel", "1"]
+  },
   "aquastereo": {
    "_why": "Same scale, iterations and left-right check as FoundationStereo, so the learned matchers meet on equal terms.",
    "python": "aquastereo",
@@ -74,10 +81,11 @@
    "_common_scale": "true: one depth scale and key for all rows; false: a scale per row, fitted to its crop.",
    "common_scale": true,
    "tile_height": 420,
+   "label_scale": 1.1,
    "rows": [
-    {"recording": "3DPrintFinal_s30", "box": [755, 470, 1235, 950], "title": "S30: 2x2 pyramids"},
-    {"recording": "ice_pyramid_shade_pyr1_pass4", "box": [575, 0, 1235, 660], "title": "Ice, shade"},
-    {"recording": "ice_pyramid_sun_py2_pass1", "box": [695, 0, 1455, 760], "title": "Ice, sun"}
+    {"recording": "3DPrintFinal_s30", "box": [755, 470, 1235, 950], "title": "S30, 2X2 Pyramid"},
+    {"recording": "ice_pyramid_shade_pyr1_pass4", "box": [575, 0, 1235, 660], "title": "Pyramid ice, shade"},
+    {"recording": "ice_pyramid_sun_py2_pass1", "box": [695, 0, 1455, 760], "title": "Pyramid ice, sun"}
    ]
   }
  }
