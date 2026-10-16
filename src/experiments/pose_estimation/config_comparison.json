@@ -97,5 +97,11 @@
   "icp_normal_radius_mm": 6.0,
   "slide_threshold": 0.5,
   "image_dpi": 150
- }
+ },
+ "combined_paths": [
+  {"_why": "The two ice passes side by side: same trolley and pass, shade (tags, reference) and sun (backlit, no reference), at the same true scale.",
+   "file": "paths_ice_shade_sun.png",
+   "recordings": ["ice_pyramid_shade_pyr1_pass4", "ice_pyramid_sun_py2_pass1"],
+   "titles": {"ice_pyramid_shade_pyr1_pass4": "Pyramid ice, shade", "ice_pyramid_sun_py2_pass1": "Pyramid ice, sun"}}
+ ]
 }

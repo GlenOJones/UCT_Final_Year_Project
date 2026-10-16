@@ -16,7 +16,22 @@ evaluate_poses.evaluate, the same as experiment 4.
     src/venv/bin/python src/experiments/pose_estimation/compare_poses.py --config src/experiments/pose_estimation/config_comparison.json
 
 Writes results/<out_dir>/: summary.md (table + the mode each method ran in), summary.csv, summary.tex; and per
-recording <recording>/evaluation/{metrics.json, trajectories.png}.
+recording <recording>/evaluation/: metrics.json, trajectories.png (experiment 4's two-panel figure), and as
+single figures for the report:
+
+  paths.png  the camera paths in a TRACK frame: along the pass (the paths' main direction), across it, and out
+             of the plane of travel, with the across/out-of-plane axes exaggerated so the methods separate (at
+             true scale they lie on top of each other). With tags: every method after one rigid fit onto
+             AprilGrid, which is drawn too. Without tags (sun) there is no reference, so the figure shows only
+             how the methods agree, not which is right: the smoothest path (smallest p95 frame-to-frame step)
+             is the anchor and every other path is rigidly fitted onto it over the frames where the two agree
+             (iteratively: frames within 3x the median distance, at least 15 mm), so a method that is badly
+             wrong over part of the pass does not drag the fit. Frame-to-frame steps above 40 mm, impossible
+             for the trolley (~6 mm a frame), are drawn as dotted jumps.
+  path_2d.png  the same paths from above (along vs across track) at TRUE scale, start and end marked.
+  ate.png    (tagged recordings only) ATE per frame along the reference travel.
+
+and per cfg["combined_paths"] entry, results/<out_dir>/<file>: those recordings' top views side by side at one scale.
 """
 import argparse
 import csv
@@ -25,14 +40,20 @@ import json
 import os
 import sys
 
+import numpy as np
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "03_Reconstruction"))
 import common  # noqa: E402
 import pose_files  # noqa: E402
-from evaluate_poses import evaluate, plot  # noqa: E402
+from evaluate_poses import evaluate, plot, pose_points, umeyama  # noqa: E402
 from run_poses import frame_step, has_tags, recording_paths  # noqa: E402
-from stereo_rig import find_frame_pairs  # noqa: E402
+from stereo_rig import find_frame_pairs, invert  # noqa: E402
+
+# Validated categorical order (dataviz reference palette, slots 1-3); the reference is neutral ink.
+COLOURS = {"colmap": "#2a78d6", "icp_fs": "#eb6834", "icp_sgbm": "#1baf7a"}
+REFERENCE_INK = "#52514e"
 
 COLUMNS = [("posed", "Frames posed"), ("ate_rmse_mm", "ATE RMSE (mm)"), ("ate_max_mm", "ATE max (mm)"),
            ("ate_rmse_deg", "ATE RMSE (deg)"), ("rpe_median_%", "RPE median (%)"), ("rpe_median_deg", "RPE median (deg)"),
@@ -104,7 +125,215 @@ def score_recording(cfg, recording):
     if traces:
         plot(os.path.join(out_dir, "trajectories.png"), traces, recording.get("title", recording["name"]),
              cfg["reference"]["label"])
+    trajectory_figures(cfg, recording, out_dir)
     return rows
+
+
+def posed_centres(estimate, diagnostics):
+    """{frame: T_world_cam} of the frames posed and not lost, in frame order."""
+    return {n: invert(estimate[n]) for n in diagnostics if n in estimate and not diagnostics[n].get("lost", 0)}
+
+
+def p95_step(poses):
+    """95th percentile of a path's frame-to-frame camera step (mm): how smooth it is."""
+    centres = np.array([T[:3, 3] for T in poses.values()])
+    return float(np.percentile(np.linalg.norm(np.diff(centres, axis=0), axis=1), 95))
+
+
+def track_axes(centres):
+    """(origin, 3x3 rows: along, across, out of plane) of a pass: the centres' principal directions, along
+    pointing from the first centre to the last."""
+    origin = centres.mean(0)
+    axes = np.linalg.svd(centres - origin)[2]
+    if (centres[-1] - centres[0]) @ axes[0] < 0:
+        axes[0] = -axes[0]
+    axes[2] = np.cross(axes[0], axes[1])
+    return origin, axes
+
+
+JUMP_MM = 40.0   # a frame-to-frame step the trolley cannot make (~6 mm a frame): drawn as a dotted jump
+
+
+def aligned_paths(cfg, recording):
+    """Every method's camera centres in one frame, as the path figures draw them (see the module docstring):
+    {"aligned": {method: {frame: centre}}, "reference": centres or None, "reference_label", "how", "labels",
+    "to_track": centres -> (along, across, out of plane) mm, "start": along-track offset of the first frame}."""
+    p = recording_paths(cfg, recording)
+    lever = cfg["evaluation"]["align_lever_mm"]
+    paths = {}
+    for e in cfg["estimators"]:
+        if os.path.exists(p["poses"](e["name"])):
+            _, estimate, diagnostics = pose_files.read_trajectory(p["poses"](e["name"]))
+            paths[e["name"]] = posed_centres(estimate, diagnostics)
+    labels = {e["name"]: e["label"] for e in cfg["estimators"]}
+    title = recording.get("title", recording["name"])
+    if has_tags(recording):
+        _, reference, _ = pose_files.read_trajectory(p["reference"])
+        target = {n: invert(T) for n, T in reference.items()}
+        target_label = f"{cfg['reference']['label']} (reference)"
+        how = f"after one rigid fit onto {cfg['reference']['label']}"
+    else:
+        anchor = min(paths, key=lambda name: p95_step(paths[name]))
+        target, target_label = paths[anchor], None
+        how = f"no reference; fitted onto {labels[anchor]} where they agree"
+    aligned = {}
+    for name, poses in paths.items():
+        names = [n for n in poses if n in target]
+        if len(names) < 3:
+            continue
+        keep = np.ones(len(names), bool)
+        for _ in range(1 if has_tags(recording) else 10):
+            source = np.vstack([pose_points(poses[n], lever) for n, k in zip(names, keep) if k])
+            goal = np.vstack([pose_points(target[n], lever) for n, k in zip(names, keep) if k])
+            _, R, t = umeyama(source, goal, with_scale=False)
+            distance = np.array([np.linalg.norm(R @ poses[n][:3, 3] + t - target[n][:3, 3]) for n in names])
+            keep = distance < max(3 * np.median(distance[keep]), 15.0)
+        aligned[name] = {n: R @ poses[n][:3, 3] + t for n in poses}
+    frame_centres = np.array([T[:3, 3] for T in target.values()])
+    origin, axes = track_axes(frame_centres)
+    to_track = lambda xyz: (np.asarray(xyz) - origin) @ axes.T  # noqa: E731
+    start = to_track(frame_centres)[:, 0].min()
+
+    return {"aligned": aligned, "reference": frame_centres if target_label else None, "reference_label": target_label,
+            "how": how, "labels": labels, "to_track": to_track, "start": start, "title": title,
+            "target": target}
+
+
+def draw_top_view(ax, data, legend=True):
+    """The paths of aligned_paths() from above at true scale, jumps dotted, start (o) and end (square) marked."""
+    to_track, start = data["to_track"], data["start"]
+    if data["reference"] is not None:
+        ref = to_track(data["reference"])
+        ax.plot(ref[:, 0] - start, ref[:, 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=data["reference_label"])
+    for name, centres in data["aligned"].items():
+        xyz = np.array(list(centres.values()))
+        track = to_track(xyz)
+        cuts = np.flatnonzero(np.linalg.norm(np.diff(xyz, axis=0), axis=1) > JUMP_MM) + 1
+        jumps = len(cuts)
+        label = data["labels"][name] + (f" ({jumps} jump{'s' if jumps > 1 else ''} > {JUMP_MM:.0f} mm, dotted)"
+                                        if jumps else "")
+        x, y = track[:, 0] - start, track[:, 1]
+        ax.plot(x, y, color=COLOURS.get(name), lw=0.6, ls=":", alpha=0.5)
+        for k, (a, b) in enumerate(zip(np.r_[0, cuts], np.r_[cuts, len(x)])):
+            ax.plot(x[a:b], y[a:b], color=COLOURS.get(name), lw=1.2, label=label if k == 0 else None)
+        ax.plot(x[0], y[0], "o", ms=8, mfc="none", mec=COLOURS.get(name), mew=1.5)
+        ax.plot(x[-1], y[-1], "s", ms=8, mfc="none", mec=COLOURS.get(name), mew=1.5)
+    ax.plot([], [], "o", ms=8, mfc="none", mec=REFERENCE_INK, label="start")
+    ax.plot([], [], "s", ms=8, mfc="none", mec=REFERENCE_INK, label="end")
+    ax.set_aspect("equal", adjustable="datalim")
+    ax.set(xlabel="along track (mm)", ylabel="across track (mm)")
+    ax.grid(alpha=0.3, lw=0.6)
+    ax.spines[["top", "right"]].set_visible(False)
+    if legend:
+        ax.legend(fontsize=8, frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1))
+
+
+def trajectory_figures(cfg, recording, out_dir):
+    """paths.png, path_2d.png (and ate.png with tags) from the saved trajectories; see the module docstring."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    data = aligned_paths(cfg, recording)
+    aligned, labels, how, title = data["aligned"], data["labels"], data["how"], data["title"]
+    to_track, start, target_label = data["to_track"], data["start"], data["reference_label"]
+    frame_centres, jump, target = data["reference"], JUMP_MM, data["target"]
+    fig, ax = plt.subplots(2, 1, figsize=(9, 5.6), sharex=True)
+    if target_label:
+        ref = to_track(frame_centres)
+        for k in (0, 1):
+            ax[k].plot(ref[:, 0] - start, ref[:, k + 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=target_label)
+    for name, centres in aligned.items():
+        track = to_track(np.array(list(centres.values())))
+        steps = np.linalg.norm(np.diff(np.array(list(centres.values())), axis=0), axis=1)
+        jumps = int((steps > jump).sum())
+        label = labels[name] + (f" ({jumps} jump{'s' if jumps > 1 else ''} > {jump:.0f} mm, dotted)" if jumps else "")
+        for k in (0, 1):
+            x, y = track[:, 0] - start, track[:, k + 1]
+            # Break the line at the jumps and draw them as faint dotted links.
+            y_solid = y.copy().astype(float)
+            ax[k].plot(x, y, color=COLOURS.get(name), lw=0.6, ls=":", alpha=0.5)
+            for a, b in zip(np.r_[0, np.flatnonzero(steps > jump) + 1], np.r_[np.flatnonzero(steps > jump) + 1, len(x)]):
+                ax[k].plot(x[a:b], y_solid[a:b], color=COLOURS.get(name), lw=1.2,
+                           label=label if (k == 0 and a == 0) else None)
+    ax[0].set_ylabel("across track (mm)")
+    ax[1].set_ylabel("out of plane (mm)")
+    ax[1].set_xlabel("along track (mm)")
+    for a in ax:
+        a.grid(alpha=0.3, lw=0.6)
+        a.spines[["top", "right"]].set_visible(False)
+    ax[0].legend(fontsize=8, loc="best", frameon=False)
+    fig.suptitle(f"{title}: camera paths ({how})\nacross / out-of-plane axes exaggerated", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "paths.png"), dpi=150)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(10, 4.2))
+    draw_top_view(ax, data)
+    ax.set_title(f"{title}: camera paths seen from above, true scale\n({how})", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "path_2d.png"), dpi=150)
+    plt.close(fig)
+
+    if not has_tags(recording):
+        return
+    fig, ax = plt.subplots(figsize=(9, 3.6))
+    track_of = dict(zip(target, to_track(frame_centres)[:, 0] - start))
+    for name, centres in aligned.items():
+        names = [n for n in centres if n in target]
+        error = [np.linalg.norm(centres[n] - target[n][:3, 3]) for n in names]
+        ax.plot([track_of[n] for n in names], error, color=COLOURS.get(name), lw=1.2, label=labels[name])
+    ax.set(xlabel=f"along track (mm, {cfg['reference']['label']})", ylabel="ATE (mm)", ylim=(0, None))
+    ax.grid(alpha=0.3, lw=0.6)
+    ax.spines[["top", "right"]].set_visible(False)
+    ax.legend(fontsize=8, frameon=False)
+    ax.set_title(f"{title}: camera position error per frame, after one rigid fit onto {cfg['reference']['label']}",
+                 fontsize=10)
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "ate.png"), dpi=150)
+    plt.close(fig)
+
+
+def combined_top_views(cfg):
+    """Each cfg["combined_paths"] entry: its recordings' top views side by side in one figure at one true scale."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    by_name = {r["name"]: r for r in cfg["recordings"]}
+    for entry in cfg.get("combined_paths", []):
+        data = [aligned_paths(cfg, by_name[name]) for name in entry["recordings"]]
+        name_of = {id(d): name for d, name in zip(data, entry["recordings"])}
+        from matplotlib.lines import Line2D
+        fig, axes = plt.subplots(1, len(data), figsize=(6.4 * len(data) + 2.6, 5.4))
+        axes = np.atleast_1d(axes)
+        for ax, d in zip(axes, data):
+            draw_top_view(ax, d, legend=False)
+            title = entry.get("titles", {}).get(name_of[id(d)], d["title"])
+            ax.set_title(f"{title}\n({d['how']})", fontsize=10)
+        # One key for both panels: the methods, the reference, and the jump / start / end marks.
+        handles = [Line2D([], [], color=REFERENCE_INK, lw=3, alpha=0.35, label=f"{cfg['reference']['label']} (reference)")]
+        handles += [Line2D([], [], color=COLOURS.get(e["name"]), lw=1.2, label=e["label"]) for e in cfg["estimators"]]
+        handles += [Line2D([], [], color=REFERENCE_INK, lw=0.8, ls=":", label=f"jump > {JUMP_MM:.0f} mm (impossible step)"),
+                    Line2D([], [], ls="", marker="o", ms=8, mfc="none", mec=REFERENCE_INK, label="start"),
+                    Line2D([], [], ls="", marker="s", ms=8, mfc="none", mec=REFERENCE_INK, label="end")]
+        fig.legend(handles=handles, loc="center right", ncol=1, fontsize=9, frameon=False)
+        # One true scale for all panels: the union of their data limits, equal aspect by resizing the boxes.
+        for ax in axes:
+            ax.relim()
+            ax.autoscale_view()
+        x = (min(a.get_xlim()[0] for a in axes), max(a.get_xlim()[1] for a in axes))
+        y = (min(a.get_ylim()[0] for a in axes), max(a.get_ylim()[1] for a in axes))
+        for ax in axes:
+            ax.set_xlim(x)
+            ax.set_ylim(y)
+            ax.set_aspect("equal", adjustable="box")
+        for ax in axes[1:]:
+            ax.set_ylabel("")
+        fig.suptitle("Camera paths seen from above, true scale", fontsize=11)
+        fig.tight_layout(rect=(0, 0, 1 - 2.4 / fig.get_figwidth(), 1))
+        path = os.path.join(common.project_path(cfg["out_dir"]), entry["file"])
+        fig.savefig(path, dpi=150)
+        plt.close(fig)
+        print(f"-> {common.rel(path)}")
 
 
 def write_summary(cfg, rows):
@@ -166,6 +395,7 @@ def main(argv=None):
     cfg = common.load_config(args.config)
     rows = [row for recording in cfg["recordings"] for row in score_recording(cfg, recording)]
     write_summary(cfg, rows)
+    combined_top_views(cfg)
     return rows
 
 
