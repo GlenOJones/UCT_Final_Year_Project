@@ -57,6 +57,11 @@
    "EGG_1PK": {"centre": [-20.0, -130.0], "stl": "EGG_1PK.stl"},
    "EGG_2PKS": {"centre": [-205.0, 5.0], "stl": "Egg carton-5pkv2 (1).stl"}
   },
+  "_report": "What the table and figures show: compare_to_cad.py's on_local_board fit (the object's own error, with the board levelled around it), for the objects listed. The egg blocks are left out for now: their CAD fit locks onto a wrong rotation, and EGG_2PKS's STL is unconfirmed.",
+  "report_fit": "on_local_board",
+  "report_objects": ["PYRAMID_1"],
+  "error_limit_mm": 5,
+  "_height_range_mm": "Kept for the run started on 17 Oct with the earlier compare_fusion.py, which reads it; not used now.",
   "height_range_mm": [-5, 110],
   "figure_dpi": 150
  }

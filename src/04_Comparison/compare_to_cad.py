@@ -387,6 +387,41 @@ def write_distance_ply(path, xyz, signed, limit):
         fh.write(data.tobytes())
 
 
+def draw_signed_top(ax, reference, xyz_board, signed, T_board_ref, cmap, norm):
+    """Object points seen from above, coloured by signed distance, with the placed CAD triangles."""
+    ref_vertices = transform(T_board_ref, np.asarray(reference.full.vertices))
+    order = np.argsort(np.abs(signed))
+    ax.scatter(xyz_board[order, 0], xyz_board[order, 1], c=signed[order], cmap=cmap, norm=norm, s=1, linewidths=0)
+    for tri in np.asarray(reference.full.triangles):
+        loop = ref_vertices[np.r_[tri, tri[0]]]
+        ax.plot(loop[:, 0], loop[:, 1], color=INK, lw=0.6, alpha=0.6)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+
+
+def draw_profiles(ax, reference, xyz_board, T_board_ref):
+    """Scan points in slabs of +-3 mm through the CAD apex, along the CAD model's own x and y axes, with the
+    model's cross-section on the same lines."""
+    local = transform(np.linalg.inv(T_board_ref), xyz_board)
+    apex = np.asarray(reference.full.vertices)[np.argmax(np.asarray(reference.full.vertices)[:, 2])]
+    # The CAD line is the model's own cross-section on the same line, as the top of a dense surface
+    # sample per 0.5 mm bin, so it is right for any shape (not only a single pyramid).
+    cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
+    for axis, other, colour, style, label in ((0, 1, "#184f95", "-", "along CAD x"), (1, 0, "#8e2a1f", "--", "along CAD y")):
+        slab = np.abs(local[:, other] - apex[other]) < 3.0
+        ax.scatter(local[slab, axis] - apex[axis], local[slab, 2], s=2, color=colour, alpha=0.6,
+                   linewidths=0, label=f"scan, {label}")
+        line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
+        bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
+        order = np.lexsort((-line[:, 2], bins))
+        first = order[np.r_[True, np.diff(bins[order]) != 0]]
+        ax.plot(bins[first] * 0.5, line[first, 2], color=INK, lw=1.2, ls=style, label=f"CAD, {label}")
+    ax.set_aspect("equal")
+    ax.set_xlabel("distance from apex (mm)")
+    ax.set_ylabel("height (mm)")
+
+
 def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit, fit="on_board"):
     """Top-down error map with the placed CAD outline, histogram, and profiles through the apex."""
     import matplotlib
@@ -402,19 +437,9 @@ def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit, fi
                  f"bias {stats['mean_signed_mm']:+.2f} mm, coverage {100 * stats['coverage']:.0f}% "
                  f"({fit} fit)", x=0.01, ha="left", fontsize=11)
 
-    ref_vertices = transform(T_board_ref, np.asarray(reference.full.vertices))
-    triangles = np.asarray(reference.full.triangles)
-
     top = fig.add_subplot(1, 3, 1, facecolor=SURFACE)
-    order = np.argsort(np.abs(signed))
-    top.scatter(xyz_board[order, 0], xyz_board[order, 1], c=signed[order], cmap=cmap, norm=norm, s=1, linewidths=0)
-    for tri in triangles:
-        loop = ref_vertices[np.r_[tri, tri[0]]]
-        top.plot(loop[:, 0], loop[:, 1], color=INK, lw=0.6, alpha=0.6)
-    top.set_aspect("equal")
+    draw_signed_top(top, reference, xyz_board, signed, T_board_ref, cmap, norm)
     top.set_title("Signed distance to CAD, top-down", loc="left")
-    top.set_xlabel("x (mm)")
-    top.set_ylabel("y (mm)")
 
     hist = fig.add_subplot(1, 3, 2, facecolor=SURFACE)
     bins = np.linspace(-3 * limit, 3 * limit, 121)
@@ -430,27 +455,9 @@ def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit, fi
     hist.set_xlabel("signed distance (mm), positive = outside the CAD surface")
     hist.set_ylabel("points")
 
-    # Profiles: slabs through the apex along the CAD model's own x and y axes.
     prof = fig.add_subplot(1, 3, 3, facecolor=SURFACE)
-    T_ref_board = np.linalg.inv(T_board_ref)
-    local = transform(T_ref_board, xyz_board)
-    apex = np.asarray(reference.full.vertices)[np.argmax(np.asarray(reference.full.vertices)[:, 2])]
-    # The CAD line is the model's own cross-section on the same line, as the top of a dense surface
-    # sample per 0.5 mm bin, so it is right for any shape (not only a single pyramid).
-    cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
-    for axis, other, colour, style, label in ((0, 1, "#184f95", "-", "along CAD x"), (1, 0, "#8e2a1f", "--", "along CAD y")):
-        slab = np.abs(local[:, other] - apex[other]) < 3.0
-        prof.scatter(local[slab, axis] - apex[axis], local[slab, 2], s=2, color=colour, alpha=0.6,
-                     linewidths=0, label=f"scan, {label}")
-        line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
-        bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
-        order = np.lexsort((-line[:, 2], bins))
-        first = order[np.r_[True, np.diff(bins[order]) != 0]]
-        prof.plot(bins[first] * 0.5, line[first, 2], color=INK, lw=1.2, ls=style, label=f"CAD, {label}")
-    prof.set_aspect("equal")
+    draw_profiles(prof, reference, xyz_board, T_board_ref)
     prof.set_title("Profiles through the apex (slabs of +/-3 mm)", loc="left")
-    prof.set_xlabel("distance from apex (mm)")
-    prof.set_ylabel("height (mm)")
     prof.legend(frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
 
     colourbar = fig.colorbar(matplotlib.cm.ScalarMappable(norm, cmap), ax=top, orientation="horizontal",

@@ -1,21 +1,22 @@
-"""Compare the fusion methods' clouds: per-object CAD scores, a summary table and side-by-side figures.
+"""Compare the fusion methods' clouds with the CAD models: an accuracy table and per-object figures.
 
-Reads only what run_fusion.py saved: each method's board-frame cloud (<work>/<method>/cloud_board.ply), the
-board fit (alignment.json) and the run record (run_fusion.json). Each object is cropped to a box of
-+-crop_half_mm around its centre (config evaluation.objects) and scored by compare_to_cad.py against its STL,
-exactly as score_objects.py does for Sep30. The clouds are scored as fused (no postprocess_cloud.py), so what
-is compared is the fusion itself; compare_to_cad.py keeps the largest cluster above the board.
+Reads only what run_fusion.py saved: each method's board-frame cloud (<work>/<method>/cloud_board.ply) and the
+run record (run_fusion.json). Each object is cropped to a box of +-crop_half_mm around its centre (config
+evaluation.objects) and scored by compare_to_cad.py against its STL, exactly as score_objects.py does for
+Sep30. The clouds are scored as fused (no postprocess_cloud.py), so what is compared is the fusion itself;
+compare_to_cad.py keeps the cluster of points that reaches highest above the board.
 
-compare_to_cad.py's fits (see its docstring): on_board (absolute: x, y, yaw only, so any height or tilt error
-of the reconstruction, or of the board fit, shows), on_local_board (the board levelled around the object
-first: the object's own error), shape (best rigid fit: shape alone).
+compare_to_cad.py makes three fits (see its docstring). The table and figures use one, evaluation.report_fit
+(on_local_board: the board levelled around the object first, so the object's own error is measured rather than
+the board frame's); summary.csv has all three.
 
     src/venv/bin/python src/experiments/fusion/compare_fusion.py --config src/experiments/fusion/config.json
 
 Writes to results/<out_dir>/<recording>/:
-    summary.md, summary.csv      per method and object: points, coverage, error statistics, per fit
-    overview.png                 top-down height map of each method's cloud, objects outlined
-    objects.png                  each object (rows) as each method reconstructed it (columns)
+    table_accuracy.tex            T1: per report object and method, coverage and error statistics (LaTeX)
+    summary.md, summary.csv       the same table as Markdown; every object, method and fit as CSV
+    accuracy_<object>.png         per report object: one row per method, signed distance to the CAD from above
+                                  and profiles through the apex (compare_to_cad.py's own panels)
     comparison/<method>/<object>/ compare_to_cad.py's outputs (metrics.json, error maps, distances.ply)
     objects/<method>/<object>.ply the crops
 """
@@ -33,25 +34,24 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import open3d as o3d  # noqa: E402
+from matplotlib.colors import LinearSegmentedColormap, Normalize  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(SRC, "04_Comparison"))
 import common  # noqa: E402
+import compare_to_cad  # noqa: E402
 from run_fusion import recording_paths  # noqa: E402
 
 COMPARE_SCRIPT = os.path.join("src", "04_Comparison", "compare_to_cad.py")
 STL_DIR = os.path.join("data", "GroundTruth", "roughness_blocks_STL")
 FITS = ("on_board", "on_local_board", "shape")
-CELL_MM = 1.0   # height-map raster for the figures
-
-
-def load_cloud(path):
-    return np.asarray(o3d.io.read_point_cloud(path).points)
 
 
 # ====== CAD SCORES ======
-def crop(xyz_cloud, centre, half, out_path):
-    cloud = o3d.io.read_point_cloud(xyz_cloud)
+def crop(cloud_path, centre, half, out_path):
+    cloud = o3d.io.read_point_cloud(cloud_path)
     xyz = np.asarray(cloud.points)
     inside = np.all(np.abs(xyz[:, :2] - np.asarray(centre)) < half, axis=1)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -78,6 +78,9 @@ def score_all(cfg, p):
     jobs = []
     for method in cfg["methods"]:
         cloud = os.path.join(p["method"](method["name"]), "cloud_board.ply")
+        if not os.path.exists(cloud):
+            print(f"{method['name']}: no cloud yet ({common.rel(cloud)}); left blank in the table and figures")
+            continue
         for name, obj in ev["objects"].items():
             crop_path = os.path.join(p["out"], "objects", method["name"], f"{name}.ply")
             n = crop(cloud, obj["centre"], ev["crop_half_mm"], crop_path)
@@ -88,8 +91,8 @@ def score_all(cfg, p):
         return list(pool.map(score, jobs))
 
 
-def write_tables(cfg, p, results, run_record):
-    labels = {m["name"]: m["label"] for m in cfg["methods"]}
+# ====== T1: ACCURACY TABLE ======
+def table_rows(cfg, results):
     rows = []
     for (method, name, _, stl, _, _), metrics in results:
         if metrics is None:
@@ -99,104 +102,116 @@ def write_tables(cfg, p, results, run_record):
             if m is None:
                 continue
             rows.append({"method": method, "object": name, "reference": stl, "fit": fit, "points": m["points"],
-                         "coverage": round(m["coverage"], 3), "mean_signed_mm": round(m["mean_signed_mm"], 3),
-                         "rms_mm": round(m["rms_mm"], 3), "median_abs_mm": round(m["median_abs_mm"], 3),
-                         "p95_abs_mm": round(m["p95_abs_mm"], 3), "within_2mm": round(m["within_2mm"], 3)})
+                         "coverage": m["coverage"], "mean_signed_mm": m["mean_signed_mm"], "rms_mm": m["rms_mm"],
+                         "median_abs_mm": m["median_abs_mm"], "p95_abs_mm": m["p95_abs_mm"],
+                         "within_1mm": m["within_1mm"], "within_2mm": m["within_2mm"], "within_5mm": m["within_5mm"]})
+    return rows
+
+
+def write_tables(cfg, p, rows, run_record):
+    ev = cfg["evaluation"]
+    labels = {m["name"]: m["label"] for m in cfg["methods"]}
     with open(os.path.join(p["out"], "summary.csv"), "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0]))
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows({k: round(v, 4) if isinstance(v, float) else v for k, v in r.items()} for r in rows)
 
-    timing = {r["step"].split(": ")[-1]: r for r in run_record["runs"]}
-    lines = [f"# Fusion comparison: {cfg['recording']['title']}", "",
-             f"Made {datetime.datetime.now().isoformat(timespec='seconds')} by compare_fusion.py. "
-             f"{len(run_record['frames'])} frames, COLMAP poses for all three methods, tags masked. "
-             "Clouds scored as fused. on_local_board = the object's own error (board levelled around it); "
-             "shape = best rigid fit.", "",
-             "| Method | Points (whole cloud) | Fusion time (s) |", "|---|---|---|"]
-    for method in cfg["methods"]:
-        seconds = timing.get(method["name"], {}).get("seconds")
-        total = sum(seconds.values()) if isinstance(seconds, dict) else seconds
-        lines.append(f"| {method['label']} | {run_record['points'].get(method['name'], 0):,} | "
-                     f"{'-' if total is None else f'{total:.0f}'} |")
-    for fit in ("on_local_board", "shape"):
-        lines += ["", f"## Fit: {fit}", "",
-                  "| Object | Method | Points | Coverage | Median abs (mm) | RMS (mm) | p95 abs (mm) | Within 2 mm |",
-                  "|---|---|---|---|---|---|---|---|"]
-        for name in cfg["evaluation"]["objects"]:
-            for r in (r for r in rows if r["object"] == name and r["fit"] == fit):
-                lines.append(f"| {name} | {labels[r['method']]} | {r['points']:,} | {r['coverage']:.0%} | "
-                             f"{r['median_abs_mm']:.2f} | {r['rms_mm']:.2f} | {r['p95_abs_mm']:.2f} | {r['within_2mm']:.0%} |")
-    path = os.path.join(p["out"], "summary.md")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(lines) + "\n")
-    print("\n".join(lines))
-    print(f"\n-> {common.rel(path)}")
+    fit = ev["report_fit"]
+    # One row per method in config order; a method with no result yet keeps its row, blank (None).
+    found = {(r["object"], r["method"]): r for r in rows if r["fit"] == fit}
+    chosen = [(name, [found.get((name, m["name"]), {"method": m["name"], "blank": True}) for m in cfg["methods"]])
+              for name in ev["report_objects"]]
+    frames = len(run_record["frames"])
+    caption = (f"Accuracy of each fusion method against the CAD model, {cfg['recording']['title']}, {frames} frames, "
+               f"COLMAP poses. Fit: {fit.replace('_', ' ')}. Coverage is the share of the visible CAD surface with "
+               "a scan point within 2~mm; distances are from every object point to the CAD surface.")
+    tex = ["% Made by src/experiments/fusion/compare_fusion.py from compare_to_cad.py's metrics.json; do not edit.",
+           r"\begin{table}[H]", r"\centering", rf"\caption{{{caption}}}", r"\label{tab:fusion_accuracy}",
+           r"\begin{tabular}{llrrrrrrr}", r"\toprule",
+           r"Object & Method & Coverage (\%) & Median $|d|$ (mm) & RMS (mm) & p95 $|d|$ (mm) & "
+           r"$\leq$1~mm (\%) & $\leq$2~mm (\%) & $\leq$5~mm (\%) \\", r"\midrule"]
+    md = [f"# Fusion accuracy: {cfg['recording']['title']}", "",
+          f"Made {datetime.datetime.now().isoformat(timespec='seconds')} by compare_fusion.py. {frames} frames, "
+          f"COLMAP poses, tags masked, clouds scored as fused. Fit: {fit}.", "",
+          "| Object | Method | Coverage | Median abs (mm) | RMS (mm) | p95 abs (mm) | <=1 mm | <=2 mm | <=5 mm |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    for k, (name, object_rows) in enumerate(chosen):
+        for i, r in enumerate(object_rows):
+            first = rf"\multirow{{{len(object_rows)}}}{{*}}{{{name.replace('_', chr(92) + '_')}}}" if i == 0 else ""
+            if r.get("blank"):
+                tex.append(f"{first} & {labels[r['method']]}" + " & --" * 7 + r" \\")
+                md.append(f"| {name} | {labels[r['method']]} |" + " - |" * 7)
+                continue
+            tex.append(f"{first} & {labels[r['method']]} & {100 * r['coverage']:.0f} & {r['median_abs_mm']:.2f} & "
+                       f"{r['rms_mm']:.2f} & {r['p95_abs_mm']:.2f} & {100 * r['within_1mm']:.0f} & "
+                       f"{100 * r['within_2mm']:.0f} & {100 * r['within_5mm']:.0f} \\\\")
+            md.append(f"| {name} | {labels[r['method']]} | {r['coverage']:.0%} | {r['median_abs_mm']:.2f} | "
+                      f"{r['rms_mm']:.2f} | {r['p95_abs_mm']:.2f} | {r['within_1mm']:.0%} | {r['within_2mm']:.0%} | "
+                      f"{r['within_5mm']:.0%} |")
+        if k < len(chosen) - 1:
+            tex.append(r"\midrule")
+    tex += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    for filename, lines in (("table_accuracy.tex", tex), ("summary.md", md)):
+        with open(os.path.join(p["out"], filename), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    print("\n".join(md))
+    print(f"\n-> {common.rel(p['out'])}/table_accuracy.tex, summary.md, summary.csv")
 
 
-# ====== FIGURES ======
-def height_map(xyz, x_range, y_range):
-    """Highest point per CELL_MM cell (NaN where empty), rows = y from top."""
-    nx = int(np.ceil((x_range[1] - x_range[0]) / CELL_MM))
-    ny = int(np.ceil((y_range[1] - y_range[0]) / CELL_MM))
-    i = np.floor((xyz[:, 0] - x_range[0]) / CELL_MM).astype(int)
-    j = np.floor((y_range[1] - xyz[:, 1]) / CELL_MM).astype(int)
-    ok = (i >= 0) & (i < nx) & (j >= 0) & (j < ny)
-    grid = np.full(ny * nx, -np.inf)
-    np.maximum.at(grid, j[ok] * nx + i[ok], xyz[ok, 2])
-    grid[np.isinf(grid)] = np.nan
-    return grid.reshape(ny, nx)
+# ====== FIGURES: SIGNED DISTANCE FROM ABOVE AND PROFILES THROUGH THE APEX ======
+def signed_distances(metrics, crop_path, stl, fit):
+    """(object points, signed distance to the CAD, T_board_cad, Reference) for one crop and fit, recomputed with
+    compare_to_cad.py's own functions and the placement and settings it saved, so they match its numbers."""
+    settings = argparse.Namespace(**metrics["settings"])
+    reference = compare_to_cad.Reference(common.project_path(os.path.join(STL_DIR, stl)))
+    xyz = np.asarray(o3d.io.read_point_cloud(crop_path).points, np.float64)
+    points = compare_to_cad.object_points(xyz, settings.min_height, reference.height)
+    T = np.array(metrics["fits"][fit]["transform_board_from_cad"]["matrix"])
+    _, _, signed, keep = compare_to_cad.evaluate(reference, points, T, settings)
+    return points[keep], signed, T, reference
 
 
-def figures(cfg, p):
+def figures(cfg, p, results):
     ev = cfg["evaluation"]
-    low, high = ev["height_range_mm"]
-    clouds = {}
-    for m in cfg["methods"]:
-        xyz = load_cloud(os.path.join(p["method"](m["name"]), "cloud_board.ply"))
-        clouds[m["name"]] = xyz[(xyz[:, 2] >= low) & (xyz[:, 2] <= high)]
-    centres = np.array([o["centre"] for o in ev["objects"].values()])
-    half = ev["crop_half_mm"]
-    x_range = (centres[:, 0].min() - 2 * half, centres[:, 0].max() + 2 * half)
-    y_range = (centres[:, 1].min() - 2 * half, centres[:, 1].max() + 2 * half)
-    extent = (*x_range, *y_range)
-
-    fig, axes = plt.subplots(1, len(cfg["methods"]), figsize=(6 * len(cfg["methods"]), 5.2), constrained_layout=True)
-    for ax, m in zip(np.atleast_1d(axes), cfg["methods"]):
-        image = ax.imshow(height_map(clouds[m["name"]], x_range, y_range), extent=extent, cmap="turbo",
-                          vmin=0, vmax=high, interpolation="nearest")
-        for name, obj in ev["objects"].items():
-            cx, cy = obj["centre"]
-            ax.add_patch(plt.Rectangle((cx - half, cy - half), 2 * half, 2 * half, fill=False, ec="k", lw=0.8, ls="--"))
-            ax.text(cx, cy + half + 4, name, ha="center", va="bottom", fontsize=7)
-        ax.set_title(f"{m['label']}\n{len(clouds[m['name']]):,} points {low:g} to {high:g} mm above the board",
-                     fontsize=10)
-        ax.set_xlabel("board x (mm)")
-        ax.set_ylabel("board y (mm)")
-    fig.colorbar(image, ax=axes, label="height above board (mm)", shrink=0.8)
-    fig.savefig(os.path.join(p["out"], "overview.png"), dpi=ev["figure_dpi"])
-    plt.close(fig)
-
-    names = list(ev["objects"])
-    fig, axes = plt.subplots(len(names), len(cfg["methods"]), figsize=(3.2 * len(cfg["methods"]), 3.0 * len(names)),
-                             constrained_layout=True, squeeze=False)
-    for r, name in enumerate(names):
-        cx, cy = ev["objects"][name]["centre"]
-        xr, yr = (cx - half, cx + half), (cy - half, cy + half)
-        for c, m in enumerate(cfg["methods"]):
-            ax = axes[r, c]
-            image = ax.imshow(height_map(clouds[m["name"]], xr, yr), extent=(*xr, *yr), cmap="turbo",
-                              vmin=0, vmax=high, interpolation="nearest")
-            ax.set_xticks([])
-            ax.set_yticks([])
-            if r == 0:
-                ax.set_title(m["label"], fontsize=9)
-            if c == 0:
-                ax.set_ylabel(name, fontsize=9)
-    fig.colorbar(image, ax=axes, label="height above board (mm)", shrink=0.6)
-    fig.savefig(os.path.join(p["out"], "objects.png"), dpi=ev["figure_dpi"])
-    plt.close(fig)
-    print(f"figures -> {common.rel(p['out'])}/overview.png, objects.png")
+    fit, limit = ev["report_fit"], ev["error_limit_mm"]
+    cmap = LinearSegmentedColormap.from_list("signed", compare_to_cad.DIVERGING)
+    norm = Normalize(-limit, limit)
+    by_key = {(job[0], job[1]): (job, metrics) for job, metrics in results}
+    methods = cfg["methods"]
+    for name in ev["report_objects"]:
+        fig, axes = plt.subplots(len(methods), 2, figsize=(11, 4.0 * len(methods)), squeeze=False,
+                                 gridspec_kw={"width_ratios": [1, 1.4]}, constrained_layout=True)
+        legend_drawn = False
+        for row, method in enumerate(methods):
+            job, metrics = by_key.get((method["name"], name), (None, None))
+            top, prof = axes[row]
+            if metrics is None:
+                # Keep the method's row, empty, so the figure's layout does not change when it arrives.
+                for ax in (top, prof):
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    ax.text(0.5, 0.5, "results pending", transform=ax.transAxes, ha="center", va="center",
+                            color=compare_to_cad.MUTED, fontsize=11)
+                top.set_title(f"{method['label']}", loc="left", fontsize=10)
+                prof.set_title("Profiles through the apex (slabs of +/-3 mm)", loc="left", fontsize=10)
+                continue
+            points, signed, T, reference = signed_distances(metrics, job[2], job[3], fit)
+            stats = metrics["fits"][fit]
+            compare_to_cad.draw_signed_top(top, reference, points, signed, T, cmap, norm)
+            compare_to_cad.draw_profiles(prof, reference, points, T)
+            top.set_title(f"{method['label']}\nmedian |d| {stats['median_abs_mm']:.2f} mm, "
+                          f"coverage {100 * stats['coverage']:.0f}%", loc="left", fontsize=10)
+            prof.set_title("Profiles through the apex (slabs of +/-3 mm)", loc="left", fontsize=10)
+            if not legend_drawn:
+                prof.legend(frameon=False, fontsize=8, loc="upper right")
+                legend_drawn = True
+        bar = fig.colorbar(matplotlib.cm.ScalarMappable(norm, cmap), ax=axes[:, 0], orientation="horizontal",
+                           shrink=0.8, aspect=30)
+        bar.set_label("signed distance to CAD (mm), positive = outside")
+        path = os.path.join(p["out"], f"accuracy_{name}.png")
+        fig.savefig(path, dpi=ev["figure_dpi"])
+        plt.close(fig)
+        print(f"-> {common.rel(path)}")
 
 
 def main(argv=None):
@@ -208,8 +223,8 @@ def main(argv=None):
     with open(os.path.join(p["out"], "run_fusion.json"), encoding="utf-8") as fh:
         run_record = json.load(fh)
     results = score_all(cfg, p)
-    write_tables(cfg, p, results, run_record)
-    figures(cfg, p)
+    write_tables(cfg, p, table_rows(cfg, results), run_record)
+    figures(cfg, p, results)
 
 
 if __name__ == "__main__":
