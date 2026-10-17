@@ -29,6 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "..", "03_Reconstruction"))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), ".."))
 from stereo_rig import CAMERAS, find_frame_pairs, load_rig, rel  # noqa: E402
+import tag_poses  # noqa: E402
 from tag_poses import detect, make_detector  # noqa: E402
 import pose_files  # noqa: E402
 
@@ -39,6 +40,8 @@ def parse_args(argv=None):
     ap.add_argument("--poses", required=True, help="tag_poses.py YAML for this recording (layout + per-frame poses)")
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--step", type=int, default=1, help="every Nth frame pair, as the estimators use (default 1)")
+    ap.add_argument("--enhance", action="store_true",
+                    help="detect as tag_poses.py --enhance does (contrast-boosted image), for backlit recordings")
     ap.add_argument("--scale", type=float, default=1.6,
                     help="mask side / tag side: covers the white paper square around each tag (default 1.6)")
     return ap.parse_args(argv)
@@ -67,7 +70,8 @@ def main(argv=None):
     _, poses, _ = pose_files.read_trajectory(args.poses)
     T_right_left = np.eye(4)
     T_right_left[:3, :3], T_right_left[:3, 3] = rig.R, rig.T.ravel()
-    detector = make_detector()
+    tag_poses.ENHANCE = args.enhance
+    detector = make_detector(args.enhance)
     width, height = rig.image_size
     pairs = find_frame_pairs(args.frames_dir)[::args.step]
     for camera in CAMERAS:

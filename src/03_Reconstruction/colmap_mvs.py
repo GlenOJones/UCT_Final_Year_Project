@@ -582,13 +582,18 @@ def stage_patchmatch(ws, args):
     }, optional={"PatchMatchStereo.cache_size": args.cache_gb})
 
 
-def stage_fuse(ws, args):
-    colmap(ws, "stereo_fusion", {
+def stage_fuse(ws, args, mask_path=None):
+    """stereo_fusion of the geometric depth maps. mask_path: <mask_path>/<image name>.png masks in the
+    UNDISTORTED images' geometry, 0 = pixel not fused."""
+    options = {
         "workspace_path": os.path.join(ws, "dense"),
         "input_type": "geometric",
         "output_path": os.path.join(ws, "dense", "fused.ply"),
         "StereoFusion.min_num_pixels": args.min_fused_pixels,
-    }, optional={"StereoFusion.cache_size": args.cache_gb})
+    }
+    if mask_path:
+        options["StereoFusion.mask_path"] = mask_path
+    colmap(ws, "stereo_fusion", options, optional={"StereoFusion.cache_size": args.cache_gb})
 
 
 def stage_export(ws, out_path):

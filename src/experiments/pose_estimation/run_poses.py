@@ -14,11 +14,19 @@ envs/ffs), with every setting taken from config.json. Per recording:
 With skip_existing, a step whose output exists is not run again.
 
 A recording may set its own frame_step, and icp_argv (appended to every ICP estimator's argv, so it overrides
-them: e.g. a larger --max-step where the rig moves faster). One with "tags": false (no tag anywhere in it) gets
+them: e.g. a larger --max-step where the rig moves faster). A backlit one may set "enhance_tags": true (tag
+detection on a contrast-boosted image, for the reference and the masks) and its own "max_reprojection_px".
+
+A recording with "restart_on_failure": true has every estimator's run judged by restarts.assess (cfg
+"restarts" holds the criteria); a failed run is repeated from later start frames on symlinked subsets of its
+inputs until one passes (restarts.py). The full run stays as poses/<name>.yaml; the attempts go to
+work/<work_dir>/<recording>/restarts/ and poses/restarts/, the record to poses/<name>_restarts.json, and a
+passing restart to poses/<name>_restart.yaml. One with "tags": false (no tag anywhere in it) gets
 no reference and no masks; its estimators still run.
 """
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -26,6 +34,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import common  # noqa: E402
+import restarts  # noqa: E402
 
 RECON = os.path.join("src", "03_Reconstruction")
 
@@ -72,14 +81,15 @@ def run_recording(cfg, recording, skip_existing):
     if has_tags(recording):
         run(py["default"], os.path.join(RECON, "tag_poses.py"),
             ["--frames-dir", frames, "--calibration", calibration, "--tag-size", str(recording["tag_size_mm"]),
-             "--max-reprojection", str(cfg["reference"]["max_reprojection_px"]), "--out", p["reference"]],
+             "--max-reprojection", str(recording.get("max_reprojection_px", cfg["reference"]["max_reprojection_px"])),
+             "--out", p["reference"], *(["--enhance"] if recording.get("enhance_tags") else [])],
             p["reference"], skip_existing, runs, f"{recording['name']}: reference tag poses")
 
     masks = []
     if cfg["tag_masks"]["enabled"] and has_tags(recording):
         run(py["default"], os.path.join("src", "experiments", "pose_estimation", "make_tag_masks.py"),
             ["--frames-dir", frames, "--poses", p["reference"], "--out-dir", p["masks"], "--step", step,
-             "--scale", str(cfg["tag_masks"]["scale"])],
+             "--scale", str(cfg["tag_masks"]["scale"]), *(["--enhance"] if recording.get("enhance_tags") else [])],
             os.path.join(p["masks"], "masks.json"), skip_existing, runs, f"{recording['name']}: tag masks")
         masks = ["--masks", p["masks"]]
 
@@ -105,7 +115,64 @@ def run_recording(cfg, recording, skip_existing):
         else:
             raise SystemExit(f"unknown estimator kind {estimator['kind']!r}")
         run(py["default"], script, argv, out, skip_existing, runs, f"{recording['name']}: {estimator['name']}")
+        if recording.get("restart_on_failure"):
+            restart_estimator(cfg, recording, estimator, argv, script, skip_existing, runs)
     return runs
+
+
+def restart_estimator(cfg, recording, estimator, argv, script, skip_existing, runs):
+    """Judge the full run; if it failed, rerun from later starts on subsets of its inputs (restarts.py)."""
+    sys.path.insert(0, os.path.join(common.PROJECT_ROOT, RECON))
+    import pose_files
+    p = recording_paths(cfg, recording)
+    name, out = estimator["name"], p["poses"](estimator["name"])
+    record_path = os.path.join(p["out"], "poses", f"{name}_restarts.json")
+    if skip_existing and os.path.exists(record_path):
+        print(f"=== {recording['name']}: {name} restarts: {common.rel(record_path)} exists, skipped")
+        return
+    _, _, full_diag = pose_files.read_trajectory(out)
+    names = list(full_diag)
+
+    def option(flag):   # the value after a flag in argv, which the restarted run replaces
+        return argv[argv.index(flag) + 1]
+
+    def run_from(start):
+        if start == 0:
+            return out
+        subset = [n for n in names if restarts.frame_number(n) >= start]
+        base = os.path.join(p["work"], "restarts", f"{name}_from_{start}")
+        target = os.path.join(p["out"], "poses", "restarts", f"{name}_from_{start}.yaml")
+        new = list(argv)
+        if estimator["kind"] == "colmap":
+            frames = restarts.link_subset(option("--frames-dir"), os.path.join(base, "frames"), subset, ["left", "right"])
+            new[new.index("--frames-dir") + 1] = frames
+            new[new.index("--workspace") + 1] = os.path.join(base, "colmap")
+            new[new.index("--step") + 1] = "1"   # the subset already holds only the frames given
+        else:
+            depth = option("--depth-dir")
+            npz = [os.path.splitext(n)[0] + ".npz" for n in subset]
+            new[new.index("--depth-dir") + 1] = restarts.link_subset(depth, os.path.join(base, "depth"), npz,
+                                                                     ["frames"], ["depth_frames.json"])
+        new[new.index("--out") + 1] = target
+        run(cfg["python"]["default"], script, new, target, skip_existing, runs,
+            f"{recording['name']}: {name} restarted at frame {start}")
+        return target
+
+    def read(path):
+        _, poses, diagnostics = pose_files.read_trajectory(path)
+        return poses, diagnostics
+
+    attempts, kept = restarts.run_with_restarts(names, run_from, read, cfg["restarts"])
+    for a in attempts:
+        state = "FAILED: " + "; ".join(a["reasons"]) if a["failed"] else "passed"
+        print(f"  {name} from frame {a['start']}: posed {a['posed']}/{a['frames']}, {a['jumps']} jumps -> {state}")
+    restarts.write_attempts(record_path, name, [{**a, "path": common.rel(a["path"])} for a in attempts], kept)
+    restart_out = os.path.join(p["out"], "poses", f"{name}_restart.yaml")
+    if kept:
+        shutil.copy(kept["path"], restart_out)
+        print(f"  {name}: kept the restart at frame {kept['start']} -> {common.rel(restart_out)}")
+    elif os.path.exists(restart_out):
+        os.remove(restart_out)
 
 
 def main(argv=None):

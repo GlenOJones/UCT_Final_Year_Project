@@ -435,18 +435,23 @@ def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit, fi
     T_ref_board = np.linalg.inv(T_board_ref)
     local = transform(T_ref_board, xyz_board)
     apex = np.asarray(reference.full.vertices)[np.argmax(np.asarray(reference.full.vertices)[:, 2])]
-    low, high = reference.footprint
-    for axis, other, colour, label in ((0, 1, "#184f95", "along CAD x"), (1, 0, "#8e2a1f", "along CAD y")):
+    # The CAD line is the model's own cross-section on the same line, as the top of a dense surface
+    # sample per 0.5 mm bin, so it is right for any shape (not only a single pyramid).
+    cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
+    for axis, other, colour, style, label in ((0, 1, "#184f95", "-", "along CAD x"), (1, 0, "#8e2a1f", "--", "along CAD y")):
         slab = np.abs(local[:, other] - apex[other]) < 3.0
         prof.scatter(local[slab, axis] - apex[axis], local[slab, 2], s=2, color=colour, alpha=0.6,
                      linewidths=0, label=f"scan, {label}")
-    half = (high[0] - low[0]) / 2
-    prof.plot([-half, 0, half], [0, apex[2], 0], color=INK, lw=1.2, label="CAD profile")
+        line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
+        bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
+        order = np.lexsort((-line[:, 2], bins))
+        first = order[np.r_[True, np.diff(bins[order]) != 0]]
+        prof.plot(bins[first] * 0.5, line[first, 2], color=INK, lw=1.2, ls=style, label=f"CAD, {label}")
     prof.set_aspect("equal")
     prof.set_title("Profiles through the apex (slabs of +/-3 mm)", loc="left")
     prof.set_xlabel("distance from apex (mm)")
     prof.set_ylabel("height (mm)")
-    prof.legend(frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3)
+    prof.legend(frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
 
     colourbar = fig.colorbar(matplotlib.cm.ScalarMappable(norm, cmap), ax=top, orientation="horizontal",
                              shrink=0.8, pad=0.14, aspect=30)

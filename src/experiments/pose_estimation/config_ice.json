@@ -1,0 +1,220 @@
+{
+ "_what": "Pose estimation on the two ice passes (shade, sun pass 2): AprilGrid tag poses (the reference) against COLMAP and ICP on FoundationStereo and on tuned-SGBM depth. The markerless methods never see the tags (masked). On the sun pass, a run that fails (restarts.assess) is repeated from later start frames and the first passing restart is reported beside the failed full run. Scored on frames posed, ATE, RPE, runtime and grip.",
+ "out_dir": "results/experiments/pose_ice",
+ "work_dir": "work/experiments/pose_ice",
+ "python": {
+  "default": "src/venv/bin/python",
+  "ffs": "envs/ffs/bin/python"
+ },
+ "recordings": [
+  {
+   "name": "ice_pyramid_shade_pyr1_pass4",
+   "title": "Ice, shade",
+   "frames": "data/3DRecon/Ice/Pyramid/Shade/pyr1_frames_pass4_730mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "tag_size_mm": 50,
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400,
+   "_frame_step": "Every frame: the ice passes move faster (tag poses: median 6.6 mm, p95 11.2 mm, max 22.2 mm per frame).",
+   "frame_step": 1,
+   "_icp_argv": "ICP's lost-frame step limit at ~3x the p95 step: the default 20 mm is below this pass's largest real step.",
+   "icp_argv": [
+    "--max-step",
+    "35"
+   ]
+  },
+  {
+   "name": "ice_pyramid_sun_py2_pass2",
+   "title": "Ice, sun",
+   "frames": "data/3DRecon/Ice/Pyramid/Sun/py2_frames_pass2",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_tags": "Backlit. Replaces pass 1 (video frames 490-770), where only tag 3 was ever seen, and only from frame 122. This pass is video frames 988-1138 (151 pairs, selected by hand). The plain detector poses 2 frames, so tags are detected on a contrast-boosted image (enhance_tags) with a 1.5 px gate (at 0.8 px only 39 frames survive): tags 0, 1, 3, 118 of 151 frames posed (41 with one tag, 56 with two, 21 with three), layout residual 1.56 mm median. A NOISY reference: camera centres scatter ~8 mm (3 tags) to ~18 mm (1 tag) median about a smooth path, against ~0.5 mm on shade, so ATE/RPE here mix method error with reference noise; good for gross failures, not mm rankings.",
+   "enhance_tags": true,
+   "reference_noisy": true,
+   "max_reprojection_px": 1.5,
+   "tag_size_mm": 50,
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400,
+   "frame_step": 1,
+   "_icp_argv": "Same trolley as the shade recording.",
+   "icp_argv": [
+    "--max-step",
+    "35"
+   ],
+   "_restart": "Glen: on the sun pass only, a method that fails is tried again from a later start frame.",
+   "restart_on_failure": true
+  }
+ ],
+ "frame_step": 1,
+ "reference": {
+  "_why": "tag_poses.py at its defaults; its poses are the reference the others are scored against.",
+  "label": "AprilGrid",
+  "mode": "tag_poses.py: AprilTag 36h11 corners (sub-pixel) triangulated in stereo, max reprojection 0.8 px; one tag layout fitted to all frames, each frame a rigid fit of the layout. Sees the tags (the only method that does). Grip: tag corners triangulated in the frame.",
+  "max_reprojection_px": 0.8
+ },
+ "tag_masks": {
+  "_why": "Hide the tags (and their white surround) from every markerless estimator: ice has no tags.",
+  "enabled": true,
+  "scale": 1.6
+ },
+ "depth": {
+  "foundationstereo": {
+   "_why": "The fs_s05 settings, as in experiments 4 and 5.",
+   "python": "ffs",
+   "argv": [
+    "--matcher",
+    "foundationstereo",
+    "--fs-model",
+    "vitl",
+    "--net-scale",
+    "0.5",
+    "--net-iters",
+    "32",
+    "--lr-tolerance",
+    "3",
+    "--fs-max-disp",
+    "416",
+    "--voxel",
+    "1"
+   ]
+  },
+  "sgbm_tuned": {
+   "_why": "Experiment 5's tuned SGBM (depth_matchers/config.json sgbm_tuned).",
+   "python": "default",
+   "argv": [
+    "--matcher",
+    "sgbm",
+    "--block-size",
+    "11",
+    "--uniqueness",
+    "0",
+    "--sgbm-mode",
+    "hh",
+    "--p1",
+    "16",
+    "--p2",
+    "32",
+    "--speckle-window",
+    "200",
+    "--speckle-range",
+    "2",
+    "--disp12-max-diff",
+    "1",
+    "--prefilter-cap",
+    "63",
+    "--sgbm-scale",
+    "0.5",
+    "--median-filter",
+    "0",
+    "--voxel",
+    "1"
+   ]
+  }
+ },
+ "_estimators": "One mode each. ICP: frame-to-local-map, point-to-plane, chosen in experiment 4 on S30 (map beat frame-to-frame: ATE 2.9 vs 4.4 mm on FS, 5.2 vs 10.1 mm on SGBM; coloured ICP matched point-to-plane at ~3x the time).",
+ "estimators": [
+  {
+   "name": "colmap",
+   "kind": "colmap",
+   "label": "COLMAP",
+   "mode": "colmap_poses.py: incremental SfM on SIFT (GPU), intrinsics and stereo rig fixed from the calibration, sequential matching of 12 frames either side, SIFT kept off the masked tags. Grip: SIFT keypoints the final model triangulated (left image).",
+   "argv": [
+    "--window",
+    "12",
+    "--gpu",
+    "0"
+   ]
+  },
+  {
+   "name": "icp_fs",
+   "kind": "icp",
+   "depth": "foundationstereo",
+   "label": "ICP, FoundationStereo",
+   "mode": "depth_frames.py with FoundationStereo (ViT-L, net scale 0.5, 32 iterations, left-right check 3 px), tags masked; icp_poses.py frame-to-local-map (10 frames), point-to-plane, voxels 4 then 2 mm, search 2.5 voxels, 30 iterations, translation-only constant-velocity guess; lost if fitness < 0.3 or step > max-step / 5 deg. Grip: 2 mm depth points whose normal resists a slide along the track (|n . d| > 0.5).",
+   "argv": [
+    "--target",
+    "map",
+    "--metric",
+    "plane",
+    "--scales",
+    "4",
+    "2",
+    "--max-distance",
+    "2.5",
+    "--iterations",
+    "30",
+    "--map-frames",
+    "10",
+    "--min-fitness",
+    "0.3",
+    "--max-step",
+    "20",
+    "--max-rotation",
+    "5"
+   ]
+  },
+  {
+   "name": "icp_sgbm",
+   "kind": "icp",
+   "depth": "sgbm_tuned",
+   "label": "ICP, SGBM (tuned)",
+   "mode": "depth_frames.py with tuned SGBM (block 11, uniqueness 0, P1/P2 16/32, half resolution), tags masked; ICP exactly as for FoundationStereo. Grip: as for FoundationStereo.",
+   "argv": [
+    "--target",
+    "map",
+    "--metric",
+    "plane",
+    "--scales",
+    "4",
+    "2",
+    "--max-distance",
+    "2.5",
+    "--iterations",
+    "30",
+    "--map-frames",
+    "10",
+    "--min-fitness",
+    "0.3",
+    "--max-step",
+    "20",
+    "--max-rotation",
+    "5"
+   ]
+  }
+ ],
+ "restarts": {
+  "_why": "A run fails if it poses under 80 % of its frames or more than 5 % of its steps are jumps over 40 mm (the trolley moves ~4-7 mm a frame); a failed run is retried from every 10th frame up to half the pass, and the first start that passes is kept (restarts.py).",
+  "min_posed_fraction": 0.8,
+  "max_jump_mm": 40.0,
+  "max_jump_fraction": 0.05,
+  "start_step": 10,
+  "max_start_fraction": 0.5
+ },
+ "evaluation": {
+  "_why": "Drift is measured over windows of this much reference travel.",
+  "rpe_distance_mm": 50,
+  "align_lever_mm": 400
+ },
+ "detections": {
+  "_why": "Where each method gets its grip: images for frames spread along each pass, and the grip per frame over every frame for the table.",
+  "frames": 4,
+  "icp_voxel_mm": 2.0,
+  "icp_normal_radius_mm": 6.0,
+  "slide_threshold": 0.5,
+  "image_dpi": 150
+ },
+ "combined_paths": [
+  {
+   "_why": "The two ice passes side by side at the same true scale.",
+   "file": "paths_ice_shade_sun.png",
+   "recordings": [
+    "ice_pyramid_shade_pyr1_pass4",
+    "ice_pyramid_sun_py2_pass2"
+   ],
+   "titles": {
+    "ice_pyramid_shade_pyr1_pass4": "Pyramid ice, shade",
+    "ice_pyramid_sun_py2_pass2": "Pyramid ice, sun"
+   }
+  }
+ ]
+}

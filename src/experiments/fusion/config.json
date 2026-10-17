@@ -1,0 +1,63 @@
+{
+ "_what": "Fusion comparison on S30 (lab): the full COLMAP pipeline (SfM + PatchMatch MVS + stereo fusion) against TSDF fusion of FoundationStereo and of tuned-SGBM depth, all three on the same COLMAP poses and the same frames, the tags masked out of all three. Scored per object against the CAD models, after one rigid fit of the COLMAP trajectory onto the tag poses (evaluation only: no reconstruction uses the tags).",
+ "out_dir": "results/experiments/fusion",
+ "work_dir": "work/experiments/fusion",
+ "python": "src/venv/bin/python",
+ "recording": {
+  "name": "3DPrintFinal_s30",
+  "title": "S30 (lab)",
+  "frames": "data/3DRecon/3DPrintFinal/30_frames_range",
+  "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+  "_inputs": "Made by the pose comparison (reproduce.py pose_comparison, pose_estimation/config_comparison.json): every 5th frame pair, tags masked from the markerless methods.",
+  "poses": "results/experiments/pose_comparison/3DPrintFinal_s30/poses/colmap.yaml",
+  "sfm_workspace": "work/experiments/pose_comparison/3DPrintFinal_s30/colmap",
+  "tag_masks": "work/experiments/pose_comparison/3DPrintFinal_s30/tag_masks",
+  "depth": {
+   "foundationstereo": "work/experiments/pose_comparison/3DPrintFinal_s30/depth/foundationstereo",
+   "sgbm_tuned": "work/experiments/pose_comparison/3DPrintFinal_s30/depth/sgbm_tuned"
+  },
+  "reference_poses": "results/experiments/pose_comparison/3DPrintFinal_s30/tag_poses.yaml"
+ },
+ "_frame_step": "Every posed frame of the pose comparison (344, itself every 5th recorded pair), for all three methods, so every method sees the same views. COLMAP keeps ~58 MB of depth and normal maps per image (Sep30/s30: 8.2 GB for 140 images): ~40 GB for these 688 images.",
+ "frame_step": 1,
+ "methods": [
+  {"name": "colmap", "kind": "colmap", "label": "COLMAP (full pipeline)",
+   "mode": "PatchMatch MVS with geometric consistency on the SfM model the COLMAP poses come from, then stereo_fusion; the tag masks (undistorted with the images) drop tag pixels from the fusion."},
+  {"name": "tsdf_fs", "kind": "tsdf", "depth": "foundationstereo", "label": "TSDF, FoundationStereo",
+   "mode": "tsdf_fuse.py on depth_frames.py FoundationStereo depth (ViT-L, net scale 0.5, left-right check 3 px, tags masked) at the COLMAP poses."},
+  {"name": "tsdf_sgbm", "kind": "tsdf", "depth": "sgbm_tuned", "label": "TSDF, SGBM (tuned)",
+   "mode": "tsdf_fuse.py on depth_frames.py tuned-SGBM depth (block 11, uniqueness 0, P1/P2 16/32, half resolution, tags masked) at the COLMAP poses."}
+ ],
+ "colmap": {
+  "_why": "colmap_mvs.py's defaults, which were set on the Sep24/Sep30 lab scans (see its comments).",
+  "max_image_size": 1600,
+  "window_radius": 7,
+  "min_triangulation_angle": 1.0,
+  "sources": "rig",
+  "source_images": 20,
+  "min_fused_pixels": 3,
+  "cache_gb": 12,
+  "gpu": "0",
+  "mask_fusion": true,
+  "min_free_disk_gb": 45
+ },
+ "tsdf": {
+  "_why": "tsdf_fuse.py's defaults: 1 mm voxels, truncation 4 mm (above the ~4 mm view-dependent disagreement found on Oct1), surface kept where >= 3 frames contributed (the counterpart of voxel voting's --min-views 3). Memory cap: the first uncapped trial ran the laptop out of memory.",
+  "argv": ["--voxel", "1", "--trunc", "4", "--min-weight", "3", "--pixel-mm", "1.2", "--block-resolution", "4", "--mesh"],
+  "memory_max": "12G"
+ },
+ "evaluation": {
+  "_align": "One rigid fit of the COLMAP trajectory onto the tag poses over every frame both posed: camera centres plus a point align_lever_mm along each camera axis, as in the pose comparison (a straight pass leaves the roll about the track free otherwise).",
+  "align_lever_mm": 400,
+  "crop_half_mm": 85,
+  "_objects": "Board-frame centres (mm) on S30, identified by Glen from frame 0850 and the FS height map (the board's x runs opposite to the image's). Same four prints as Sep30, laid out differently.",
+  "objects": {
+   "PYRAMID_1": {"centre": [200.0, 5.0], "stl": "PYRAMID_1.stl"},
+   "PYRAMID_2X2": {"centre": [-20.0, 120.0], "stl": "PYRAMID_2X2.stl"},
+   "EGG_1PK": {"centre": [-20.0, -130.0], "stl": "EGG_1PK.stl"},
+   "EGG_2PKS": {"centre": [-205.0, 5.0], "stl": "Egg carton-5pkv2 (1).stl"}
+  },
+  "height_range_mm": [-5, 110],
+  "figure_dpi": 150
+ }
+}

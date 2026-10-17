@@ -52,7 +52,25 @@ from run_poses import frame_step, has_tags, recording_paths  # noqa: E402
 from stereo_rig import find_frame_pairs, invert  # noqa: E402
 
 # Validated categorical order (dataviz reference palette, slots 1-3); the reference is neutral ink.
-COLOURS = {"colmap": "#2a78d6", "icp_fs": "#eb6834", "icp_sgbm": "#1baf7a"}
+COLOURS = {"colmap": "#2a78d6", "icp_fs": "#eb6834", "icp_sgbm": "#1baf7a", "icp_aqua": "#eda100"}
+RESTART = "_restart"   # suffix of a restarted run (run_poses.restart_estimator): same colour, dashed
+
+
+def colour(name):
+    return COLOURS.get(name[:-len(RESTART)] if name.endswith(RESTART) else name)
+
+
+def dashes(name):
+    return "--" if name.endswith(RESTART) else "-"
+
+
+def restart_start(p, name):
+    """Start frame of the kept restart of estimator `name`, or None if it has none."""
+    record = os.path.join(p["out"], "poses", f"{name}_restarts.json")
+    if not os.path.exists(os.path.join(p["out"], "poses", name + RESTART + ".yaml")) or not os.path.exists(record):
+        return None
+    with open(record, encoding="utf-8") as fh:
+        return json.load(fh)["kept_start"]
 REFERENCE_INK = "#52514e"
 
 COLUMNS = [("posed", "Frames posed"), ("ate_rmse_mm", "ATE RMSE (mm)"), ("ate_max_mm", "ATE max (mm)"),
@@ -97,7 +115,13 @@ def score_recording(cfg, recording):
         rows.append({**base, "method": cfg["reference"]["label"], "frames": len(names), "posed": 0,
                      "grip": 0, "note": "no tag seen by both cameras in any frame"})
 
+    runs = []
     for e in cfg["estimators"]:
+        runs.append(e)
+        start = restart_start(p, e["name"])
+        if start is not None:   # the failed full run stays; its restart is a row of its own
+            runs.append({**e, "name": e["name"] + RESTART, "label": f"{e['label']} (restarted at frame {start})"})
+    for e in runs:
         path = p["poses"](e["name"])
         if not os.path.exists(path):
             print(f"  {recording['name']}: {e['name']}: no poses at {common.rel(path)}, skipped")
@@ -115,8 +139,8 @@ def score_recording(cfg, recording):
                      "rpe_median_deg": result.get("rpe_deg", {}).get("median"),
                      "s_per_frame": per_frame(metadata.get("seconds"), frames),
                      "depth_s_per_frame": per_frame(metadata.get("depth_seconds"), frames),
-                     "grip": grip.get(e["name"]),
-                     "icp_points": grip.get(e["name"] + "_points") if e["kind"] == "icp" else None})
+                     "grip": grip.get(e["name"].replace(RESTART, "")),
+                     "icp_points": grip.get(e["name"].replace(RESTART, "") + "_points") if e["kind"] == "icp" else None})
 
     out_dir = os.path.join(p["out"], "evaluation")
     os.makedirs(out_dir, exist_ok=True)
@@ -161,17 +185,31 @@ def aligned_paths(cfg, recording):
     p = recording_paths(cfg, recording)
     lever = cfg["evaluation"]["align_lever_mm"]
     paths = {}
+    labels = {}
     for e in cfg["estimators"]:
-        if os.path.exists(p["poses"](e["name"])):
-            _, estimate, diagnostics = pose_files.read_trajectory(p["poses"](e["name"]))
-            paths[e["name"]] = posed_centres(estimate, diagnostics)
-    labels = {e["name"]: e["label"] for e in cfg["estimators"]}
+        candidates = [(e["name"], e["label"])]
+        start = restart_start(p, e["name"])
+        if start is not None:
+            candidates.append((e["name"] + RESTART, f"{e['label']} (restarted at frame {start})"))
+        for name, label in candidates:
+            if os.path.exists(p["poses"](name)):
+                _, estimate, diagnostics = pose_files.read_trajectory(p["poses"](name))
+                paths[name], labels[name] = posed_centres(estimate, diagnostics), label
     title = recording.get("title", recording["name"])
+    noisy = False
     if has_tags(recording):
         _, reference, _ = pose_files.read_trajectory(p["reference"])
         target = {n: invert(T) for n, T in reference.items()}
         target_label = f"{cfg['reference']['label']} (reference)"
         how = f"after one rigid fit onto {cfg['reference']['label']}"
+        if recording.get("reference_noisy"):   # few, small tags: a scattered reference, drawn as dots
+            noisy = True
+            target_label = f"{cfg['reference']['label']}, enhanced ({recording.get('title', recording['name'])}; noisy)"
+    elif recording.get("plot_reference"):
+        _, reference, _ = pose_files.read_trajectory(os.path.join(p["out"], recording["plot_reference"]["file"]))
+        target = {n: invert(T) for n, T in reference.items()}
+        target_label, noisy = recording["plot_reference"]["label"], True
+        how = "fitted onto the single-tag poses where they agree"
     else:
         anchor = min(paths, key=lambda name: p95_step(paths[name]))
         target, target_label = paths[anchor], None
@@ -182,7 +220,7 @@ def aligned_paths(cfg, recording):
         if len(names) < 3:
             continue
         keep = np.ones(len(names), bool)
-        for _ in range(1 if has_tags(recording) else 10):
+        for _ in range(1 if has_tags(recording) else 10):   # with tags: the same single fit as the table's ATE
             source = np.vstack([pose_points(poses[n], lever) for n, k in zip(names, keep) if k])
             goal = np.vstack([pose_points(target[n], lever) for n, k in zip(names, keep) if k])
             _, R, t = umeyama(source, goal, with_scale=False)
@@ -195,6 +233,7 @@ def aligned_paths(cfg, recording):
     start = to_track(frame_centres)[:, 0].min()
 
     return {"aligned": aligned, "reference": frame_centres if target_label else None, "reference_label": target_label,
+            "reference_noisy": noisy,
             "how": how, "labels": labels, "to_track": to_track, "start": start, "title": title,
             "target": target}
 
@@ -204,7 +243,11 @@ def draw_top_view(ax, data, legend=True):
     to_track, start = data["to_track"], data["start"]
     if data["reference"] is not None:
         ref = to_track(data["reference"])
-        ax.plot(ref[:, 0] - start, ref[:, 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=data["reference_label"])
+        if data["reference_noisy"]:   # a noisy partial reference: points, not a line to follow
+            ax.plot(ref[:, 0] - start, ref[:, 1], ".", color=REFERENCE_INK, ms=4, alpha=0.6,
+                    label=data["reference_label"])
+        else:
+            ax.plot(ref[:, 0] - start, ref[:, 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=data["reference_label"])
     for name, centres in data["aligned"].items():
         xyz = np.array(list(centres.values()))
         track = to_track(xyz)
@@ -213,11 +256,11 @@ def draw_top_view(ax, data, legend=True):
         label = data["labels"][name] + (f" ({jumps} jump{'s' if jumps > 1 else ''} > {JUMP_MM:.0f} mm, dotted)"
                                         if jumps else "")
         x, y = track[:, 0] - start, track[:, 1]
-        ax.plot(x, y, color=COLOURS.get(name), lw=0.6, ls=":", alpha=0.5)
+        ax.plot(x, y, color=colour(name), lw=0.6, ls=":", alpha=0.5)
         for k, (a, b) in enumerate(zip(np.r_[0, cuts], np.r_[cuts, len(x)])):
-            ax.plot(x[a:b], y[a:b], color=COLOURS.get(name), lw=1.2, label=label if k == 0 else None)
-        ax.plot(x[0], y[0], "o", ms=8, mfc="none", mec=COLOURS.get(name), mew=1.5)
-        ax.plot(x[-1], y[-1], "s", ms=8, mfc="none", mec=COLOURS.get(name), mew=1.5)
+            ax.plot(x[a:b], y[a:b], color=colour(name), ls=dashes(name), lw=1.2, label=label if k == 0 else None)
+        ax.plot(x[0], y[0], "o", ms=8, mfc="none", mec=colour(name), mew=1.5)
+        ax.plot(x[-1], y[-1], "s", ms=8, mfc="none", mec=colour(name), mew=1.5)
     ax.plot([], [], "o", ms=8, mfc="none", mec=REFERENCE_INK, label="start")
     ax.plot([], [], "s", ms=8, mfc="none", mec=REFERENCE_INK, label="end")
     ax.set_aspect("equal", adjustable="datalim")
@@ -241,7 +284,10 @@ def trajectory_figures(cfg, recording, out_dir):
     if target_label:
         ref = to_track(frame_centres)
         for k in (0, 1):
-            ax[k].plot(ref[:, 0] - start, ref[:, k + 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=target_label)
+            if data["reference_noisy"]:
+                ax[k].plot(ref[:, 0] - start, ref[:, k + 1], ".", color=REFERENCE_INK, ms=4, alpha=0.6, label=target_label)
+            else:
+                ax[k].plot(ref[:, 0] - start, ref[:, k + 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=target_label)
     for name, centres in aligned.items():
         track = to_track(np.array(list(centres.values())))
         steps = np.linalg.norm(np.diff(np.array(list(centres.values())), axis=0), axis=1)
@@ -251,9 +297,9 @@ def trajectory_figures(cfg, recording, out_dir):
             x, y = track[:, 0] - start, track[:, k + 1]
             # Break the line at the jumps and draw them as faint dotted links.
             y_solid = y.copy().astype(float)
-            ax[k].plot(x, y, color=COLOURS.get(name), lw=0.6, ls=":", alpha=0.5)
+            ax[k].plot(x, y, color=colour(name), lw=0.6, ls=":", alpha=0.5)
             for a, b in zip(np.r_[0, np.flatnonzero(steps > jump) + 1], np.r_[np.flatnonzero(steps > jump) + 1, len(x)]):
-                ax[k].plot(x[a:b], y_solid[a:b], color=COLOURS.get(name), lw=1.2,
+                ax[k].plot(x[a:b], y_solid[a:b], color=colour(name), ls=dashes(name), lw=1.2,
                            label=label if (k == 0 and a == 0) else None)
     ax[0].set_ylabel("across track (mm)")
     ax[1].set_ylabel("out of plane (mm)")
@@ -277,12 +323,16 @@ def trajectory_figures(cfg, recording, out_dir):
     if not has_tags(recording):
         return
     fig, ax = plt.subplots(figsize=(9, 3.6))
+    # Along-track position of a noisy reference jitters back and forth, so plot those against frame number.
+    by_frame = data["reference_noisy"]
     track_of = dict(zip(target, to_track(frame_centres)[:, 0] - start))
     for name, centres in aligned.items():
         names = [n for n in centres if n in target]
         error = [np.linalg.norm(centres[n] - target[n][:3, 3]) for n in names]
-        ax.plot([track_of[n] for n in names], error, color=COLOURS.get(name), lw=1.2, label=labels[name])
-    ax.set(xlabel=f"along track (mm, {cfg['reference']['label']})", ylabel="ATE (mm)", ylim=(0, None))
+        x = [int(os.path.splitext(n)[0]) for n in names] if by_frame else [track_of[n] for n in names]
+        ax.plot(x, error, color=colour(name), ls=dashes(name), lw=1.2, label=labels[name])
+    xlabel = "frame" if by_frame else f"along track (mm, {cfg['reference']['label']})"
+    ax.set(xlabel=xlabel, ylabel="ATE (mm)", ylim=(0, None))
     ax.grid(alpha=0.3, lw=0.6)
     ax.spines[["top", "right"]].set_visible(False)
     ax.legend(fontsize=8, frameon=False)
@@ -303,7 +353,7 @@ def combined_top_views(cfg):
         data = [aligned_paths(cfg, by_name[name]) for name in entry["recordings"]]
         name_of = {id(d): name for d, name in zip(data, entry["recordings"])}
         from matplotlib.lines import Line2D
-        fig, axes = plt.subplots(1, len(data), figsize=(6.4 * len(data) + 2.6, 5.4))
+        fig, axes = plt.subplots(1, len(data), figsize=(6.4 * len(data) + 3.0, 5.4))
         axes = np.atleast_1d(axes)
         for ax, d in zip(axes, data):
             draw_top_view(ax, d, legend=False)
@@ -311,7 +361,11 @@ def combined_top_views(cfg):
             ax.set_title(f"{title}\n({d['how']})", fontsize=10)
         # One key for both panels: the methods, the reference, and the jump / start / end marks.
         handles = [Line2D([], [], color=REFERENCE_INK, lw=3, alpha=0.35, label=f"{cfg['reference']['label']} (reference)")]
-        handles += [Line2D([], [], color=COLOURS.get(e["name"]), lw=1.2, label=e["label"]) for e in cfg["estimators"]]
+        handles += [Line2D([], [], ls="", marker=".", ms=8, color=REFERENCE_INK, alpha=0.6, label=d["reference_label"])
+                    for d in data if d["reference_noisy"]]
+        handles += [Line2D([], [], color=colour(e["name"]), lw=1.2, label=e["label"]) for e in cfg["estimators"]]
+        if any(n.endswith(RESTART) for d in data for n in d["aligned"]):
+            handles.append(Line2D([], [], color=REFERENCE_INK, lw=1.2, ls="--", label="restarted later in the pass"))
         handles += [Line2D([], [], color=REFERENCE_INK, lw=0.8, ls=":", label=f"jump > {JUMP_MM:.0f} mm (impossible step)"),
                     Line2D([], [], ls="", marker="o", ms=8, mfc="none", mec=REFERENCE_INK, label="start"),
                     Line2D([], [], ls="", marker="s", ms=8, mfc="none", mec=REFERENCE_INK, label="end")]
@@ -329,7 +383,7 @@ def combined_top_views(cfg):
         for ax in axes[1:]:
             ax.set_ylabel("")
         fig.suptitle("Camera paths seen from above, true scale", fontsize=11)
-        fig.tight_layout(rect=(0, 0, 1 - 2.4 / fig.get_figwidth(), 1))
+        fig.tight_layout(rect=(0, 0, 1 - 2.9 / fig.get_figwidth(), 1))
         path = os.path.join(common.project_path(cfg["out_dir"]), entry["file"])
         fig.savefig(path, dpi=150)
         plt.close(fig)

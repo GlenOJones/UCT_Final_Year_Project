@@ -7,6 +7,8 @@
     src/venv/bin/python src/experiments/reproduce.py pose_estimation   # experiment 4: markerless pose estimation
     src/venv/bin/python src/experiments/reproduce.py depth_matchers    # experiment 5: depth map generation
     src/venv/bin/python src/experiments/reproduce.py pose_comparison   # experiment 4 on experiment 5's recordings
+    src/venv/bin/python src/experiments/reproduce.py pose_ice          # pose on the ice passes (shade, sun pass 2)
+    src/venv/bin/python src/experiments/reproduce.py fusion            # COLMAP vs TSDF (FS, SGBM) on S30
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -27,7 +29,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation", "depth_matchers"):
+for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation", "depth_matchers", "fusion"):
     sys.path.insert(0, os.path.join(HERE, _experiment))
 sys.path.insert(0, HERE)
 import common  # noqa: E402
@@ -191,9 +193,48 @@ def pose_comparison(config, skip_existing):
                           [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
 
 
+def pose_ice(config, skip_existing):
+    """Pose estimation on the two ice passes (pose_estimation/config_ice.json): AprilGrid, COLMAP, ICP on
+    FoundationStereo and on AquaStereo depth, with restarts of failed runs on the sun pass. The restart rule's
+    unit tests run first, so a broken rule stops the run before any compute."""
+    import unittest
+    import compare_poses
+    import detection_figures
+    import run_poses
+
+    tests = unittest.defaultTestLoader.discover(os.path.join(HERE, "pose_estimation", "tests"))
+    if not unittest.TextTestRunner(verbosity=1).run(tests).wasSuccessful():
+        raise SystemExit("restart tests failed")
+    config = config or os.path.join(HERE, "pose_estimation", "config_ice.json")
+    cfg = common.load_config(config)
+    runs = run_poses.main(["--config", config] + (["--skip-existing"] if skip_existing else []))
+    detection_figures.main(["--config", config])
+    compare_poses.main(["--config", config])
+    common.write_manifest(common.project_path(cfg["out_dir"]), "pose_ice", [config],
+                          [common.project_path(r["frames"]) for r in cfg["recordings"]], [], runs)
+
+
+def fusion(config, skip_existing):
+    """Fusion comparison on S30 (fusion/config.json): full COLMAP against TSDF on FoundationStereo and on SGBM
+    depth, all at the COLMAP poses and on the pose comparison's inputs (run_fusion.py), then CAD scores and
+    figures (compare_fusion.py). Needs pose_comparison's outputs."""
+    import compare_fusion
+    import run_fusion
+
+    config = config or os.path.join(HERE, "fusion", "config.json")
+    cfg = common.load_config(config)
+    runs = run_fusion.main(["--config", config] + (["--skip-existing"] if skip_existing else []))
+    compare_fusion.main(["--config", config])
+    rec = cfg["recording"]
+    inputs = [common.project_path(rec["frames"]), common.project_path(rec["tag_masks"])]
+    inputs += [common.project_path(d) for d in rec["depth"].values()]
+    common.write_manifest(os.path.join(common.project_path(cfg["out_dir"]), rec["name"]), "fusion", [config],
+                          inputs, [], runs, {"poses": common.rel(common.project_path(rec["poses"]))})
+
+
 EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation,
                "pose_estimation": pose_estimation, "depth_matchers": depth_matchers,
-               "pose_comparison": pose_comparison}
+               "pose_comparison": pose_comparison, "pose_ice": pose_ice, "fusion": fusion}
 
 
 def main(argv=None):

@@ -21,17 +21,19 @@
    "icp_argv": ["--max-step", "35"]
   },
   {
-   "name": "ice_pyramid_sun_py2_pass1",
+   "name": "ice_pyramid_sun_py2_pass2",
    "title": "Ice, sun",
-   "frames": "data/3DRecon/Ice/Pyramid/Sun/py2_frames_pass1",
+   "frames": "data/3DRecon/Ice/Pyramid/Sun/py2_frames_pass2",
    "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
-   "_tags": "Backlit: tag_poses.py finds no tag in both cameras in any of the 280 frames, so AprilGrid poses nothing, there is no reference (no ATE/RPE) and nothing to mask.",
-   "tags": false,
+   "_tags": "Backlit. Replaces pass 1 (video frames 490-770), where only tag 3 was ever seen, and only from frame 122. This pass is video frames 988-1138 (151 pairs, selected by hand). The plain detector poses 2 frames, so tags are detected on a contrast-boosted image (enhance_tags) with a 1.5 px gate (at 0.8 px only 39 frames survive): tags 0, 1, 3, 118 of 151 frames posed (41 with one tag, 56 with two, 21 with three), layout residual 1.56 mm median. A NOISY reference: camera centres scatter ~8 mm (3 tags) to ~18 mm (1 tag) median about a smooth path, against ~0.5 mm on shade, so ATE/RPE here mix method error with reference noise; good for gross failures, not mm rankings.",
+   "enhance_tags": true,
+   "reference_noisy": true,
+   "max_reprojection_px": 1.5,
    "tag_size_mm": 50,
    "depth_min_mm": 400,
    "depth_max_mm": 1400,
    "frame_step": 1,
-   "_icp_argv": "Same trolley and pass as the shade recording, which has the tags to measure it.",
+   "_icp_argv": "Same trolley as the shade recording.",
    "icp_argv": ["--max-step", "35"]
   },
   {
@@ -99,9 +101,9 @@
   "image_dpi": 150
  },
  "combined_paths": [
-  {"_why": "The two ice passes side by side: same trolley and pass, shade (tags, reference) and sun (backlit, no reference), at the same true scale.",
+  {"_why": "The two ice passes side by side, shade and sun (backlit, noisy reference), at the same true scale.",
    "file": "paths_ice_shade_sun.png",
-   "recordings": ["ice_pyramid_shade_pyr1_pass4", "ice_pyramid_sun_py2_pass1"],
-   "titles": {"ice_pyramid_shade_pyr1_pass4": "Pyramid ice, shade", "ice_pyramid_sun_py2_pass1": "Pyramid ice, sun"}}
+   "recordings": ["ice_pyramid_shade_pyr1_pass4", "ice_pyramid_sun_py2_pass2"],
+   "titles": {"ice_pyramid_shade_pyr1_pass4": "Pyramid ice, shade", "ice_pyramid_sun_py2_pass2": "Pyramid ice, sun"}}
  ]
 }

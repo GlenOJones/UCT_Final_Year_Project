@@ -74,6 +74,12 @@ def parse_args(argv=None):
     ap.add_argument("--max-reprojection", type=float, default=0.8,
                     help="px; a triangulated tag whose corners reproject worse than this is dropped "
                          "from that frame (default 0.8)")
+    # Backlit scans (ice in sun) leave the tags dark and flat: the plain detector found tag 3 in both cameras
+    # in 2 of 280 frames of Ice/Pyramid/Sun py2 pass 1, with --enhance in 144 (and 49.8 mm edges, so the
+    # corners are sound: sub-pixel refinement still runs on the plain image).
+    ap.add_argument("--enhance", action="store_true",
+                    help="detect on a contrast-boosted copy of each image (gamma 0.5, then CLAHE) with a wider "
+                         "adaptive-threshold search; corners are still refined on the plain image (default off)")
     ap.add_argument("--tag-size", type=float, default=TAG_SIZE,
                     help=f"mm, printed edge of the reference tags' outer black square (default {TAG_SIZE:g})")
     # For frames outside data/<kind>/<session>/<scan>/frames (e.g. a range picked from a longer recording)
@@ -91,16 +97,28 @@ def parse_args(argv=None):
 
 
 # ====== DETECTION + TRIANGULATION ======
-def make_detector():
+GAMMA_LUT = (np.linspace(0, 1, 256) ** 0.5 * 255).astype(np.uint8)
+ENHANCE = False   # --enhance: detect on the contrast-boosted image (set in main)
+
+
+def make_detector(enhance=False):
     params = cv2.aruco.DetectorParameters()
     params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_NONE
+    if enhance:
+        params.adaptiveThreshWinSizeMin, params.adaptiveThreshWinSizeMax, params.adaptiveThreshWinSizeStep = 3, 53, 4
+        params.minMarkerPerimeterRate = 0.01
+        params.polygonalApproxAccuracyRate = 0.05
+        params.errorCorrectionRate = 0.6
     return cv2.aruco.ArucoDetector(dictionary, params)
 
 
 def detect(detector, path):
     """{tag id: 4x2 sub-pixel corners} for one image."""
     gray = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
-    corners, ids, _ = detector.detectMarkers(gray)
+    found = gray
+    if ENHANCE:
+        found = cv2.createCLAHE(4.0, (8, 8)).apply(cv2.LUT(gray, GAMMA_LUT))
+    corners, ids, _ = detector.detectMarkers(found)
     if ids is None:
         return {}
     return {int(i): cv2.cornerSubPix(gray, c.reshape(4, 1, 2).copy(), SUBPIX_WIN, (-1, -1), SUBPIX_CRITERIA)
@@ -282,6 +300,7 @@ def write_yaml(path, args, rig, reference, layout, frames, seconds):
     fs.write("calibration", rel(args.calibration))
     fs.write("baseline_mm", rig.baseline_mm)
     fs.write("max_reprojection_px", args.max_reprojection)
+    fs.write("enhance", int(args.enhance))
     fs.write("frames", len(frames))
     fs.write("frames_posed", sum(f["T_cam_board"] is not None for f in frames))
     fs.write("seconds", round(seconds, 1))
@@ -325,13 +344,14 @@ def write_yaml(path, args, rig, reference, layout, frames, seconds):
 
 
 def main(argv=None):
-    global TAG_SIZE, TAG_MODEL
+    global TAG_SIZE, TAG_MODEL, ENHANCE
     args = parse_args(argv)
+    ENHANCE = args.enhance
     TAG_MODEL = TAG_MODEL * args.tag_size / TAG_SIZE
     TAG_SIZE = args.tag_size
     rig = load_rig(args.calibration)
     pairs = find_frame_pairs(args.frames_dir)
-    detector = make_detector()
+    detector = make_detector(args.enhance)
     start = time.time()
     print(f"{len(pairs)} frame pairs in {rel(args.frames_dir)}, baseline {rig.baseline_mm:.2f} mm")
 
