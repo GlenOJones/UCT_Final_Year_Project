@@ -7,195 +7,52 @@
 % SECTION: Introduction
 %=====================================================================
 \section{Introduction}
+\label{sec:ch5.reconstruction_intro}
 % OVERVIEW - of section not just experiments
 % Plan is to do intro,  then explain the three different approaches, then what data is collected, then Results and analysis
 % TBH maybe bring the two sets of $3D# reconstruction together.
 % Intro section - DO last
-This set of experiments looks to test the accuracy of two different underwater reconstruction pipelines, scanning $3D$ printed shapes
-and comparing the generated mesh files their respective STL ground truths. While this set of tests are focussed on detection accuracy, the 
-detection coverage shows insight into how each approach performs% Explain which ones are being tested
+This chapter evaluates the accuracy and coverage of the stereo reconstruction pipeline in underwater conditions.
+$3D$ printed shapes are scanned and the resulting point clouds are compared to their STL files as their ground truth.
+A second set of foam targets are used to test the perfomance on objects with closer resemblance to sea ice. 
 
-Three different approaches for 3D reconstruction using stereo cameras are tested for the pipeline. First a standard SGBM implemented through openCV.
-Second, COLMAP multi view stere reconstruction, annd astly two learnt models are compared (UnderwaterStereo and FoundationStudio).
-
-
+Three  stereo matching methods are compared: OpenCV's implementation of 
+Semi-Global Matching (SGBM) \cite{hirschmullerStereoProcessingSemiglobal2008}, FoundationStereo \cite{wenFoundationStereoZeroShotStereo2025}
+, and AquaStereo \cite{weiAquaStereoEnablingUnderwater2026}. FoundationStereo and AquaStereo are both learnt models and 
+are included to test how they generalise to the underwater environment.
 %=====================================================================
 % SECTION: Reconstruction Steps
 %=====================================================================
 \section{Reconstruction Steps}
-
-
-
-Steps from paired frames to a 3D model broken down here to examine the effectiveness of different pipelines
-%---------------------------------------------------------------------
-% Subsection: Seeing Double: Depth from a Stereo Camera
-%---------------------------------------------------------------------
-\subsection{Seeing Double: Depth from a Stereo Camera}
-% The disparity equation, the correspondence problem, and then SGBM, FoundationStereo and AquaStereo
-% Maths done in intro depth per pixel
-% Rough explain OpenCVSGBM, FoundationStereo, AquaStereo, COLMAP (different approach)
-% Show breif comparison with analysis - NOt sure what metric
-
-As explained in (Ref theory review), the depth $Z$ at any given point from its disparity using: 
-\begin{equation}
-    Z = \frac{fB}{d},
-\end{equation}
-The equation is simple but the difficulty lies in determining $d$, which requires matching pixels between the left and right image. 
-While it may be visually easy to distinguish, this correspondance is algorithmically difficult. Areas with little texture look near identicle between pixels, meaning
-many matches are possible. Patterns that repeat throughout the image produce many distinct matches that may all look correct. Parts of the scene may be visibnle from only one camera
-but occluded from the other, resulting in no match at all. These issues are worsened underwater by turbity and the low texture Ice. 
-Three different depth methods are compared in this report, each approaching the correspondence problem in different ways.
-
-% ~~~~~ Subsubsection: OpenCV SGBM ~~~~~
-\subsubsection{OpenCV SGBM}
-Semi-Global Block Matching is a classical approach.
-% COmpares small blocks of pixels
-Semi-Global Block Matching (SGBM) is a classical approach and is implemented through OpenCV. It compares small blocks of picels along each row, compuuting a matching cost for 
-every candidate disparity. It then joins these costs along several directions, penalising jumps in disparity so that neighouring pixels get similar depths SGBM runs quickly 
-and relies purely on the local pixel similarity.
-
-% Maybe include the equation for how it works
-% ~~~~~ Subsubsection: Learnt Models ~~~~~
-\subsubsection{Learnt Models}
-Learnt stere models train on large datasets, replacing the specific matching costs with learnt features. Instead of comparing raw pixel values, learn descriptions of each image
-region are compared. This allows them to use more context such as the objects shape and scene layout. The weakness however is that they are only as good as their training data. 
-For this reason, two different learnt models are tested, one currently leading industry trained over large data set, and one specifically designed for underwater use. 
-
-\textbf{FoundationStereo} \\
-FoundationStereo is a deep learning model trained on a large synthetic dataset. It is designed to generalise to new scenes without any fine-tuning, making it zero-shot. 
-It builds a cost volune from the learnt feautres, strengthened with "priodrs" from monocoular depth model, and iteratively refines the disparity estimate. 
-
-\textbf{AquaStereo} \\
-AquaStereo is a learnt model aimed specifically at underwater reconstruction. It is trained on synthetic underwater stereo pairs, generated from a terrestrial dataset.
-It transfers geometric knowledge from a teacher model traiend on clean images, and uses featurees designed to remain stable in turbid, low-texture conditions.
-
-TODO: FInd references for these sections, rewrite explanations
-
-
-
-
-
-
-%---------------------------------------------------------------------
-% Subsection: Strike a Pose: Camera Localisation from Frames
-%---------------------------------------------------------------------
-\subsection{Strike a Pose: Camera Localisation from Frames}
-% This section is background theory about the exact approaches chosen. In Th
-(Ref BackGRound theory section) examines how depth can be generated from an image. Looking toward's 3D reconstruction however, requires multiple
-viewpoints of the same scene. To merge these frames together, we need to understand where the cameras are relative to the scene - we need pose
-estimation. This can be done in a number of ways, three of which are explained and tested in this section.
-
-%---------------------------------------------------------------------
-% Subsection: Using Tag poses
-%---------------------------------------------------------------------
-\subsection{Using Tag poses}
-Apriltags are useful beyond creating an occlusion freindly calibration board. Placing apriltags within a scene, Like in Figure X,
-creates easily identifianble locations. The camera's position can be calculated from the $3D$ positions of these corner locations.
-This is implemented through \texttt{tag\_poses.py}, with an algorithmic diagram in \autoref{fig:ch5.TagPosePipeline} below. The pose comes from
-finding the rotation and translation that line the map up with the measured tag corners and creating an inverse of this (step 4 \& 5).
- 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1 \textwidth]{../Diagrams/TagPosePipeline.pdf}
-    \caption[short caption]{\textbf{POV me atm}}
-    \label{fig:ch5.TagPosePipeline}
-\end{figure}
-Because each frame's pose is independent, errors do not accumulate over time. This method does however require the tags to be visible within the frames and
-inherits any calibration and distortion error.
-
-
-%---------------------------------------------------------------------
-% Subsection: ICP (Iterative Closest Point)
-%---------------------------------------------------------------------
-\subsection{ICP (Iterative Closest Point)}
-% EXPLAIN
-ICP (Iterative Closest Point), as explained in the introduction, is a standard technique for aligning 3D point clouds.
-It uses the shape of each frame's 3D point cloud to estimate camera motion. Each cloud is shifted and rotated until it matches the previous one.
-The amount of movement between clouds is the amount the camera has moved. First each frame's stereo depth map is converted into a $3D$ point cloud with one point per
-valid pixel. Each cloud is reduced to one point per 4mm cube and each remaining point is given a normal, estimating the direction of its surface. The algorithm then works
-off a starting guess, assuming each new frame repeats its last motion. It then pairs each point with its nearest neighbour in the either the last fram or from within the last 
-10 frames. It shifts the cloud undtil it fits as closely as possible. Each frame's motion is added to the previous pose to generate \texttt{T\_cam\_world}.
-
-% VISUALISE
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1 \textwidth]{../Diagrams/ICPPipeline.pdf}
-    \caption[short caption]{\textbf{POV me atm}}
-    \label{fig:ch5.ICPPipeline}
-\end{figure}
-
-
-% ADD IMAGE SHOWING IT WORKING - WHERE THE DETECTIONS ARE?
-
-% IMPLICATIONS
-ICP needs no markers, but is heavily dependent on the depth method chosen. Noisy or incomplete depth maps lead to poor alignment. The algorithm can accumulate errors and
-drifting estimated trajectory over time due to each pose being generated from the one before.
-
-
-
-
-%---------------------------------------------------------------------
-% Subsection: COLMAP
-%---------------------------------------------------------------------
-\subsection{COLMAP}
-COLMAP uses texter to find patterns rather than shape. It finds distinctive patterns in each image and matches across frames, a process called Structure from Motion (SfM).
-First, SIFT (Scale-Invariant Feature Transform) is used to find keypoints in both left and right images. SIFT describes each keypoint with a vector that "summarises the brightness gradients
-in the surrounding pathc, which staus largely unchanged under changes in scale, rotatio and lighting. This means the same physical point cna be recognised from differnt viewopoints. 
-Key points are then matched within $\pm 12$ frames. As frames are added, bundel adjustment optimises camera postitions and 3D points to minimise reprojection error. The difference between
-where each $3D$ point projects into an image and where the keypoint was actually detected. Each frame's pose is read out as \texttt{T\_cam\_world}.
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1 \textwidth]{../Diagrams/COLMAPPipeline.pdf}
-    \caption[short caption]{\textbf{POV me atm}}
-    \label{fig:ch5.COLMAPPipeline}
-\end{figure}
-
-SIFT relies on texture to find keypoints meaning COLMAP can struggle on plain or blurred surfaces. 
-
-% Take over to reconstruction section
-Unlike the other two pose methods, COLMAP can alse produce dense depth itself.
-Once poses are known, it uses PatchMatch multiview stereo to compute depth for every frame. 
-
-
-
-
-
-
-%=====================================================================
-% SECTION Fusing Frames
-%=====================================================================
-\section{Fusing Frames}
-Once each frame has both a depth map and a pose they can be joined into a single model.
-Each depth map is converted into a point cloud, and transformed into the world frame using its pose.
-
-The points are combined with a technique called voxel voting. The space around the object is divided into small
-cubes (voxels), and each frame votes for every voxel its points fall into. A voxel is only kept if sufficient frames
-agree that the surface lies ther. This rejects random points that only appear in a few frames. It also helps
-ommitting small floating particles that are not set in the scene, keepipng only surfaces consistently seen from 
-different viewpoints. 
-
-The fused point cloud is then fused to remove the remaining outliers, and where relavent, aligns to the CAD model 
-for scoring. 
-
-TODO ADD VISUAL, MAYBE SELF MADE
-
-
-
+\label{sec:ch5.reconstruction_steps}
+There are numerous approaches to generate 3D reconstructions from stereo images. The methods
+used within this report can be broken into three core steps \cite{szeliskiComputerVisionAlgorithmsa}: 
+\begin{enumerate}
+    \item \textbf{Depth per frame:} Stereo pairs are used to generate depth maps
+    \item \textbf{Pose per frame:} The camera's position and orientation wihin the world frame
+    \item  \textbf{Fusion:} Combining the sperate point clouds into a single object.
+\end{enumerate}
 
 
 %=====================================================================
 % SECTION: Test rig and Dataset
 %=====================================================================
 \section{Test rig and Dataset}
+\label{sec:ch5.test_rig_dataset}
 % Explain both the ice and the shapes, both serve different purposes.
 % Intro, why two
-Two different test suites were completed for data collection. 3D printed shapes used by (REF AGGI) were used 
-as ground truth to anlyse mm accuracy. Adapters were printed for the test rail to allow it to be rotated 90
-degrees horizontally. The tests were done sliding past, side on a set of 4 objects. 
+Two datasets were collected. First, a side on of four 3D printed shapes with known geometry, and a set of foam trgets designed to approcimate
+the appearance and structure of sea ice.
 
 \subsection{3D printed shapes}
-
+\label{subsec:ch5.3d_printed_shapes}
+The 3D-printed targets were designed by Aggi as part of her undergraduate
+thesis~\cite{aggi_thesis}. The set used consists of four objects, two
+pyramids and two with curved surfaces. Custom adapters were printed so that
+the ROV could be mounted on the test rail rotated by 90\textdegree{},
+allowing it to complete a side-on scan of the targets. AprilTags were placed on the board between the targets to
+provide ground truth for both the camera pose and the location of each
+object.
 
 % TODO: Replace left image with CAD of the shapes maybe
 \begin{figure}[htbp]
@@ -217,18 +74,19 @@ degrees horizontally. The tests were done sliding past, side on a set of 4 objec
     \label{fig:ch5.printed_shapes}
 \end{figure}
 
-
 \subsection{Fake Sea ice}
-While the 3D prints are useful for analysing exact metric accuracies, they fall short of emulating sea ice. 
-Their matt black surfaces provide a different texture and contrast. Furthermore, actual sea ice scanning
-will be looking up towards the ice creating different effects with incoming sunlight rays. In an attempt to better
-emulate real world ice, a set of 4 different foam structures were carved using a hot wire and painted a light shade
-of blue. The set included a grid of 2x2cm cubes to emulate ice spikes, an overhang gto emulate occlisions, a pyramid
-to emulate layered ice, and a wave pattern to emulate curved ice features. These blocks were placed in the water,
-with the ROV moved in passes below, physcially manipulated by a swimmer. FIgure X shows the 4 blocks, and figure Y shows
-the test being completed. APriltgs were attatched to a asjacent cubes to use as ground truth pose estimations
-
-
+\label{subsec:ch5.fake_sea_ice}
+While the 3D prints are useful for measuring accuracy, they do not
+represent sea ice well. The black surfaces differ from ice in both texture and contrast. 
+Furthermore, under-ice scanning looks upwards towards the
+surface, where incoming sunlight affects the images. To better approximate real ice, four foam structures were
+cut with a hot wire and painted light blue. The set includes a grid of
+2\,$\times$\,2\,cm cubes to emulate ice spikes, an overhang to emulate large
+occlusions, a stepped pyramid to emulate layered ice, and a wave pattern to
+emulate curved ice features. The blocks were placed in a fixed position, and a swimmer guided
+the ROV in passes beneath them. \autoref{fig:ch5.foam_blocks} shows the four
+blocks and \autoref{fig:ch5.foam_test} shows the test in progress. AprilTags were attached 
+to cubes placed alongside the blocks to provide ground-truth camera poses.
 % TODO: Switch to FOAM 2x2 grid for left image
 \begin{figure}[htbp]
     \centering
@@ -236,25 +94,113 @@ the test being completed. APriltgs were attatched to a asjacent cubes to use as 
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
         \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.3DPrint_In_Air_foam}
+        \label{fig:ch5.foam_blocks}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.49\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/G_up.JPG}
         \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.G_up}
+        \label{fig:ch5.foam_test}
     \end{subfigure}
     \caption[short caption]{\textbf{Lead-in.} Description.}
     \label{fig:ch5.fake_sea_ice}
 \end{figure}
 
 
-% PHOTOS OF DATA COLLECTION (FROM GOPRO)
+
+
+%---------------------------------------------------------------------
+% Subsection: Seeing Double: Depth from a Stereo Camera
+%---------------------------------------------------------------------
+\section{Seeing Double: Depth from a Stereo Camera}
+\label{sec:ch5.stereo_depth}
+% The disparity equation, the correspondence problem, and then SGBM, FoundationStereo and AquaStereo
+% Maths done in intro depth per pixel
+% Rough explain OpenCVSGBM, FoundationStereo, AquaStereo, COLMAP (different approach)
+% Show breif comparison with analysis - NOt sure what metric
+
+As derived in \autoref{subsec:ch3.triangulation}, the depth $Z$ at any given point from its disparity using: 
+\begin{equation}
+    Z = \frac{fB}{d},
+\end{equation}
+Where $f$ is the focal length in pixels and $B$ is the baseline between the two cameras.
+The equation is simple but the difficulty lies in determining $d$, which requires matching eaxh pixels in the left image to the same point
+in the right image. Areas with little texture look near identicle between pixels, meaning many matches are possible. 
+Patterns that repeat throughout the image produce many distinct matches that may all look correct. Parts of the scene may be visible from only one camera
+but occluded from the other, resulting in no match at all. Underwater, these problems are made worse because scattering and attenuation 
+reduce image contrast (TODO: CITE).
+Three depth estimation methods are compared in this section, each approaching the correspondence problem differently. 
+
+% ~~~~~ Subsubsection: OpenCV SGBM ~~~~~
+% TODO: De-claudify
+\subsubsection{OpenCV SGBM}
+% COmpares small blocks of pixels
+Semi-Global Block Matching (SGBM) is a classical approach, used within this
+project through OpenCV~\cite{opencv_sgbm}. For each pixel $\mathbf{p}$ and
+candidate disparity $d$, it computes a matching cost $C(\mathbf{p}, d)$ by
+comparing a small block around $\mathbf{p}$ in the left image with the block
+shifted by $d$ in the right image, using the Birchfield--Tomasi
+measure~\cite{birchfield1998}. Following
+Hirschmüller~\cite[Eq.~(11)]{hirschmullerStereoProcessingSemiglobal2008}, it
+then seeks the disparity map $D$ that minimises
+\begin{equation}
+    E(D) = \sum_{\mathbf{p}} \Big( C(\mathbf{p}, D_\mathbf{p})
+    + \sum_{\mathbf{q} \in N_\mathbf{p}} P_1 \, T\big[|D_\mathbf{p} - D_\mathbf{q}| = 1\big]
+    + \sum_{\mathbf{q} \in N_\mathbf{p}} P_2 \, T\big[|D_\mathbf{p} - D_\mathbf{q}| > 1\big] \Big),
+    \label{eq:sgm_energy}
+\end{equation}
+where $N_\mathbf{p}$ are the neighbours of $\mathbf{p}$ and $T[\cdot]$ is 1
+when its condition is true and 0 otherwise. The penalty $P_1$ allows
+slow depth changes, while the larger $P_2$ minimises sudden jumps unless
+the matching cost strongly supports them, such as at object edges. SGBM
+approximates this minimisation by combining costs along multiple straight
+paths through the image, with each pixel taking the disparity with the lowest
+combined cost. SGBM is fast but relies on local pixel similarity, so it
+struggles in regions of weak texture~\cite{kendallEndtoEndLearningGeometry2017}.
+
+
+% Maybe include the equation for how it works
+% ~~~~~ Subsubsection: Learnt Models ~~~~~
+\subsubsection{Learnt Models}
+Learnt models train on features from large datasets, replacing the designed matching costs with learnt features. Classical methods compare raw pixels which struggle in textureless
+and repetitive envirnoments. Learnt models instead compare learnt feature descriptors of each image region,
+allowing them to use wider semantic context. \cite{kendallEndtoEndLearningGeometry2017}.
+The weakness however is that they depend heavily on training data \cite{wenFoundationStereoZeroShotStereo2025}.
+For this reason, two different learnt models are tested, one leading general purpose model trained on a very large dataset, and a model designed specifically for underwater use. 
+\autoref{fig:gcnet-architecture} shows the forward pass of GC-Net \citep{kendallEndtoEndLearningGeometry2017}, 
+an early end-to-end learnt stereo model whose cost volume and soft argmin regression later models build on.
+
+
+% GC-Net's forward pass
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{figs/Ch5/gcnet-architecture.drawio.pdf}
+  \caption[GC-Net forward pass]{Forward pass of GC-Net. A rectified stereo pair passes through shared-weight 2D convolutions; the resulting features form a 4D cost volume, which 3D convolutions and deconvolutions regularise before a soft argmin regresses the disparity map. Adapted from \citet{kendallEndtoEndLearningGeometry2017}.}
+  \label{fig:gcnet-architecture}
+\end{figure}
+% MAKE own diagram to explain how they work.
+
+\textbf{FoundationStereo} \\
+FoundationStereo is a Nvidia Labs general purpose model trained on roughly one million synthetic stereo pairs. 
+It is designed to generalise to new scenes without any fine-tuning, making it zero-shot. It utilises a pretrained monocular depth model and compares every possible disparity
+to build a cost volume. This volume is filtered with $3D$ conviltions and a mechanism that wieghs each pixel's candidate disparity against the others
+The resulting disparity map is iteratively refined . Further details on the model architecture, training and benchamrk results are given
+in the original paper \cite{wenFoundationStereoZeroShotStereo2025} and the official
+implementation\footnote{\url{https://github.com/NVlabs/FoundationStereo}}.
+
+\textbf{AquaStereo} \\
+AquaStereo is a learnt model designed specifically for underwater reconstruction. Due to minimal underwater training data, it uses synthetic underwater stereo pairs, 
+generated from an in-air dataset. During training, a teacher model sees the predicts disparity based on the clean terrestrial images, and AquaStereo leanrs to reproduce the
+same predictions based low texture, turbid versions of the same images \cite{weiAquaStereoEnablingUnderwater2026}.
+
+
+
 %=====================================================================
 % SECTION: Evaluation Metrics
 %=====================================================================
 \section{Evaluation Metrics}
+\label{sec:ch5.evaluation_metrics}
 
 For Depth Maps.
 For 3D Reconstructins
@@ -269,35 +215,53 @@ Secondly, and only applicable to the $3D$ prints with ground truth, is RMS error
 %---------------------------------------------------------------------
 % Build in the Tests done, then results done here. Easier analysis
 \section{Testing the pipeline}
-
+\label{sec:ch5.testing_pipeline}
 \subsection{Testing Depth Map Generation}
+\label{sec:ch5.depth_test}
 % Write a test script to do the following. It needs to be able to take in of images and apply technique (these are input params)
 % Also have input param for output folder
 % Run on S30 and sun/py2_frames_pass1 and shade/pyr1_frames_pass4_730mm
 % 1. Depth map generation
 % - Use the three matchers (SGBM, AquaStereo, FoundationStereo) to generate depth maps. Generate images for each frame.
-% - Metrics are total points per frame (median) and s/frame/
+% - Metrics are total points per frame (median)
 % For each approach, generate an image that indicates for a report how it maps between the two images (e.g. lines between keypoints)
 % This code needs to be written such that I can easily repeat the tests
 
 
 % What is tested
-The Depth map section of each SGBM, AquaStereo, and FoundationStereo were run on S30 (Side on view, 30cm 
-away), and the pyramid frame (shot in the daylight) with 60, 56, and 31 frames used respectively.
- The matchers are compared based on number of of points (number of 1mm cubes) and seconds per frame.
- This only exaimes coverage and speed. Accuracy is examined in REF NEXT EXPERIMENT.
+This test measures how effectively each stereo matcher produces depth maps. Three recordings were used, a side-on scan of the
+3D-printed targets at 30\,cm (S30, 60 frames) and two upward-facing scans of
+the foam pyramid, one in strong sunlight (56 frames) and one in shade
+(31 frames). The matchers are compared on coverage (the number of occupied 1\,mm voxels in the point cloud).
+Accuracy is only examined in the 3D reconstruction tests in \autoref{sec:ch5.reconstruction_tests}.
 
-The three stereo matchers each turn the left/right image pairs into depth maps. This is to test how much
-usable depth each method produces per frame. These tests are run on the 3D printed target at 30cm distance
-aswell as two upwards facing scans of the pyramids (one with strong sunlight, one in shadey conditions).
+Four configurations were tested as summarised in \autoref{tab:matcher_settings} below. 
+Each method is tested in the normal pipelines depth code, \texttt{depth\_frames.py}. 
+SGBM was run with both its defualt settings and a tuned configuration.
+SGBM was tuned by changing one setting at a time and keeping any change
+that made its depth more accurate on the flat areas around the AprilTags. 
+% TODO: ADD SCANS OF ALL OTHER SHAPES TO APPENDIX
 
-\begin{itemize} % TODO: Try tune the SGBM pipeline
-    \item \textbf{SGBM (OpenCV)}: Defualt pipeline: 8-path mode (\texttt{MODE\_HH}), block 9, uniqeueness 5, speckle filter, left-right check 1px
-    \item \textbf{AquaStereo:} ViT-B, images set to half scale, 32 refinement iterations, left-right check 3 px
-    \item \textbf{FoundationStereo:} ViT-L, half scale, 32 iterations, left-right check 3 px, 416 px disparity span
-\end{itemize}
+\begin{table}[htbp]
+    \centering
+    \caption{Stereo matcher configurations used in the depth map test.}
+    \label{tab:matcher_settings}
+    \begin{tabularx}{\textwidth}{@{}lX@{}}
+        \toprule
+        \textbf{Method} & \textbf{Settings} \\
+        \midrule
+        SGBM, default    & 8-path mode (\texttt{MODE\_HH}), block size 9, uniqueness 5,
+                           speckle filter, left-right check 1\,px \\
+        SGBM, tuned      & Half scale, block size 11, uniqueness 0,
+                           $P_1/P_2 = 16/32$, pre-filter cap 63 \\
+        AquaStereo       & ViT-B backbone, half scale, 32 refinement iterations,
+                           left-right check 3\,px \\
+        FoundationStereo & ViT-L backbone, half scale, 32 refinement iterations,
+                           left-right check 3\,px, 416\,px disparity range \\
+        \bottomrule
+    \end{tabularx}
+\end{table}
 
-Each method is tested in the normal pipelines depth code, \texttt{depth\_frames.py}. :
 
 % What is compared:
 \begin{figure}[H]
@@ -312,80 +276,522 @@ Each method is tested in the normal pipelines depth code, \texttt{depth\_frames.
 
 % Output image comparing
 
-3X3 grid. I want to see frame from S30, frame from shade pyramid, frame from sun pyramid
-% Output Tabe
-% Made by src/experiments/depth_matchers/analyse_depth.py from depth_frames.py's output; do not edit.
+\subsubsection{Results}
 
+\autoref{tab:depth_matchers_summary} summarises the coverage of each matcher, averaging the recordings and
+separating them by lighting conditions. The full table is given in the appendix. \autoref{fig:ch5.depth_crops}
+shows the depth maps generated for each ice shape, and \autoref{fig:ch5.depth_crops_sun} compares the depth maps of
+the stepped pyramid ice in sunny and shaded conditions.
+
+\begin{table}[H]
+    \centering
+    \caption{Depth map generation per matcher on the ice: means over the recordings of Table~\ref{tab:depth_matchers},
+    by lighting. Shade: pyramid, cubes, overhang and wave; sun: pyramid and overhang, backlit. Coverage in \%,
+    points in thousands.}
+    \label{tab:depth_matchers_summary}
+    \begin{tabular}{lrrrr}
+        \toprule
+                         & \multicolumn{2}{c}{Shade (4 recordings)} & \multicolumn{2}{c}{Sun (2 recordings)} \\
+        \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+        Matcher          & Coverage & Points & Coverage & Points \\
+        \midrule
+        SGBM             & 15.3     & 185    & 9.8      & 110    \\
+        SGBM (tuned)     & 22.6     & 259    & 17.1     & 176    \\
+        AquaStereo       & 16.7     & 171    & 11.9     & 82     \\
+        FoundationStereo & 30.1     & 372    & 15.8     & 102    \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+
+\subsubsection{Coverage in shade}
+
+On the four shaded ice recordings, FoundationStereo produced the most depth, with a mean coverage of 30.1\% compared
+to 22.6\% for the tuned SGBM. The gap is largest for the wave block, where FoundationStereo covered 41.2\% of the
+image against a second best of 19.0\% for the tuned SGBM. Based on the coverage metric, AquaStereo appears to be
+outperformed by the tuned SGBM; however, \autoref{fig:ch5.depth_crops} tells a different story. Both learned models
+concentrate their coverage on the scanned ice shapes, whereas the SGBM implementations have speckled noise all
+around the image, which adds to their coverage.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=1 \textwidth]{../results/experiments/depth_matchers/depth_crops.png}
-    \caption[short caption]{\textbf{POV me atm}}
-    \label{fig:ch5.DepthPipeline}
+    \includegraphics[width=\textwidth]{figs/Ch5/depth_comparison_4.png}
+    \caption[Depth maps of the shaded ice scans]{\textbf{Depth maps of the shaded ice scans.} Rectified left image
+    and each matcher's depth map for one frame of each recording, on one depth scale (447--1132~mm); grey has no
+    depth.}
+    \label{fig:ch5.depth_crops}
 \end{figure}
+
+
+\subsubsection{Impact of direct sunlight}
+
+The backlighting in full sun reduced the coverage of all matchers, but not equally. FoundationStereo fell from
+30.1\% to 15.8\% and AquaStereo from 16.7\% to 11.9\%, while the tuned SGBM fell least, from 22.6\% to 17.1\%, and
+produced the most points in sunny conditions. As in the shaded conditions, however, the coverage metric is
+misleading. Most of the SGBM depth is scattered speckle with no true surface present. FoundationStereo produced
+fewer depth points, but almost all of them lie on the pyramid. FoundationStereo recovers the full stepped shape of
+the pyramid and AquaStereo its outer steps, while the SGBM implementations become overrun with noise.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/depth_comparison_sun_shade.png}
+    \caption[Pyramid ice depth in shade and sun]{\textbf{Effect of backlighting on depth.} Pyramid ice in shade
+    (top) and backlit by the sun (bottom): rectified left image and each matcher's depth map, on one depth scale
+    (394--1068~mm); grey has no depth.}
+    \label{fig:ch5.depth_crops_sun}
+\end{figure}
+
+
+\subsubsection{Discussion}
+
+Across the ice scans, FoundationStereo gave the most complete depth on the targets in shade and was the only
+matcher to keep the full ice shape when backlit. It was therefore selected as the primary depth generator for the
+remaining pipeline steps, with tuned SGBM kept for comparison as the best classical matcher.
+
+
+
+%---------------------------------------------------------------------
+% Subsection: Strike a Pose: Camera Localisation from Frames
+%---------------------------------------------------------------------
+\section{What the Pose: Position estimation from stereo frames}
+\label{sec:ch5.pose_estimation}
+% This section is background theory about the exact approaches chosen. In Th
+(Ref BackGRound theory section) examines how depth can be generated from an image. $3D$ reconstruction however, requires multiple
+viewpoints of the same scene. To merge these frames together, we need to understand where the cameras are relative to the scene, requiring pose
+estimation. This can be done in a number of ways, three of which are explained and tested in this section.
+
+%---------------------------------------------------------------------
+% Subsection: Using Tag poses
+%---------------------------------------------------------------------
+\subsection{Using Tag poses}
+\label{subsec:ch5.tag_poses}
+Apriltags are useful beyond creating an occlusion freindly calibration board. Placing apriltags within a scene
+creates easily identifianble locations.. The camera's position can be calculated from the $3D$ positions of these corner locations and 
+is implemented \texttt{tag\_poses.py}. The pose comes from
+finding the rotation and translation that line the map up with the measured tag corners 
+and creating an inverse of \cite{umeyamaLeastsquaresEstimationTransformation1991}.
+ 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{../Diagrams/TagPosePipeline.pdf}
+    \caption{AprilTag pose estimation: tag corners are triangulated, mapped across all frames, and aligned to each frame to recover the camera pose.}
+
+    \label{fig:ch5.TagPosePipeline}
+\end{figure}
+Each frame's pose is independent, meaning errors do not accumulate over time. This method does however does require the tags to be visible within the frames and
+inherits any calibration and distortion error.
+
+
+%---------------------------------------------------------------------
+% Subsection: ICP (Iterative Closest Point)
+%---------------------------------------------------------------------
+\subsection{ICP (Iterative Closest Point)}
+\label{subsec:ch5.icp}
+% EXPLAIN
+ICP (Iterative Closest Point), as explained in the \autoref{sec:ICP}, is a standard technique for aligning 3D point clouds \citep{besl1992}.
+Here it is used to estimate camera motion from the shape of each frame's 3D point cloud. Each new frame's point 
+cloud is shifted and rotated until it matches a reference cloud.
+The amount of movement between clouds is the amount the camera has moved. 
+
+First each frame's stereo depth map is converted into a 3D point cloud with
+one point per valid pixel. Each cloud is reduced to one point per 4\,mm cube
+(voxel), and each point is given a surface normal, estimating the direction
+of its surface. The algorithm then works off a starting guess, assuming each
+new frame repeats its last motion. It then pairs each point with its nearest
+neighbour in either the last frame or the last 10 frames. It shifts and
+rotates the cloud until it fits as closely as possible, repeating the pairing each
+ time \cite{besl1992}. Each frame's motion is combined with the previous pose to generate
+\texttt{T\_cam\_world}.
+% VISUALISE
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{../Diagrams/ICPPipeline.pdf}
+    \caption{ICP pose estimation: each frame's point cloud is aligned to a reference cloud and the motions are chained into a trajectory.}
+    \label{fig:ch5.ICPPipeline}
+\end{figure}
+
+
+% ADD IMAGE SHOWING IT WORKING - WHERE THE DETECTIONS ARE?
+
+% IMPLICATIONS
+ICP needs no markers, but is heavily dependent on the depth method chosen. Noisy or incomplete depth maps lead to poor alignment. The algorithm can accumulate errors and
+drifting estimated trajectory over time due to each pose being generated from the one before.
+
+
+%---------------------------------------------------------------------
+% Subsection: COLMAP
+%---------------------------------------------------------------------
+\subsection{COLMAP}
+\label{subsec:ch5.colmap}
+Unlike ICP, COLMAP uses texter rather than shape. It finds distinctive patterns in each image and matches across frames, then uses matches to recover both
+the camera poses and the $3D$ positions of the matched points, a process called Structure from Motion (SfM) \cite{schonberger2016sfm}.
+First, SIFT (Scale-Invariant Feature Transform) is used to find keypoints in both left and right images \cite{lowe2004}.  SIFT describes each keypoint with a vector that
+summarises the brightness gradients in the surrounding patch, which stays
+largely unchanged under changes in scale, rotation and lighting.  This means the same physical point can be recognised from differnt viewpoints. 
+Keypoints are then matched between frames within $\pm 12$ frames of each other. The reconstruction is built incrementally.
+As frames are added, bundle adjustment optimises camera poses and $3D$ points to minimise the reprojection error, the difference between
+where each $3D$ point projects into an image and where the keypoint was actually detected \cite{triggs2000}. Each frame's pose is read out as \texttt{T\_cam\_world}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{../Diagrams/COLMAPPipeline.pdf}
+    \caption{COLMAP pose estimation: SIFT keypoints are matched between nearby frames and the poses are refined incrementally by bundle adjustment.}
+    \label{fig:ch5.COLMAPPipeline}
+\end{figure}
+
+SIFT relies on texture to find keypoints meaning COLMAP can struggle on plain or blurred surfaces with few distinctive keypoints \cite{lowe2004}. 
+
+% Take over to reconstruction section
+Unlike the other two pose methods, COLMAP can alse produce dense depth.
+Once poses are known, it estimates depth for every picel of each frame using PatchMatch multiview stereo, comparing each pixel against multiple overlapping images rather than a single 
+stereo pair \cite{schonbergerPixelwiseViewSelection2016}. This is further examined in (REF SECTION) 
+
+
+
+% 2 pages max
+% Write a script that can compare all 3 pose estimation apptoaches. It needs to fit within the standard
+% reconstruction pipeline and be easily repeatable.
+% Compare all 3 on the same data used in the Depth tests
+% Output images that show the DETECTIONpoints (SIFT + ICP) for my report
+% COLMAP, ICP on FoundationStereo, ICP on SGBM, AprilGRid.
+% NOt sure the metrics to compare, lets have this discussion before you begin.
+% Specifiy what mode each was run in (list)
+
+
+
+
+\subsection{Recordings Tested:}
+\label{subsec:ch5.recordings_tested}
+Table with data set used
+
+\subsection{Methods tested}
+\label{subsec:ch5.methods_tested}
+Four different pose methods are tested. To stop the AprilTags being used as matching points, particularly by SIFT
+which relies on texture, the tags are automatically masked out of the images given to every method except
+AprilGrid. COLMAP’s feature extraction ignores the masked pixels, and they are left out of the depth maps used by ICP.
+
+
+\subsection{Methods tested and error metrics}
+\label{subsec:ch5.methods_tested_error}
+\begin{enumerate}
+    \item \textbf{AprilGrid} (\texttt{tag\_poses.py}): the reference, and the only method that sees the tags.
+    Tag corners are triangulated in stereo, rejecting tags with a reprojection error above 0.8\,px.
+    \item \textbf{COLMAP} (\texttt{colmap\_poses.py}): SfM on SIFT features (GPU), with the intrinsics and stereo
+    configuration fixed from the calibration.
+    \item \textbf{ICP, FoundationStereo} (\texttt{depth\_frames.py} + \texttt{icp\_poses.py}): each frame's depth map
+    is registered by point-to-plane ICP onto a local map of the last 10 frames.
+    \item \textbf{ICP, SGBM}: as above, with depth from the tuned SGBM matcher.
+\end{enumerate}
+
+
+% TO BE DONE OVERNIGHT AND TOMORROW MORNING
+
+\subsection{Evaluating Pose estimations}
+\label{subsec:ch5.evaluating_pose_estimations}
+From each pose method, camera trajectories were generated across the full scan. These trajectories are compared against the AprilTag generated poses. 
+Accuracy is measured using absolute trajectory error (ATE) \cite{sturmBenchmarkEvaluationRGBD2012}. Each trajectory is aligned to the AprilGrid reference and the
+distance between the two is measured at every frame.
+
+The upward facing pyramid scan in full sun has multiple frames only containing a single AprilTag. This results in poor ground truth trajectory. For this scan, the comparison
+is purely based on the visual trajectory in \autoref{fig:ch5.trajectories}, with estimated grund truth pose is plotted.
+
+% TBH maybe just write about this section, and refrence the appendix
+% Failed to detect apriltags on the sun one. 
+% Show table with all the errors 
 
 
 
 \begin{table}[H]
 \centering
-\caption{Depth map generation per matcher: medians over the frames used. Time is the matcher alone; pixels with depth are those within the recording's depth range; points are those pixels merged into 1~mm voxels.}
-\label{tab:depth_matchers}
-\begin{tabular}{llrrrr}
+\caption{Absolute trajectory error (ATE) of each pose method relative to the
+AprilGrid reference, after a single rigid alignment. ATE is not reported for
+the sunlit recording, where the reference is too noisy for a reliable
+comparison.}
+\label{tab:pose_comparison}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccccccc@{}}
 \toprule
-Scene & Matcher & Time (s/frame) & Pixels with depth ($\times10^3$) & Coverage (\%) & Points ($\times10^3$) \\
+ & \multicolumn{3}{c}{Pyramid Ice, shade} & \multicolumn{3}{c}{Pyramid Ice, sun} & \multicolumn{3}{c}{S30} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}\cmidrule(lr){8-10}
+ & Frames & \multicolumn{2}{c}{ATE (mm)} & Frames & \multicolumn{2}{c}{ATE (mm)} & Frames & \multicolumn{2}{c}{ATE (mm)} \\
+Method & posed & RMSE & max & posed & RMSE & max & posed & RMSE & max \\
 \midrule
-\multirow{3}{*}{S30 (lab), 69 frames} & SGBM & 2.89 & 451 & 23.5 & 121 \\
- & AquaStereo & 2.19 & 906 & 47.2 & 213 \\
- & FoundationStereo & 3.73 & 1,055 & 54.9 & 232 \\
+AprilGrid             & 151/151 & ref.  & ref.  & 118/151 & ref. & ref. & 280/344 & ref. & ref.  \\
+COLMAP                & 151/151 & 6.79  & 22.26 & 151/151 & --   & --   & 344/344 & 2.43 & 6.44  \\
+ICP, FoundationStereo & 135/151 & 24.98 & 70.11 & 150/151 & --   & --   & 340/344 & 2.89 & 7.14  \\
+ICP, SGBM (tuned)     & 151/151 & 30.31 & 70.92 & 1/151   & --   & --   & 338/344 & 5.91 & 16.08 \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+
+
+As shown in \autoref{fig:ch5.trajectories} below, all three methods follow the shadeuy trajectory closely, with ATE values between 6.8 and 30.3\,mm
+(\autoref{tab:pose_comparison}). 
+COLMAP outperforms both ICP runs when in the shade, with roughly four times lower error. 
+The sunlit pass, however, gives very different results. ICP with SGBM fails completely, estimating a pose only for its first frame. 
+COLMAP registers some images but veers far from the reference path, jumping sporadically between frames. 
+ICP with FoundationStereo is the only algorithm that tracks the camera throughout the sunlit pass.
+% Have it four seperate figures
+% Show trajectory mapping for shadow ice.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/paths_ice_shade_sun.png}
+    \caption{Camera paths from above at true scale, each rigidly aligned to the AprilTag poses. 
+    In sunlight, the reference is a noisy single-tag estimate and ICP with SGBM lost track immediately. 
+    Dotted segments are frame-to-frame jumps greater than 40 mm.}
+    \label{fig:ch5.trajectories}
+\end{figure}
+
+
+\subsubsection{Detection}
+Each algorithm relies on different features. As shown in \autoref{fig:ch5.shadow_ice_detections}, 
+COLMAP's SIFT detects and matches far fewer points than the ICP methods, both across the image and on the ice target itself. 
+All three markerless methods also use features outside the ice target for matching, 
+including an umbrella above it and the pole securing the target. Visually, the SGBM ICP points appear more scattered,
+ whereas the COLMAP and FoundationStereo ICP points cluster around real objects in the frame.
+
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/0060_all.png}
+    \caption{Features used by each pose method in frame 60 of the shaded ice pass.
+     AprilTag: detected tags used in the pose. COLMAP: SIFT keypoints (blue: triangulated and used; grey: unused).
+      ICP: 2 mm depth points (purple: matched to the local map within 5 mm and used; grey: unmatched). 
+    Red hatching marks tags masked from the markerless methods; the dashed gold line is the board outline.}
+    \label{fig:ch5.shadow_ice_detections}
+\end{figure}
+
+
+
+\subsection{What the Pose conclusion}
+All three methods accurately estimate the camera pose relative to the target
+in shaded conditions, but only ICP with FoundationStereo depth is able to
+track the camera in sunlight. As shown in \autoref{fig:ch5.shadow_ice_detections}, all three methods also rely on
+features outside the designed target. Although ICP with FoundationStereo is
+the most consistent approach, further testing on an isolated ice target with
+no background detail is needed to understand how the system will perform
+beneath real ice.
+
+
+
+
+%=====================================================================
+% SECTION Fusing Frames
+%=====================================================================
+\section{Light the Fuse: Frame Integration and 3D Reconstrucion}
+\label{sec:ch5.frame_integration}
+% Intro to concept + Logic behind
+Once each frame has both a depth map and a pose they can be joined into a single model.
+Each depth map is converted into a point cloud, and transformed into the world frame using its pose.
+
+The points are combined with a technique called voxel voting. The space around the object is divided into small
+cubes (voxels), and each frame votes for every voxel its points fall into. A voxel is only kept if sufficient frames
+agree that the surface lies ther. This rejects random points that only appear in a few frames. It also helps
+ommitting small floating particles that are not set in the scene, keepipng only surfaces consistently seen from 
+different viewpoints. 
+
+The fused point cloud is then fused to remove the remaining outliers, and where relavent, aligns to the CAD model 
+for scoring. 
+
+% Comparing different how our approach works
+
+
+% Voxel voting (union) - keep every voxel that at least N frames hit - maybe a bit basicHO
+% Median height field - for each x-y cell, take median height over the frames that it saw - assumes surface seen from one side, height over board, overhangs lost
+% TSDF (truncated signed distance function) - each voxel stores a wighted average of a signed distance to a surfacce - THE STANDARD
+% Point0cloud fusion (done by COLMAP) patchmap
+
+% Explain the theory behind each type of fusing - use literature now while explaining , dont have to come bacek
+
+% TSDF - standatd
+% PointCloud fusion (COLMAP)
+\subsection{COLMAP Fusion}
+\label{subsec:ch5.colmap_fusion}
+
+\subsection{TSDF (Truncated Signed Distance Function)}
+\label{subsec:ch5.tsdf}
+Curless and Levoy (1996) introduced the method, Newcombe et al. (2011), KinectFusion made it standard practice.
+
+% Explain the premise - basic maths
+% TODO: REWORD
+The truncated signed distance function (TSDF) is the standard volumetric
+representation for dense 3D reconstruction from depth data. Introduced by
+Curless and Levoy~\cite{curless1996volumetric} and popularised for real-time
+use by KinectFusion~\cite{newcombe2011kinectfusion}, it divides the scene
+into a regular voxel grid. Each voxel $\mathbf{p}$ stores a signed distance
+$F(\mathbf{p})$ to the nearest observed surface and a confidence weight
+$W(\mathbf{p})$. Distances are positive in free space in front of the
+surface and negative behind it, and are truncated to the interval
+$[-\mu, \mu]$. Truncation confines updates to a narrow band around the
+surface, so distant surfaces do not interfere with each other and unobserved
+regions are left untouched. Each new depth frame $k$ produces a per-voxel
+measurement $F_{R_k}(\mathbf{p})$ with weight $W_{R_k}(\mathbf{p})$. This
+measurement is fused into the global model by a weighted running average:
+\begin{equation}
+  F_k(\mathbf{p}) =
+  \frac{W_{k-1}(\mathbf{p})\,F_{k-1}(\mathbf{p}) + W_{R_k}(\mathbf{p})\,F_{R_k}(\mathbf{p})}
+       {W_{k-1}(\mathbf{p}) + W_{R_k}(\mathbf{p})},
+  \qquad
+  W_k(\mathbf{p}) = \min\!\big(W_{k-1}(\mathbf{p}) + W_{R_k}(\mathbf{p}),\, W_{\max}\big).
+  \label{eq:tsdf_fusion}
+\end{equation}
+Averaging over many frames suppresses sensor noise. The reconstructed
+surface is recovered as the zero-level set $F(\mathbf{p}) = 0$, either by
+raycasting or by extracting a mesh with Marching
+Cubes~\cite{lorensen1987marching}. Because $F$ is continuous, interpolating
+between voxels locates the surface to sub-voxel accuracy.
+
+
+% =======================================
+
+\subsection{What is tested}
+\label{subsec:ch5.fusion_tested}
+
+The depth map test (REF SECTION)) and (REF SECTION) produced a set of stereo depth maps and pose for each test data set.
+The TSDF uses the same COLMAP genrated poses as COLMAP cannot take input poses ensuring all tests use the same set of input
+poses. The test is run on S30 with 344 frame pairs (every fifth pair) with AprilTags masked out. Three different configurations are tested:
+
+
+\begin{enumerate}
+    \item \textbf{COLMAP pipeline:} PatchMatch stereo with geometric consistency, on the structure-from-motion model
+    the poses come from. Every image, left and right (688 in all), gets its own depth map, matched against up to
+    20 source views: its stereo partner first, then the frames closest to a 15\degree{} triangulation angle.
+    $15\times15$~px matching window, full resolution (1600~px), minimum triangulation angle 1\degree. The depth
+    maps are combined with COLMAP's stereo fusion, which keeps a point when at least 3 depth maps agree on it. The
+    tag masks are applied in this fusion step.
+    \item \textbf{TSDF with SGBM Tuned depth maps:} the tuned SGBM settings: 8-path mode (\texttt{MODE\_HH}),
+    block 11, uniqueness 0, P1/P2 16/32, prefilter cap 63, half scale, speckle filter, left-right check 1~px. One
+    depth map per stereo pair (344).
+    \item \textbf{TSDF with FoundationStereo maps:} ViT-L, half scale, 32 iterations, left-right check 3~px,
+    416~px disparity span, as in Section~\ref{sec:ch5.depth_test}. One depth map per stereo pair (344).
+\end{enumerate}
+
+Both TSDF runs use the same fusion settings: 1~mm voxels, a truncation distance of 4~mm, and a surface kept only
+where at least 3 frames contributed, the TSDF counterpart of the voxel voting threshold. The truncation distance
+has to exceed the depth noise and the disagreement between frames, which was around 4~mm on earlier scans.
+
+To compare each result to the CAD models, the point clouds are first lined up with the board. The AprilTags on the
+board give the true camera position in every frame, so the COLMAP camera positions are shifted and rotated to match
+them, and every point cloud is moved the same way. The tags are only used for this lining up, not to build the
+reconstructions. Each printed object is then cut out of the point cloud and compared with its CAD model.
+
+
+Further testing on using less input frames is done.
+
+
+
+\subsection{Results}
+\label{subsec:ch5.fusion_results}
+Interactive point clouds of the reconstructiosn can bef ound at (give link to interactgiv egitrhub). 
+
+
+\begin{table}[H]
+\centering
+\caption{Accuracy of each fusion method against the CAD model, S30 (lab), 344 frames, COLMAP poses. Fit: on local board. Coverage is the share of the visible CAD surface with a scan point within 2~mm; distances are from every object point to the CAD surface.}
+\label{tab:fusion_accuracy}
+\begin{tabular}{llrrrrrrr}
+\toprule
+Object & Method & Coverage (\%) & Median $|d|$ (mm) & RMS (mm) & p95 $|d|$ (mm) & $\leq$1~mm (\%) & $\leq$2~mm (\%) & $\leq$5~mm (\%) \\
 \midrule
-\multirow{3}{*}{Ice, shade, 31 frames} & SGBM & 2.14 & 331 & 17.2 & 193 \\
- & AquaStereo & 2.21 & 361 & 18.8 & 193 \\
- & FoundationStereo & 4.43 & 451 & 23.5 & 239 \\
-\midrule
-\multirow{3}{*}{Ice, sun, 56 frames} & SGBM & 2.15 & 197 & 10.2 & 129 \\
- & AquaStereo & 2.19 & 266 & 13.9 & 93 \\
- & FoundationStereo & 3.74 & 322 & 16.8 & 106 \\
+\multirow{3}{*}{PYRAMID\_1} & COLMAP (full pipeline) & -- & -- & -- & -- & -- & -- & -- \\
+ & TSDF, FoundationStereo & 40 & 2.21 & 2.53 & 4.22 & 13 & 43 & 99 \\
+ & TSDF, SGBM (tuned) & 17 & 2.05 & 3.35 & 6.97 & 26 & 49 & 88 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% Analysis 
-The middle sun frame (0140) is the best figure. FoundationStereo gets the stepped pyramid as clean concentric rings, even backlit against the sky. AquaStereo gets most of it, with gaps. SGBM gets only patches and scattered speckle.
-SGBM's point count is misleading on the sun recording. It has more 1 mm points than both learned matchers there, but much of it is speckle against the sky. This is why the tag-plane accuracy check matters.
-The learned matchers lose the matte black printed objects on S30. Both leave holes over the dark pyramid and egg carton, while the white board around them is filled in fully. That suggests they fail on dark, low-texture surfaces, which matters for the thesis. SGBM's coverage there is patchy too.
-There's a strip on the left with no depth for any matcher. There the match would fall outside the right image. It isn't a matcher failure.
-
-\subsection{Testing Pose estimation}
-% COmpare all 3
-% Show the detection points (SIFT + ICP)
-% COLMAP, ICP on FS, ICP on SGBM.
-% NOt sure the metrics, but also look at time per frame on 5060.
-% Specifiy what mode each was run in (list)
-x
-
-% TO BE DONE TONIGHT, MAYBE RUN OVERNIGHT
-
-\subsection{Testing 3D reconstruction (Fake Ice \& 3D print)}
-
-% TO BE DONE OVERNIGHT AND TOMORROW MORNING
 
 
-% 3D print analysis first
+Insert figure comparing the three accuracy for the Pyramid (|Top Down , Profiles through|) + 2pck egg box same. Fair comparison, both inline.
 
-% Aesthetic point cloud
-% Cross section for accuracy, compared to STL - all 4 shapes
-% Coverage map
 
-% Ice second
 
+figure 1
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_1.png}
+    \caption{...}
+    \label{fig:ch5.fusion_accuracy_pyramid}
+\end{figure}
+
+figure 2
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_1.png}
+    \caption{...}
+    \label{fig:ch5.fusion_accuracy_eggg}
+\end{figure}
+
+
+\subsection{Accuracy Results}
+(Explain how accuracy tests are done, and cropped)
+
+(Image for the pyramid cross section to look at edge accuracy. Pyramid because only are for comparison, try get the others to work)
+
+
+
+
+
+Look at ice reconstruction across the wave1 and pyramid shade (top down grid to show all of them)
+
+
+One image for the S30 reconstruction, compare the accuracy for the pyramid 1x. The rest in the appendix.
+
+
+Looking towards how well they scale with overlapping frames (Poitn cloud coverage, mayeb accuracy on the Pyramid)
+
+
+Mention scaling tests results, link to appendix.
+
+
+It was found COLMAP scaled better when using less frames.
+
+
+%Curless & Levoy (1996) – A Volumetric Method for Building Complex Models from Range Images. The original TSDF fusion method.
+
+%Newcombe et al. (2011) – KinectFusion: Real-Time Dense Surface Mapping and Tracking. ICP tracking plus TSDF fusion; the same pipeline as your ICP methods. Most cited and most relevant.
+
+%Nießner et al. (2013) – Real-Time 3D Reconstruction at Scale Using Voxel Hashing. Makes TSDF memory-efficient; the basis of Open3D's TSDF.
+
+%Schönberger et al. (2016) – Pixelwise View Selection for Unstructured Multi-View Stereo. COLMAP's dense stereo and its consistency-voting fusion.
+
+%Seitz et al. (2006) – A Comparison and Evaluation of Multi-View Stereo Reconstruction Algorithms. Defines the accuracy and completeness metrics.
+
+%Jordt-Sedlazeck & Koch (2013) – Refractive Structure-from-Motion on Underwater Images. Flat-port refraction error underwater.
+
+%Fankhauser et al. (2018) – Probabilistic Terrain Mapping for Mobile Robots with Uncertain Localization. 2.5D height-map fusion; background for the median height field.
+
+
+
+% I now want to test the 3D Reconstruction. What next algorithmic steps are there? Is it just vocel voting or what not
+%to go from posed depth frames to 3D reconstruction?
+
+
+% Add github link with cloud viewer
+
+
+Write a repeateable test script and on S30 and:
+% /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/3DPrintFinal/30_frames_range (S30)
+THe pyramid we were testing on exp
+% /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/Ice/Cubes/Shade/cub2_frames_horiz_pass_v_close_580mm/ (CUBES)
+% /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/Ice/Overhang/Shade/hang1_frames_pass2_830mm/ (Overhang Shade)
+% /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm/ (wave)
+
+\section{Testing Full pipeline}
+\label{sec:ch5.testing_full_pipeline}
+% TIME for frame
+% FRAMES TO RECONSTRUCTION FALLOFF - COMPARE TO ESTIMATED SPEEDS
+w
 
 
 \subsection{Discussion and analysis}
+\label{subsec:ch5.discussion_analysis}
 % NB
 
-%---------------------------------------------------------------------
-\subsection{Colour choice}
-Blue to represent 
 
 % https://en.wikisource.org/wiki/Page:The_Botany_of_the_Antarctic_Voyage.djvu/539
 % https://archive.org/details/botanyofantarcti01hook
@@ -398,29 +804,6 @@ Ito et al. (2025), JGR: Oceans. https://doi.org/10.1029/2024JC021689
 
 \url{https://doi.pangaea.de/10.1594/PANGAEA.870704?format=html#download}
 "Lighting conditions"
-
-
-
-
-
-%---------------------------------------------------------------------
-% Subsection: Material choice
-%---------------------------------------------------------------------
-\subsection{Material choice}
-
-%---------------------------------------------------------------------
-% Subsection: Manufacturing process
-%---------------------------------------------------------------------
-\subsection{Manufacturing process}
-- DIY foam cutting, live cad model, Lidar scanned.
-%---------------------------------------------------------------------
-% Subsection: Physical properties
-%---------------------------------------------------------------------
-\subsection{Physical properties}
--Holes (few mm to 1 mm wide to miimic drainage channels)
-- Overhangs wheree the lip hides surface from one camera- Step discontinuities
-- A resolution strip
-- Small ride or keel
 
 
 %*********************************************************************

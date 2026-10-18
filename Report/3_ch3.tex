@@ -20,12 +20,14 @@ They can be split into central and non-central camera models.
 
 %---------------------------------------------------------------------
 \subsection{Central camera models}
+\label{subsec:ch3.central_camera_models}
 %---------------------------------------------------------------------
 A central camera has a single optical center that every incoming ray passes through.
 Most models are central camera models.
 
 %---------------------------------------------------------------------
 \subsection{Non-central camera models}
+\label{subsec:ch3.noncentral_camera_models}
 %---------------------------------------------------------------------
 Non-central camera models do not have a single optical center.
 (Something about back-projection, maybe mention later).
@@ -39,6 +41,7 @@ Important for underwater why...?
 
 %---------------------------------------------------------------------
 \subsection{Model parameters: global, local and discrete}
+\label{subsec:ch3.model_parameters}
 %---------------------------------------------------------------------
 \cite{sturmCameraModelsFundamental2011} further separates models into global, local and discrete
 models. This separation regards how the model's parameters describe the image.
@@ -49,6 +52,7 @@ to non-sampled image points, essentially making them local models.
 
 %---------------------------------------------------------------------
 \subsection{Forward vs back-projection}
+\label{subsec:ch3.forward_back_projection}
 %---------------------------------------------------------------------
 Forward projection maps a 3D point to a sensor pixel and back-projection does the inverse, mapping
 a pixel to a 3D ray. Within the context of this project, forward projection is used for correcting
@@ -67,10 +71,13 @@ The notation used in this report will follow the following notation:
 \end{description}
 
 \subsection{Radial distortion}
+\label{subsec:ch3.radial_distortion}
 
 \subsection{Extrinsic parameters}
+\label{subsec:ch3.extrinsic_parameters}
 
 \subsection{Intrinsic parameters}
+\label{subsec:ch3.intrinsic_parameters}
 
 % Reinhard Klette
 Intrinsic (camera specific) and extrinsic parameters are required.
@@ -154,6 +161,7 @@ Camera lenses also focus
 
 ===============ROUND 2 USING ZHANGS NOTATION ===============================
 \subsection{Pinhole camera model and coordinate projection}
+\label{subsec:ch3.pinhole_camera_model}
 This section uses theory from standford notres, Textbook and zhangs calibration to explain. Zhangs notation use used.
 
 Before working with images, it is important to understand how a camera forms an image. This is done using a simple camera model, called the pinhole camera.
@@ -245,6 +253,7 @@ bends straight lines in the image, producin radial distortion. (REF HERE SOMEWHE
 
 
 \subsection{The Camera Matrix}
+\label{subsec:ch3.camera_matrix}
 \autoref{eq:ch3.persp} provides the points on the camera's sensor in millimeters measured from the principal point. An image however uses pixels to define positions.
 To join the two, we need additional paramters which compined with the position and orientation of the camera in the world provide us 
 the \textit{camera matrix} \cite{szeliskiComputerVisionAlgorithmsa}. 

@@ -1,7 +1,7 @@
 # =====================================================================
 #   latexmk configuration
 # =====================================================================
-#   pdfLaTeX. The thesis is set in EB Garamond, a pdfLaTeX font package.
+#   pdfLaTeX. The thesis is set in Times (newtx), a pdfLaTeX font package.
 #
 #       latexmk 0_main
 #

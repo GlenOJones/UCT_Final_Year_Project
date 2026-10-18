@@ -71,14 +71,14 @@ across different tests.
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
         \caption{Description. Sliding image}
-        \label{fig:ch5.Rail_In_Air}
+        \label{fig:ch5.rail_in_air}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.66\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
         \caption{Description. Showing set angles}
-        \label{fig:ch5.Rig_In_Water}
+        \label{fig:ch5.rig_in_water}
     \end{subfigure}
     \caption[short caption]{\textbf{Lead-in.} Description.}
     \label{fig:ch5.test_rig}
@@ -116,20 +116,21 @@ The water introduces haze and reduces contrast. Some frames include floating par
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/fig_air_vs_water_C1_right_60.pdf}
         \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.air_vs_water_C1_right_60}
+        \label{fig:ch5.air_water_comp}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.315\textwidth}
         \centering
         \includegraphics[width=\linewidth]{../results/experiments/channels/air_vs_water_crops/fig_single_tag_close_far.png}
         \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.single_tag_close_far}
+        \label{fig:ch5.dist_comp}
     \end{subfigure}
     \caption[short caption]{\textbf{Lead-in.} Description.}
     \label{fig:ch5.air_vs_water}
 \end{figure}
 
 \subsection{Frame selection}
+\label{subsec:ch5.frame_selection}
 The StellarHD cameras do not support single-shot image. Each frame is extracted from the .mkv video file using
 \texttt{extract\_stereo\_frame.py}. As there is no hardware synchronisation between the two stellarHD cameras,
  the script pairs left and right framews with the closest timestamp, rejecting pairs if with a difference above a configurable 
@@ -144,6 +145,7 @@ or selecting frames at set steps (e.g. every 10th frame)
 
 
 \subsection{Calibration}
+\label{subsec:ch5.calibration}
 % NB: APPARENTLY THE IN AIR WERE MORE COMPRESSED DUE TO HIGHER DETAIL - CPMPRESSION LEVELS DEPEND detail
 Calibration is done with \texttt{calibration.py}. The code reads in the full set of calibration images aswell as a JSON file containing the openCV
 detector settings. The board geometries for the Aprilgrid board are hardcoded into the file. The code reads in the dector settings, builds a board object to match the physical board,
@@ -162,6 +164,7 @@ image with annotaed detections is given in \autoref{fig:ch5.detectedtags} below.
 
 
 \subsection{Optimising for Detection}
+\label{subsec:ch5.optimising_detection}
 % Mention how to optimise through varying openCV parameters
 % Mention metrics for what is good, explained in the theoretical development
 %=====================================================================
@@ -357,6 +360,7 @@ is important for charturisation across the full frame.
 
 
 \subsection{Underwater Compensation analysis}
+\label{subsec:ch5.underwater_compensation_analysis}
 % EXPLANATIONS OF THE THREE METHODS GIVEN IN THE THEORETICAL DEVELOPMENT SECTION
 % === PINAX (is it even possible in this context)
 % === Zhang but underwater
@@ -367,6 +371,7 @@ is important for charturisation across the full frame.
 %========================================================
 %==================== Theory for this section =======
 \subsection{Theory: Calibration techniques}
+\label{subsec:ch5.theory_calibration_techniques}
 % NB its clear how detection is seperate from calibration
 
 % Refraction and distortion
@@ -479,6 +484,7 @@ fit = least_squares(residuals, p0, jac_sparsity=sparsity, method="trf", x_scale=
 
 
 \subsection{Testing procedure}
+\label{subsec:ch5.testing_procedure}
 % Technicall goes into Theory section:
 Five different compensation techniques were tested (T1-T5). All techniques are scored on the same held-out board detections. 
 Trained with 8 split underwater sets were used, with every recording pair held out once. This gave 28 splits. Each split trains on the 
@@ -506,6 +512,7 @@ calibration.
 
 
 \subsection{Compensation techniques tested}
+\label{subsec:ch5.compensation_techniques_tested}
 \begin{enumerate}
     \item \textbf{T1:} In air calibration tested in water: Baseline comparison
     \item \textbf{T2:} Pinax calibration: Sufficient for in air only
@@ -587,12 +594,13 @@ $(50,100,150,200,250)$ which some are above the calibration test set. An example
     \centering
     \includegraphics[width=0.4 \textwidth]{figs/Ch5/reference__Left_200.png}
     \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.reference_Left_200}
+    \label{fig:ch5.reference_left_200}
 \end{figure}
 
 
 
 \subsection{Results and analysis} 
+\label{subsec:ch5.results_analysis}
 A test program \texttt{name.py} was written to complete the sweep of tests described. The tests completed
 within 20 minutes, providing the following results
 
@@ -768,6 +776,7 @@ This is run via the OpenCV \texttt{cv2fisheye.calibrate} with \texttt{RECOMPUTE\
 % How it is outputted
 
 \subsection{Calibration and Compensation conclusion}
+\label{subsec:ch5.calibration_compensation_conclusion}
 % Conclude that the standard is the best option, within noise looking acrcoss left and right cameras.
 
 % Continue on with

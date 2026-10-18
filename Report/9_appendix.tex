@@ -44,6 +44,59 @@ BC + axial, close-range training & 0.275 {\scriptsize[0.204, 0.397]} & 0.269 {\s
 \end{table}
 
 %---------------------------------------------------------------------
+
+\begin{table}[H]
+\centering
+\caption{Depth map generation per matcher, medians over the frames used (every fifth frame). Time is the matcher
+alone, in s/frame. Coverage is the share of the image with depth in the recording's depth range, in \%; points are
+those pixels merged into 1~mm voxels, in thousands.}
+\label{tab:depth_matchers}
+\begin{tabular}{llrrr}
+\toprule
+Recording & Matcher & Time & Coverage & Points \\
+\midrule
+\multirow{4}{*}{S30 (side on), 69 frames} & SGBM             & 2.89 & 23.5 & 121 \\
+                                          & SGBM (tuned)     & 0.36 & 41.3 & 165 \\
+                                          & AquaStereo       & 2.19 & 47.2 & 213 \\
+                                          & FoundationStereo & 3.73 & 54.9 & 232 \\
+\midrule
+\multirow{4}{*}{Pyramid, shade, 31 frames} & SGBM             & 2.14 & 17.2 & 193 \\
+                                           & SGBM (tuned)     & 0.27 & 25.0 & 281 \\
+                                           & AquaStereo       & 2.21 & 18.8 & 193 \\
+                                           & FoundationStereo & 3.68 & 23.5 & 239 \\
+\midrule
+\multirow{4}{*}{Cubes, shade, 27 frames} & SGBM             & 2.09 & 15.5 & 166 \\
+                                         & SGBM (tuned)     & 0.27 & 27.2 & 258 \\
+                                         & AquaStereo       & 2.20 & 20.5 & 157 \\
+                                         & FoundationStereo & 3.70 & 30.1 & 334 \\
+\midrule
+\multirow{4}{*}{Overhang, shade, 43 frames} & SGBM             & 2.09 & 14.7 & 214 \\
+                                            & SGBM (tuned)     & 0.27 & 19.2 & 277 \\
+                                            & AquaStereo       & 2.16 & 13.1 & 178 \\
+                                            & FoundationStereo & 3.69 & 25.7 & 403 \\
+\midrule
+\multirow{4}{*}{Wave, shade, 47 frames} & SGBM             & 2.15 & 13.7 & 167 \\
+                                        & SGBM (tuned)     & 0.28 & 19.0 & 220 \\
+                                        & AquaStereo       & 2.21 & 14.5 & 156 \\
+                                        & FoundationStereo & 3.73 & 41.2 & 511 \\
+\midrule
+\multirow{4}{*}{Pyramid, sun, 56 frames} & SGBM             & 2.15 & 10.2 & 129 \\
+                                         & SGBM (tuned)     & 0.27 & 16.9 & 190 \\
+                                         & AquaStereo       & 2.19 & 13.9 & 93 \\
+                                         & FoundationStereo & 3.74 & 16.8 & 106 \\
+\midrule
+\multirow{4}{*}{Overhang, sun, 35 frames} & SGBM             & 2.12 & 9.4  & 91 \\
+                                          & SGBM (tuned)     & 0.28 & 17.4 & 162 \\
+                                          & AquaStereo       & 2.22 & 9.8  & 71 \\
+                                          & FoundationStereo & 3.76 & 14.7 & 99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+
+%------------------------------------------------------------------
+
 \section*{Right camera reprojection errors}
 \phantomsection
 \addcontentsline{toc}{section}{Right camera reprojection errors}

@@ -93,6 +93,7 @@ Split & Held out & L & R & Pairs & Split & Held out & L & R & Pairs \\
 \end{table}
 
 \subsection{How a held-out frame is scored}
+\label{subsec:appE.heldout_scoring}
 For a held-out image, the technique's intrinsics are fixed and only the board pose $(R,\mathbf{t})$ is fitted, by
 minimising the pixel distance between the detected corners $\mathbf{u}_i$ and their projections
 $\hat{\mathbf{u}}_i = \pi(R\mathbf{X}_i + \mathbf{t})$, where $\mathbf{X}_i$ are the known board coordinates and
