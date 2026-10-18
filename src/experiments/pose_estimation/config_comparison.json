@@ -98,7 +98,8 @@
   "icp_voxel_mm": 2.0,
   "icp_normal_radius_mm": 6.0,
   "slide_threshold": 0.5,
-  "image_dpi": 150
+  "image_dpi": 150,
+  "grid_dpi": 300
  },
  "combined_paths": [
   {"_why": "The two ice passes side by side, shade and sun (backlit, noisy reference), at the same true scale.",

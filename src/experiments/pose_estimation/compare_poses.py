@@ -53,15 +53,12 @@ from stereo_rig import find_frame_pairs, invert  # noqa: E402
 
 # Validated categorical order (dataviz reference palette, slots 1-3); the reference is neutral ink.
 COLOURS = {"colmap": "#2a78d6", "icp_fs": "#eb6834", "icp_sgbm": "#1baf7a", "icp_aqua": "#eda100"}
-RESTART = "_restart"   # suffix of a restarted run (run_poses.restart_estimator): same colour, dashed
+RESTART = "_restart"   # suffix of a restarted run (run_poses.restart_estimator): same colour and line as the method
+FIGURE_REFERENCE = "AprilTag"   # the reference's name in the figures (the tables keep cfg["reference"]["label"])
 
 
 def colour(name):
     return COLOURS.get(name[:-len(RESTART)] if name.endswith(RESTART) else name)
-
-
-def dashes(name):
-    return "--" if name.endswith(RESTART) else "-"
 
 
 def restart_start(p, name):
@@ -200,11 +197,11 @@ def aligned_paths(cfg, recording):
     if has_tags(recording):
         _, reference, _ = pose_files.read_trajectory(p["reference"])
         target = {n: invert(T) for n, T in reference.items()}
-        target_label = f"{cfg['reference']['label']} (reference)"
+        target_label = f"{FIGURE_REFERENCE} (reference)"
         how = f"after one rigid fit onto {cfg['reference']['label']}"
         if recording.get("reference_noisy"):   # few, small tags: a scattered reference, drawn as dots
             noisy = True
-            target_label = f"{cfg['reference']['label']}, enhanced ({recording.get('title', recording['name'])}; noisy)"
+            target_label = f"{FIGURE_REFERENCE}, single tag estimate"
     elif recording.get("plot_reference"):
         _, reference, _ = pose_files.read_trajectory(os.path.join(p["out"], recording["plot_reference"]["file"]))
         target = {n: invert(T) for n, T in reference.items()}
@@ -238,16 +235,18 @@ def aligned_paths(cfg, recording):
             "target": target}
 
 
-def draw_top_view(ax, data, legend=True):
-    """The paths of aligned_paths() from above at true scale, jumps dotted, start (o) and end (square) marked."""
+def draw_top_view(ax, data, legend=True, mark=8, lw=1.2):
+    """The paths of aligned_paths() from above at true scale, jumps dotted, start (o) and end (square) marked.
+    mark: start/end marker size and lw: path width (points), smaller for the report-width figure."""
     to_track, start = data["to_track"], data["start"]
     if data["reference"] is not None:
         ref = to_track(data["reference"])
         if data["reference_noisy"]:   # a noisy partial reference: points, not a line to follow
-            ax.plot(ref[:, 0] - start, ref[:, 1], ".", color=REFERENCE_INK, ms=4, alpha=0.6,
+            ax.plot(ref[:, 0] - start, ref[:, 1], ".", color=REFERENCE_INK, ms=mark / 2, alpha=0.6,
                     label=data["reference_label"])
         else:
-            ax.plot(ref[:, 0] - start, ref[:, 1], color=REFERENCE_INK, lw=3, alpha=0.35, label=data["reference_label"])
+            ax.plot(ref[:, 0] - start, ref[:, 1], color=REFERENCE_INK, lw=2.5 * lw, alpha=0.35,
+                    label=data["reference_label"])
     for name, centres in data["aligned"].items():
         xyz = np.array(list(centres.values()))
         track = to_track(xyz)
@@ -256,15 +255,15 @@ def draw_top_view(ax, data, legend=True):
         label = data["labels"][name] + (f" ({jumps} jump{'s' if jumps > 1 else ''} > {JUMP_MM:.0f} mm, dotted)"
                                         if jumps else "")
         x, y = track[:, 0] - start, track[:, 1]
-        ax.plot(x, y, color=colour(name), lw=0.6, ls=":", alpha=0.5)
+        ax.plot(x, y, color=colour(name), lw=lw / 2, ls=":", alpha=0.5)
         for k, (a, b) in enumerate(zip(np.r_[0, cuts], np.r_[cuts, len(x)])):
-            ax.plot(x[a:b], y[a:b], color=colour(name), ls=dashes(name), lw=1.2, label=label if k == 0 else None)
-        ax.plot(x[0], y[0], "o", ms=8, mfc="none", mec=colour(name), mew=1.5)
-        ax.plot(x[-1], y[-1], "s", ms=8, mfc="none", mec=colour(name), mew=1.5)
-    ax.plot([], [], "o", ms=8, mfc="none", mec=REFERENCE_INK, label="start")
-    ax.plot([], [], "s", ms=8, mfc="none", mec=REFERENCE_INK, label="end")
+            ax.plot(x[a:b], y[a:b], color=colour(name), lw=lw, label=label if k == 0 else None)
+        ax.plot(x[0], y[0], "o", ms=mark, mfc="none", mec=colour(name), mew=mark / 5)
+        ax.plot(x[-1], y[-1], "s", ms=mark, mfc="none", mec=colour(name), mew=mark / 5)
+    ax.plot([], [], "o", ms=mark, mfc="none", mec=REFERENCE_INK, label="start")
+    ax.plot([], [], "s", ms=mark, mfc="none", mec=REFERENCE_INK, label="end")
     ax.set_aspect("equal", adjustable="datalim")
-    ax.set(xlabel="along track (mm)", ylabel="across track (mm)")
+    ax.set(xlabel="x (mm)", ylabel="y (mm)")
     ax.grid(alpha=0.3, lw=0.6)
     ax.spines[["top", "right"]].set_visible(False)
     if legend:
@@ -299,7 +298,7 @@ def trajectory_figures(cfg, recording, out_dir):
             y_solid = y.copy().astype(float)
             ax[k].plot(x, y, color=colour(name), lw=0.6, ls=":", alpha=0.5)
             for a, b in zip(np.r_[0, np.flatnonzero(steps > jump) + 1], np.r_[np.flatnonzero(steps > jump) + 1, len(x)]):
-                ax[k].plot(x[a:b], y_solid[a:b], color=colour(name), ls=dashes(name), lw=1.2,
+                ax[k].plot(x[a:b], y_solid[a:b], color=colour(name), lw=1.2,
                            label=label if (k == 0 and a == 0) else None)
     ax[0].set_ylabel("across track (mm)")
     ax[1].set_ylabel("out of plane (mm)")
@@ -330,7 +329,7 @@ def trajectory_figures(cfg, recording, out_dir):
         names = [n for n in centres if n in target]
         error = [np.linalg.norm(centres[n] - target[n][:3, 3]) for n in names]
         x = [int(os.path.splitext(n)[0]) for n in names] if by_frame else [track_of[n] for n in names]
-        ax.plot(x, error, color=colour(name), ls=dashes(name), lw=1.2, label=labels[name])
+        ax.plot(x, error, color=colour(name), lw=1.2, label=labels[name])
     xlabel = "frame" if by_frame else f"along track (mm, {cfg['reference']['label']})"
     ax.set(xlabel=xlabel, ylabel="ATE (mm)", ylim=(0, None))
     ax.grid(alpha=0.3, lw=0.6)
@@ -353,23 +352,25 @@ def combined_top_views(cfg):
         data = [aligned_paths(cfg, by_name[name]) for name in entry["recordings"]]
         name_of = {id(d): name for d, name in zip(data, entry["recordings"])}
         from matplotlib.lines import Line2D
-        fig, axes = plt.subplots(1, len(data), figsize=(6.4 * len(data) + 3.0, 5.4))
+        # The report's text width (A4 less 1.5 cm margins), fonts for print; the key goes underneath.
+        plt.rcParams.update({"font.size": 7, "axes.titlesize": 7.5, "axes.labelsize": 7, "xtick.labelsize": 6.5,
+                             "ytick.labelsize": 6.5, "axes.linewidth": 0.6})
+        fig, axes = plt.subplots(1, len(data), figsize=(18 / 2.54, 2.6))
         axes = np.atleast_1d(axes)
         for ax, d in zip(axes, data):
-            draw_top_view(ax, d, legend=False)
+            draw_top_view(ax, d, legend=False, mark=4.5, lw=0.9)
             title = entry.get("titles", {}).get(name_of[id(d)], d["title"])
-            ax.set_title(f"{title}\n({d['how']})", fontsize=10)
+            ax.set_title(title, pad=3)
         # One key for both panels: the methods, the reference, and the jump / start / end marks.
-        handles = [Line2D([], [], color=REFERENCE_INK, lw=3, alpha=0.35, label=f"{cfg['reference']['label']} (reference)")]
-        handles += [Line2D([], [], ls="", marker=".", ms=8, color=REFERENCE_INK, alpha=0.6, label=d["reference_label"])
+        handles = [Line2D([], [], color=REFERENCE_INK, lw=2.2, alpha=0.35, label=f"{FIGURE_REFERENCE} (reference)")]
+        handles += [Line2D([], [], ls="", marker=".", ms=5, color=REFERENCE_INK, alpha=0.6, label=d["reference_label"])
                     for d in data if d["reference_noisy"]]
-        handles += [Line2D([], [], color=colour(e["name"]), lw=1.2, label=e["label"]) for e in cfg["estimators"]]
-        if any(n.endswith(RESTART) for d in data for n in d["aligned"]):
-            handles.append(Line2D([], [], color=REFERENCE_INK, lw=1.2, ls="--", label="restarted later in the pass"))
-        handles += [Line2D([], [], color=REFERENCE_INK, lw=0.8, ls=":", label=f"jump > {JUMP_MM:.0f} mm (impossible step)"),
-                    Line2D([], [], ls="", marker="o", ms=8, mfc="none", mec=REFERENCE_INK, label="start"),
-                    Line2D([], [], ls="", marker="s", ms=8, mfc="none", mec=REFERENCE_INK, label="end")]
-        fig.legend(handles=handles, loc="center right", ncol=1, fontsize=9, frameon=False)
+        handles += [Line2D([], [], color=colour(e["name"]), lw=0.9, label=e["label"]) for e in cfg["estimators"]]
+        handles += [Line2D([], [], color=REFERENCE_INK, lw=0.6, ls=":", label=f"jump > {JUMP_MM:.0f} mm"),
+                    Line2D([], [], ls="", marker="o", ms=4.5, mfc="none", mec=REFERENCE_INK, label="start"),
+                    Line2D([], [], ls="", marker="s", ms=4.5, mfc="none", mec=REFERENCE_INK, label="end")]
+        fig.legend(handles=handles, loc="lower center", ncol=4, fontsize=6.5, frameon=False,
+                   columnspacing=1.2, handlelength=1.8)
         # One true scale for all panels: the union of their data limits, equal aspect by resizing the boxes.
         for ax in axes:
             ax.relim()
@@ -382,10 +383,9 @@ def combined_top_views(cfg):
             ax.set_aspect("equal", adjustable="box")
         for ax in axes[1:]:
             ax.set_ylabel("")
-        fig.suptitle("Camera paths seen from above, true scale", fontsize=11)
-        fig.tight_layout(rect=(0, 0, 1 - 2.9 / fig.get_figwidth(), 1))
+        fig.tight_layout(rect=(0, 0.17, 1, 1), w_pad=1.0)
         path = os.path.join(common.project_path(cfg["out_dir"]), entry["file"])
-        fig.savefig(path, dpi=150)
+        fig.savefig(path, dpi=300, bbox_inches="tight", pad_inches=0.02)
         plt.close(fig)
         print(f"-> {common.rel(path)}")
 

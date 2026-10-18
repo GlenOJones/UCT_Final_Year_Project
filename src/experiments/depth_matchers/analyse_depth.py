@@ -387,6 +387,18 @@ def combined_figure(cfg, spec):
     print(f"  combined figure ({depth_min:.0f}-{depth_max:.0f} mm) -> {common.rel(out)}")
 
 
+def crop_padded(array, box, fill):
+    """array[y0:y1, x0:x1] for box (x0, y0, x1, y1), which may run past the image: the part outside is fill (NaN for
+    depth, which is drawn as no depth), so an object at the frame's edge can still be placed anywhere in its tile."""
+    x0, y0, x1, y1 = box
+    out = np.full((y1 - y0, x1 - x0) + array.shape[2:], fill, dtype=array.dtype if np.isfinite(fill) else np.float32)
+    h, w = array.shape[:2]
+    sx0, sy0, sx1, sy1 = max(x0, 0), max(y0, 0), min(x1, w), min(y1, h)
+    if sx1 > sx0 and sy1 > sy0:
+        out[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0] = array[sy0:sy1, sx0:sx1]
+    return out
+
+
 def crop_figure(cfg, spec):
     """Close-ups for the report: a row per recording (spec["rows"]: recording, box [x0, y0, x1, y1] in the rectified
     left image at full size, title), holding the crop of the image and then every matcher's depth of it.
@@ -408,10 +420,18 @@ def crop_figure(cfg, spec):
         name, runs = figure_frame(cfg, recording)
         rectifier = Rectifier(load_rig(common.project_path(recording["calibration"])))
         pairs = {n: (l, r) for n, l, r in find_frame_pairs(common.project_path(recording["frames"]))}
-        x0, y0, x1, y1 = row["box"]
-        depths = {m: depth_of(rectifier, read_disparity(runs[m], name))[y0:y1, x0:x1] for m in cfg["matchers"] if m in runs}
+        box = row["box"]
+        depths = {m: crop_padded(depth_of(rectifier, read_disparity(runs[m], name)), box, np.nan)
+                  for m in cfg["matchers"] if m in runs}
         low, high = np.percentile(np.concatenate([d[np.isfinite(d)] for d in depths.values()]), [5, 95])
-        rows.append((row, rectified_colour(rectifier, "left", pairs[name][0])[y0:y1, x0:x1], depths,
+        image = crop_padded(rectified_colour(rectifier, "left", pairs[name][0]), box, 128)
+        # row["rotate_cw"]: turn the whole row (image and depths) by this many degrees clockwise, a multiple of 90,
+        # so recordings filmed with the block at a different orientation line up in the figure.
+        turns = -(row.get("rotate_cw", 0) // 90)
+        if turns:
+            image = np.ascontiguousarray(np.rot90(image, turns))
+            depths = {m: np.ascontiguousarray(np.rot90(d, turns)) for m, d in depths.items()}
+        rows.append((row, image, depths,
                      (low - 0.1 * (high - low), high + 0.1 * (high - low))))
         print(f"  crops: {recording['name']} frame {name}, depth {rows[-1][3][0]:.0f}-{rows[-1][3][1]:.0f} mm")
     if not rows:

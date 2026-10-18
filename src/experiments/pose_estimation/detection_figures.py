@@ -15,7 +15,7 @@ trajectory (a direction needs no scale), turned into each frame's camera frame b
 Images, for `frames` frames spread evenly along each pass, every method drawn on the same left image:
   AprilGrid   the tags it detected, corners marked (it sees the unmasked image)
   COLMAP      SIFT keypoints, triangulated (used) vs detected only
-  ICP         depth points coloured by |n . d|
+  ICP         its finest-scale depth points, matched to the map at the saved pose (used) vs not
 The markerless panels hatch the masked tags in red; the dashed gold line is the board outline from the tag layout.
 
     src/venv/bin/python src/experiments/pose_estimation/detection_figures.py --config src/experiments/pose_estimation/config_comparison.json
@@ -34,6 +34,7 @@ import sys
 import cv2
 import numpy as np
 import open3d as o3d
+from scipy.spatial import cKDTree
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -89,79 +90,139 @@ def icp_points(depth_dir, name, det):
     return np.asarray(cloud.points), np.asarray(cloud.normals)
 
 
+def icp_matched(depth_dir, poses_path, name):
+    """(points, matched, fitness, min_fitness) for one frame as icp_poses.py registered it: its finest-scale points (camera frame) and
+    which of them had a map point within the search distance at the saved pose, i.e. the points behind ICP's
+    fitness. The map is rebuilt the way icp_poses.py built it: the last map_frames posed frames before this one,
+    each at its saved pose, merged and thinned. matched is None for a lost frame (its fitness fell below
+    min_fitness, so its pose was dropped); all True for the first."""
+    meta, poses, diag = pose_files.read_trajectory(poses_path)
+    voxel = float(str(meta["scales_mm"]).split()[-1])
+    distance = meta["max_distance_voxels"] * voxel
+    keep = int(meta["map_frames"]) if meta["target"] == "map" else 1
+
+    def load(n):
+        cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(
+            np.load(os.path.join(depth_dir, "frames", n[:-4] + ".npz"))["xyz"].astype(np.float64)))
+        return cloud.voxel_down_sample(voxel)
+
+    xyz = np.asarray(load(name).points)
+    order = sorted(diag)
+    k = order.index(name)
+    fitness, floor = diag[name]["fitness"], meta["min_fitness"]
+    if diag[name].get("lost"):
+        return xyz, None, fitness, floor
+    if k == 0:
+        return xyz, np.ones(len(xyz), bool), fitness, floor
+    recent = [n for n in order[:k] if not diag[n].get("lost")][-keep:]
+    world = o3d.geometry.PointCloud()
+    for n in recent:
+        world += load(n).transform(invert(poses[n]))
+    target = np.asarray(world.voxel_down_sample(voxel).points)
+    T = invert(poses[name])
+    gaps = cKDTree(target).query(xyz @ T[:3, :3].T + T[:3, 3], distance_upper_bound=distance)[0]
+    return xyz, np.isfinite(gaps), fitness, floor
+
+
 def median(values):
     v = [x for x in values if x is not None]
     return float(np.median(v)) if v else None
 
 
 # ====== DRAWING ======
-def draw_panel(ax, image, panel, mask=None, board_px=None):
-    """One method's panel on ax. panel: {"kind", "title", ...data}. Returns the ICP scatter (for a colour bar)."""
+# Line widths, marker areas and font sizes (points). SINGLE is for one 7-inch panel; GRID for the side-by-side
+# figures, laid out at the report's text width (GRID_WIDTH_IN) so they go in at 1:1 and the text stays readable.
+SINGLE = {"line": 1.2, "corner": 14, "tag_font": 8, "note_font": 12, "legend_font": 7, "title_font": 10,
+          "unused": 1.5, "used": 3, "icp": 0.4}
+GRID = {"line": 0.7, "corner": 4, "tag_font": 5, "note_font": 6, "legend_font": 4.5, "title_font": 6.5,
+        "unused": 0.3, "used": 0.6, "icp": 0.08}
+GRID_WIDTH_IN = 18 / 2.54   # A4 less the report's 1.5 cm margins
+# One colour per method (matplotlib Tableau; clear of the gold board outline and the red mask)
+COLOURS = {"aprilgrid": "tab:green", "colmap": "tab:blue", "icp": "tab:purple"}
+
+
+def draw_panel(ax, image, panel, mask=None, board_px=None, style=SINGLE):
+    """One method's panel on ax. panel: {"kind", "title", ...data}."""
     ax.imshow(image)
     if mask is not None and panel["kind"] != "aprilgrid":
         ax.contourf(mask == 0, levels=[0.5, 1], colors="none", hatches=["////"])
-        ax.contour(mask == 0, levels=[0.5], colors="tab:red", linewidths=1)
+        ax.contour(mask == 0, levels=[0.5], colors="tab:red", linewidths=style["line"])
     if board_px is not None:
         loop = np.vstack([board_px, board_px[:1]])
-        ax.plot(loop[:, 0], loop[:, 1], "--", color="gold", lw=1.2)
-    scatter = None
+        ax.plot(loop[:, 0], loop[:, 1], "--", color="gold", lw=style["line"])
     if panel["kind"] == "aprilgrid":
         for tag_id, (quad, used) in panel["tags"].items():
             loop = np.vstack([quad, quad[:1]])
-            colour = "lime" if used else "tab:orange"
-            ax.plot(loop[:, 0], loop[:, 1], "-", color=colour, lw=1.2)
-            ax.scatter(quad[:, 0], quad[:, 1], s=14, c=colour, edgecolors="k", linewidths=0.4, zorder=3)
-            ax.text(*quad.mean(0), str(tag_id), color=colour, fontsize=8, ha="center", va="center",
+            colour = COLOURS["aprilgrid"] if used else "tab:orange"
+            ax.plot(loop[:, 0], loop[:, 1], "-", color=colour, lw=style["line"])
+            ax.scatter(quad[:, 0], quad[:, 1], s=style["corner"], c=colour, edgecolors="k", linewidths=0.3, zorder=3)
+            ax.text(*quad.mean(0), str(tag_id), color=colour, fontsize=style["tag_font"], ha="center", va="center",
                     bbox=dict(facecolor="black", alpha=0.5, pad=1, lw=0))
         if not panel["tags"]:
             ax.text(0.5, 0.5, "no tags detected", transform=ax.transAxes, ha="center", va="center", color="white",
-                    fontsize=12, bbox=dict(facecolor="black", alpha=0.6, lw=0))
-        ax.plot([], [], "-", color="lime", label="tag used in pose (both cameras)")
-        ax.plot([], [], "-", color="tab:orange", label="detected in left only / rejected")
-        ax.legend(loc="lower right", fontsize=7)
+                    fontsize=style["note_font"], bbox=dict(facecolor="black", alpha=0.6, lw=0))
+        ax.plot([], [], "-", color=COLOURS["aprilgrid"], label="tag used in pose (both cameras)")
+        if not all(used for _, used in panel["tags"].values()):
+            ax.plot([], [], "-", color="tab:orange", label="detected in left only / rejected")
+        ax.legend(loc="lower right", fontsize=style["legend_font"])
     elif panel["kind"] == "colmap":
         kp = panel["keypoints"]
         used = kp[:, 2] > 0
-        ax.scatter(kp[~used, 0], kp[~used, 1], s=1.5, c="tab:gray", alpha=0.6, label=f"detected, not used ({(~used).sum()})")
-        ax.scatter(kp[used, 0], kp[used, 1], s=3, c="lime", label=f"triangulated, used ({used.sum()})")
-        ax.legend(loc="lower right", fontsize=7, markerscale=3)
+        ax.scatter(kp[~used, 0], kp[~used, 1], s=style["unused"], c="tab:gray", alpha=0.6,
+                   label=f"detected, not used ({(~used).sum():,})")
+        ax.scatter(kp[used, 0], kp[used, 1], s=style["used"], c=COLOURS["colmap"], label=f"triangulated, used ({used.sum():,})")
+        ax.legend(loc="lower right", fontsize=style["legend_font"], markerscale=6 if style is GRID else 3)
     else:
-        scatter = ax.scatter(panel["px"][:, 0], panel["px"][:, 1], s=0.4, c=panel["score"], cmap="magma", vmin=0, vmax=1)
-    ax.set_title(panel["title"], fontsize=10)
+        px, matched = panel["px"], panel["matched"]
+        if matched is None:   # lost frame: its pose was dropped, so nothing was used
+            ax.scatter(px[:, 0], px[:, 1], s=style["icp"], c="tab:gray", alpha=0.6, linewidths=0,
+                       label=f"frame lost, pose not used ({len(px):,})")
+        else:
+            ax.scatter(px[~matched, 0], px[~matched, 1], s=style["icp"], c="tab:gray", alpha=0.6, linewidths=0,
+                       label=f"detected, no map match ({(~matched).sum():,})")
+            ax.scatter(px[matched, 0], px[matched, 1], s=style["icp"], c=COLOURS["icp"], alpha=0.6, linewidths=0,
+                       label=f"matched to map, used ({matched.sum():,})")
+        ax.legend(loc="lower right", fontsize=style["legend_font"], markerscale=20 if style is GRID else 8)
+    ax.set_title(panel["title"], fontsize=style["title_font"], pad=2)
     ax.set_xlim(0, image.shape[1])
     ax.set_ylim(image.shape[0], 0)
     ax.set_axis_off()
-    return scatter
 
 
 def save_single(path, image, panel, mask, board_px, dpi):
     import matplotlib.pyplot as plt
     h, w = image.shape[:2]
     fig, ax = plt.subplots(figsize=(7, 7 * h / w + 0.4))
-    scatter = draw_panel(ax, image, panel, mask, board_px)
-    if scatter is not None:
-        fig.colorbar(scatter, ax=ax, fraction=0.035, label="|n · d|: resists a slide along the track")
+    draw_panel(ax, image, panel, mask, board_px)
     fig.tight_layout()
     fig.savefig(path, dpi=dpi)
     plt.close(fig)
 
 
-def save_grid(path, rows, dpi, title):
-    """rows: [(image, mask, board_px, [panels], row label)]."""
+def save_grid(path, rows, dpi):
+    """rows: [(image, mask, board_px, [panels], row label)]. GRID_WIDTH_IN wide, no figure title (the report's caption
+    says what it shows), panels edge to edge. Row labels only when there is more than one row."""
     import matplotlib.pyplot as plt
     h, w = rows[0][0].shape[:2]
     cols = len(rows[0][3])
-    fig, axes = plt.subplots(len(rows), cols, figsize=(4.2 * cols, 4.2 * h / w * len(rows) + 0.8), squeeze=False)
-    scatter = None
+    # widths in inches: row label, gap between panels
+    label_w = 0.14 if len(rows) > 1 else 0.0
+    gap = 0.04
+    panel_w = (GRID_WIDTH_IN - label_w - (cols - 1) * gap) / cols
+    panel_h = panel_w * h / w
+    row_title, foot = 0.24, 0.02   # two-line panel titles, bottom margin
+    fig_h = len(rows) * (row_title + panel_h) + foot
+    fig = plt.figure(figsize=(GRID_WIDTH_IN, fig_h))
     for r, (image, mask, board_px, panels, label) in enumerate(rows):
+        bottom = fig_h - (r + 1) * (row_title + panel_h)
         for c, panel in enumerate(panels):
-            s = draw_panel(axes[r, c], image, panel, mask, board_px)
-            scatter = scatter or s
-        axes[r, 0].text(-0.03, 0.5, label, transform=axes[r, 0].transAxes, rotation=90, ha="right", va="center", fontsize=9)
-    if scatter is not None:
-        fig.colorbar(scatter, ax=axes, fraction=0.015, label="ICP: |n · d|, resists a slide along the track")
-    fig.suptitle(title + "   (red hatch: tags masked from the markerless methods; gold dashes: board)", fontsize=10)
-    fig.savefig(path, dpi=dpi, bbox_inches="tight")
+            left = label_w + c * (panel_w + gap)
+            ax = fig.add_axes([left / GRID_WIDTH_IN, bottom / fig_h, panel_w / GRID_WIDTH_IN, panel_h / fig_h])
+            draw_panel(ax, image, panel, mask, board_px, GRID)
+            if c == 0 and label_w:
+                ax.text(-0.02, 0.5, label, transform=ax.transAxes, rotation=90, ha="right", va="center",
+                        fontsize=GRID["title_font"])
+    fig.savefig(path, dpi=dpi)
     plt.close(fig)
 
 
@@ -190,7 +251,6 @@ def run(cfg, recording, args):
     out_dir = os.path.join(p["out"], "detections")
     os.makedirs(out_dir, exist_ok=True)
     threshold = det["slide_threshold"]
-    label = cfg["reference"]["label"]
 
     grip_path = os.path.join(out_dir, "grip.json")
     if args.images_only and os.path.exists(grip_path):
@@ -233,23 +293,24 @@ def run(cfg, recording, args):
         used = set(used_tags.get(name, []))
         tags = {t: (q, t in used) for t, q in detect(detector, left).items()}
         panels = [{"kind": "aprilgrid", "method": "aprilgrid", "tags": tags,
-                   "title": f"{label}\n{4 * len(used)} tag corners used"}]
+                   "title": f"AprilTag\n{4 * len(used)} tag corners used"}]
         kp = keypoints.get(f"left/{name}", np.zeros((0, 3)))
         panels.append({"kind": "colmap", "method": colmap["name"], "keypoints": kp,
                        "title": f"{colmap['label']}\n{int((kp[:, 2] > 0).sum()):,} SIFT points used"})
         for e in icps:
-            xyz, normals = icp_points(p["depth"](e["depth"]), name, det)
-            score = np.abs(normals @ directions[name])
-            panels.append({"kind": "icp", "method": e["name"], "px": project(xyz, rig), "score": score,
-                           "title": f"{e['label']}\n{int((score > threshold).sum()):,} of {len(xyz):,} points resist"})
+            xyz, matched, fitness, floor = icp_matched(p["depth"](e["depth"]), p["poses"](e["name"]), name)
+            used = (f"{int(matched.sum()):,} of {len(xyz):,} depth points used" if matched is not None else
+                    f"lost: {fitness:.0%} matched (< {floor:.0%})")
+            panels.append({"kind": "icp", "method": e["name"], "px": project(xyz, rig), "matched": matched,
+                           "title": f"{e['label']}\n{used}"})
         stem = name[:-4]
         for panel in panels:
             save_single(os.path.join(out_dir, f"{stem}_{panel['method']}.png"), image, panel, mask, board_px, det["image_dpi"])
         save_grid(os.path.join(out_dir, f"{stem}_all.png"), [(image, mask, board_px, panels, f"frame {stem}")],
-                  det["image_dpi"], f"{recording.get('title', recording['name'])}, frame {stem}")
+                  det["grid_dpi"])
         rows.append((image, mask, board_px, panels, f"frame {stem}"))
         print(f"  drew {name}", flush=True)
-    save_grid(os.path.join(out_dir, "grid.png"), rows, det["image_dpi"], recording.get("title", recording["name"]))
+    save_grid(os.path.join(out_dir, "grid.png"), rows, det["grid_dpi"])
     print(f"  median grip: {grip['median']}\n-> {common.rel(out_dir)}/")
 
 

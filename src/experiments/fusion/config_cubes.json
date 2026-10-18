@@ -96,8 +96,14 @@
   "height_range_mm": null,
   "figure_dpi": 150,
   "_region": "The ice, in the board frame: [x_min, x_max, y_min, y_max] mm, picked by Glen from topdown.png after the run (the tags are on a separate object, so the tag area is not the ice). null until then.",
-  "region": null,
+  "region": [
+   160,
+   425,
+   -160,
+   140
+  ],
   "_coverage": "Top-down coverage (Glen, 17 Oct): % of the region's coverage_cell_mm cells with at least one point.",
-  "coverage_cell_mm": 1.0
+  "coverage_cell_mm": 1.0,
+  "_region_set": "Picked on 18 Oct from topdown.png: the cube block with ~25 mm margin, right of the mounting pole."
  }
 }

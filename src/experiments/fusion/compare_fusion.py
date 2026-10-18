@@ -134,7 +134,7 @@ def write_tables(cfg, p, rows, run_record):
                "a scan point within 2~mm; distances are from every object point to the CAD surface.")
     tex = ["% Made by src/experiments/fusion/compare_fusion.py from compare_to_cad.py's metrics.json; do not edit.",
            r"\begin{table}[H]", r"\centering", rf"\caption{{{caption}}}", r"\label{tab:fusion_accuracy}",
-           r"\begin{tabular}{llrrrrrrr}", r"\toprule",
+           r"\resizebox{\linewidth}{!}{%", r"\begin{tabular}{llrrrrrrr}", r"\toprule",
            r"Object & Method & Coverage (\%) & Median $|d|$ (mm) & RMS (mm) & p95 $|d|$ (mm) & "
            r"$\leq$1~mm (\%) & $\leq$2~mm (\%) & $\leq$5~mm (\%) \\", r"\midrule"]
     md = [f"# Fusion accuracy: {cfg['recording']['title']}", "",
@@ -157,7 +157,7 @@ def write_tables(cfg, p, rows, run_record):
                       f"{r['within_5mm']:.0%} |")
         if k < len(chosen) - 1:
             tex.append(r"\midrule")
-    tex += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    tex += [r"\bottomrule", r"\end{tabular}}", r"\end{table}"]
     for filename, lines in (("table_accuracy.tex", tex), ("summary.md", md)):
         with open(os.path.join(p["out"], filename), "w", encoding="utf-8") as fh:
             fh.write("\n".join(lines) + "\n")

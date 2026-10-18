@@ -288,12 +288,15 @@
      {
       "recording": "ice_pyramid_sun_py2_pass1",
       "box": [
-       619,
+       688,
        0,
-       1531,
+       1600,
        912
       ],
-      "title": "Pyramid, sun"
+      "title": "Pyramid, sun",
+      "rotate_cw": 90,
+      "_rotate_cw": "Turned 90 degrees clockwise to match the shade row's orientation (Glen, 18 Oct).",
+      "_box": "1.2x box moved right to the frame edge so the pyramid sits higher in the rotated tile (Glen, 18 Oct)."
      }
     ]
    }
