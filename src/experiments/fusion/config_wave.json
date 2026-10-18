@@ -96,8 +96,19 @@
   "height_range_mm": null,
   "figure_dpi": 150,
   "_region": "The ice, in the board frame: [x_min, x_max, y_min, y_max] mm, picked by Glen from topdown.png after the run (the tags are on a separate object, so the tag area is not the ice). null until then.",
-  "region": null,
+  "region": [
+   62,
+   398,
+   -186,
+   186
+  ],
   "_coverage": "Top-down coverage (Glen, 17 Oct): % of the region's coverage_cell_mm cells with at least one point.",
-  "coverage_cell_mm": 1.0
+  "coverage_cell_mm": 1.0,
+  "_region_set": "Picked by Glen on 18 Oct from topdown.png: the wave block box [90,370,-155,155] widened 1.2x about its centre.",
+  "grid_height_range_mm": [
+   -5,
+   28
+  ],
+  "_grid_height_range_mm": "Colour range of the wave row in ice_grid.png: the block's surface is at +13 to +26 mm (FoundationStereo, 75th-99.5th percentile in the box); the pole and background fill over 10% of the box, so the percentile default spans -250..+25 mm and flattens the ridges."
  }
 }
