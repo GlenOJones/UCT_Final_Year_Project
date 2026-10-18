@@ -33,6 +33,38 @@
    "_depth": "Tag 2 measured at 674-839 mm (mean 735); the ice stands in front of the board.",
    "depth_min_mm": 400,
    "depth_max_mm": 1400
+  },
+  {
+   "name": "ice_cubes_shade_cub2",
+   "frames": "data/3DRecon/Ice/Cubes/Shade/cub2_frames_horiz_pass_v_close_580mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Same range as the pyramid passes for every ice recording (Glen, 17 Oct); the folder name gives ~580 mm.",
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400
+  },
+  {
+   "name": "ice_overhang_shade_hang1",
+   "frames": "data/3DRecon/Ice/Overhang/Shade/hang1_frames_pass2_830mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Same range as the pyramid passes; the folder name gives ~830 mm.",
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400
+  },
+  {
+   "name": "ice_overhang_sun_oh1",
+   "frames": "data/3DRecon/Ice/Overhang/Sun/oh1_frames_pass4",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Same range as the pyramid passes. No tag is detected in this pass (checked on 6 frames), so it has no tag-plane accuracy, like the pyramid sun pass.",
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400
+  },
+  {
+   "name": "ice_wave_shade_wave1",
+   "frames": "data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "_depth": "Same range as the pyramid passes; the folder name gives ~720 mm.",
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400
   }
  ],
  "_frame_step": "Default for recordings that do not set their own.",
@@ -41,39 +73,109 @@
   "sgbm": {
    "_why": "dense_stereo.py's defaults: MODE_HH, block 9, uniqueness 5.",
    "python": "default",
-   "argv": ["--matcher", "sgbm", "--block-size", "9", "--uniqueness", "5", "--voxel", "1"]
+   "argv": [
+    "--matcher",
+    "sgbm",
+    "--block-size",
+    "9",
+    "--uniqueness",
+    "5",
+    "--voxel",
+    "1"
+   ]
   },
   "sgbm_tuned": {
    "_why": "tune_sgbm.py's winner (results/experiments/depth_matchers/sgbm_tuning/tuning.json), tuned against the tag planes on frames this comparison does not use: F1 0.718 -> 0.834, 2.57 -> 0.32 s/frame.",
    "python": "default",
-   "argv": ["--matcher", "sgbm", "--block-size", "11", "--uniqueness", "0", "--sgbm-mode", "hh", "--p1", "16", "--p2", "32",
-            "--speckle-window", "200", "--speckle-range", "2", "--disp12-max-diff", "1", "--prefilter-cap", "63",
-            "--sgbm-scale", "0.5", "--median-filter", "0", "--voxel", "1"]
+   "argv": [
+    "--matcher",
+    "sgbm",
+    "--block-size",
+    "11",
+    "--uniqueness",
+    "0",
+    "--sgbm-mode",
+    "hh",
+    "--p1",
+    "16",
+    "--p2",
+    "32",
+    "--speckle-window",
+    "200",
+    "--speckle-range",
+    "2",
+    "--disp12-max-diff",
+    "1",
+    "--prefilter-cap",
+    "63",
+    "--sgbm-scale",
+    "0.5",
+    "--median-filter",
+    "0",
+    "--voxel",
+    "1"
+   ]
   },
   "aquastereo": {
    "_why": "Same scale, iterations and left-right check as FoundationStereo, so the learned matchers meet on equal terms.",
    "python": "aquastereo",
-   "argv": ["--matcher", "aquastereo", "--aqua-model", "vitb", "--net-scale", "0.5", "--net-iters", "32",
-            "--lr-tolerance", "3", "--voxel", "1"]
+   "argv": [
+    "--matcher",
+    "aquastereo",
+    "--aqua-model",
+    "vitb",
+    "--net-scale",
+    "0.5",
+    "--net-iters",
+    "32",
+    "--lr-tolerance",
+    "3",
+    "--voxel",
+    "1"
+   ]
   },
   "foundationstereo": {
    "_why": "The fs_s05 settings used for the 3DPrintFinal reconstructions.",
    "python": "ffs",
-   "argv": ["--matcher", "foundationstereo", "--fs-model", "vitl", "--net-scale", "0.5", "--net-iters", "32",
-            "--lr-tolerance", "3", "--fs-max-disp", "416", "--voxel", "1"]
+   "argv": [
+    "--matcher",
+    "foundationstereo",
+    "--fs-model",
+    "vitl",
+    "--net-scale",
+    "0.5",
+    "--net-iters",
+    "32",
+    "--lr-tolerance",
+    "3",
+    "--fs-max-disp",
+    "416",
+    "--voxel",
+    "1"
+   ]
   }
  },
  "figures": {
   "_why": "Depth images of every frame; and for one frame per recording (frame_index into the frames used), the left-right correspondences of a grid of pixels, the same pixels for every matcher.",
   "frame_index": "middle",
-  "grid": [12, 9],
+  "grid": [
+   12,
+   9
+  ],
   "image_scale": 0.5,
   "combined": {
    "_why": "The report figure: the three recordings side by side on one depth scale (250-1400 mm, the union of their ranges).",
    "name": "depth_compare_all",
-   "recordings": ["3DPrintFinal_s30", "ice_pyramid_shade_pyr1_pass4", "ice_pyramid_sun_py2_pass1"],
-   "titles": {"3DPrintFinal_s30": "S30 (lab)", "ice_pyramid_shade_pyr1_pass4": "Ice, shade",
-              "ice_pyramid_sun_py2_pass1": "Ice, sun"}
+   "recordings": [
+    "3DPrintFinal_s30",
+    "ice_pyramid_shade_pyr1_pass4",
+    "ice_pyramid_sun_py2_pass1"
+   ],
+   "titles": {
+    "3DPrintFinal_s30": "S30 (lab)",
+    "ice_pyramid_shade_pyr1_pass4": "Ice, shade",
+    "ice_pyramid_sun_py2_pass1": "Ice, sun"
+   }
   },
   "crops": {
    "_why": "Close-ups of the objects in the figure frames (box: x0, y0, x1, y1 in the full-size rectified left image, square).",
@@ -83,10 +185,118 @@
    "tile_height": 420,
    "label_scale": 1.1,
    "rows": [
-    {"recording": "3DPrintFinal_s30", "box": [755, 470, 1235, 950], "title": "S30, 2X2 Pyramid"},
-    {"recording": "ice_pyramid_shade_pyr1_pass4", "box": [575, 0, 1235, 660], "title": "Pyramid ice, shade"},
-    {"recording": "ice_pyramid_sun_py2_pass1", "box": [695, 0, 1455, 760], "title": "Pyramid ice, sun"}
+    {
+     "recording": "3DPrintFinal_s30",
+     "box": [
+      755,
+      470,
+      1235,
+      950
+     ],
+     "title": "S30, 2X2 Pyramid"
+    },
+    {
+     "recording": "ice_pyramid_shade_pyr1_pass4",
+     "box": [
+      575,
+      0,
+      1235,
+      660
+     ],
+     "title": "Pyramid ice, shade"
+    },
+    {
+     "recording": "ice_pyramid_sun_py2_pass1",
+     "box": [
+      695,
+      0,
+      1455,
+      760
+     ],
+     "title": "Pyramid ice, sun"
+    }
    ]
-  }
+  },
+  "_extra_crops": "More close-up figures like crops, one file each (18 Oct: the four ice recordings added that day). Boxes picked from each recording's depth_compare.jpg, around the ice block (not the tag plate).",
+  "extra_crops": [
+   {
+    "name": "depth_crops_ice",
+    "common_scale": true,
+    "tile_height": 420,
+    "label_scale": 1.1,
+    "rows": [
+     {
+      "recording": "ice_cubes_shade_cub2",
+      "box": [
+       440,
+       0,
+       1600,
+       1160
+      ],
+      "title": "Cubes, shade"
+     },
+     {
+      "recording": "ice_pyramid_shade_pyr1_pass4",
+      "box": [
+       305,
+       0,
+       1505,
+       1200
+      ],
+      "title": "Pyramid, shade"
+     },
+     {
+      "recording": "ice_overhang_shade_hang1",
+      "box": [
+       640,
+       220,
+       1400,
+       980
+      ],
+      "title": "Overhang, shade"
+     },
+     {
+      "recording": "ice_wave_shade_wave1",
+      "box": [
+       650,
+       265,
+       1430,
+       1045
+      ],
+      "title": "Wave, shade"
+     }
+    ],
+    "_box": "2x the tight box around each ice block (Glen, 18 Oct), same centre, square, kept inside the 1600x1200 frame; the pyramid's tight box is the one depth_crops uses. Overhang sun left out (Glen)."
+   },
+   {
+    "name": "depth_crops_pyramid_sun_shade",
+    "_box": "1.2x the tight boxes depth_crops uses (Glen, 18 Oct), against the top of the frame, one colour scale.",
+    "common_scale": true,
+    "tile_height": 420,
+    "label_scale": 1.1,
+    "rows": [
+     {
+      "recording": "ice_pyramid_shade_pyr1_pass4",
+      "box": [
+       509,
+       0,
+       1301,
+       792
+      ],
+      "title": "Pyramid, shade"
+     },
+     {
+      "recording": "ice_pyramid_sun_py2_pass1",
+      "box": [
+       619,
+       0,
+       1531,
+       912
+      ],
+      "title": "Pyramid, sun"
+     }
+    ]
+   }
+  ]
  }
 }

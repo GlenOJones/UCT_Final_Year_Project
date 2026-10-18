@@ -476,6 +476,8 @@ def main(argv=None):
         combined_figure(cfg, cfg["figures"]["combined"])
     if cfg["figures"].get("crops"):
         crop_figure(cfg, cfg["figures"]["crops"])
+    for spec in cfg["figures"].get("extra_crops", []):
+        crop_figure(cfg, spec)
     print(f"results in {common.rel(depth_config.result_dir(cfg))}/")
     return rows
 

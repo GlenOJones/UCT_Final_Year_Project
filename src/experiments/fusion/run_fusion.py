@@ -24,7 +24,9 @@ Writes, under work/<work_dir>/<recording>/:
     tsdf_<source>/                tsdf_fuse.py output (cloud.ply, mesh.ply: COLMAP world frame)
     <method>/cloud_board.ply      each method's cloud in the board frame (and mesh_board.ply for TSDF)
 and under results/<out_dir>/<recording>/: alignment.json (the board fit and its residuals) and
-run_fusion.json (frames, timings, point counts).
+run_fusion.json (frames, timings, point counts). With colmap.keep_depth_maps false, COLMAP's depth maps
+(dense/stereo, ~58 MB per image) are deleted once fused.ply exists, after a preview of a few of them
+(photometric beside geometric pass) is saved as results/<out_dir>/<recording>/colmap_depth_maps.png.
 
 With skip_existing, a reconstruction whose output exists is not run again; the board-frame copies are
 always remade (seconds).
@@ -147,6 +149,19 @@ def run_colmap(cfg, p, names, skip_existing):
     if skip_existing and os.path.exists(fused):
         print(f"=== colmap: {common.rel(fused)} exists, skipped")
         return {"skipped": True}
+    settings = argparse.Namespace(**c)
+    depth_maps = os.path.join(ws, "dense", "stereo", "depth_maps")
+    geometric = sum(f.endswith(".geometric.bin") for camera in CAMERAS
+                    for f in (os.listdir(os.path.join(depth_maps, camera))
+                              if os.path.isdir(os.path.join(depth_maps, camera)) else []))
+    if skip_existing and geometric == 2 * len(names):
+        # PatchMatch finished but fusion did not (17 Oct: stereo_fusion ran out of memory at its last step): fuse the
+        # depth maps that exist rather than redo hours of PatchMatch. The undistort stage would delete them.
+        print(f"\n=== colmap: all {geometric} geometric depth maps exist; stereo fusion only", flush=True)
+        mask_path = os.path.join(ws, "dense", "masks") if c["mask_fusion"] else None
+        start = time.time()
+        colmap_mvs.stage_fuse(ws, settings, mask_path, c.get("fusion_max_image_size"))
+        return {"seconds": {"fuse": round(time.time() - start, 1)}, "images": 2 * len(names), "resumed": "fuse"}
     os.makedirs(ws, exist_ok=True)
     free_gb = shutil.disk_usage(ws).free / 1e9
     if free_gb < c["min_free_disk_gb"]:
@@ -154,7 +169,6 @@ def run_colmap(cfg, p, names, skip_existing):
     link(os.path.join(p["sfm"], "images"), os.path.join(ws, "images"))
     link(os.path.join(p["sfm"], "sparse"), os.path.join(ws, "sparse"))
     shutil.copy(os.path.join(p["sfm"], "best_model.txt"), os.path.join(ws, "best_model.txt"))
-    settings = argparse.Namespace(**c)
     seconds = {}
     print("\n=== colmap", flush=True)
     start = time.time()
@@ -168,9 +182,76 @@ def run_colmap(cfg, p, names, skip_existing):
     colmap_mvs.stage_patchmatch(ws, settings)
     seconds["patchmatch"] = round(time.time() - start, 1)
     start = time.time()
-    colmap_mvs.stage_fuse(ws, settings, mask_path)
+    colmap_mvs.stage_fuse(ws, settings, mask_path, c.get("fusion_max_image_size"))
     seconds["fuse"] = round(time.time() - start, 1)
     return {"seconds": seconds, "images": 2 * len(names)}
+
+
+def read_colmap_array(path):
+    """A COLMAP dense .bin map ("width&height&channels&" header, then float32 in column-major order) as an array."""
+    with open(path, "rb") as fh:
+        header = b""
+        while header.count(b"&") < 3:
+            header += fh.read(1)
+        width, height, channels = map(int, header.split(b"&")[:3])
+        data = np.fromfile(fh, np.float32)
+    return np.transpose(data.reshape((width, height, channels), order="F"), (1, 0, 2)).squeeze()
+
+
+def export_depth_previews(cfg, p, names):
+    """Before the depth maps are deleted: for a few left images, the undistorted image beside its photometric and
+    geometric depth maps (one colour range per row), so the report keeps a picture of what PatchMatch made and of
+    what the geometric pass removed. -> results/<recording>/colmap_depth_maps.png"""
+    import cv2
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    dense = os.path.join(p["colmap"], "dense")
+    picks = [names[int(f * (len(names) - 1))] for f in cfg["colmap"]["preview_fractions"]]
+    rows = []
+    for name in picks:
+        maps = {kind: os.path.join(dense, "stereo", "depth_maps", "left", f"{name}.{kind}.bin")
+                for kind in ("photometric", "geometric")}
+        image_path = os.path.join(dense, "images", "left", name)
+        if all(os.path.exists(m) for m in maps.values()) and os.path.exists(image_path):
+            rows.append((name, cv2.imread(image_path, cv2.IMREAD_GRAYSCALE),
+                         {k: read_colmap_array(m) for k, m in maps.items()}))
+    if not rows:
+        print("  no depth maps to preview")
+        return
+    fig, axes = plt.subplots(len(rows), 3, figsize=(15, 3.9 * len(rows)), squeeze=False, constrained_layout=True)
+    for r, (name, image, maps) in enumerate(rows):
+        valid = maps["geometric"][maps["geometric"] > 0]
+        low, high = np.percentile(valid, [2, 98]) if len(valid) else (0, 1)
+        axes[r, 0].imshow(image, cmap="gray")
+        axes[r, 0].set_title(f"left/{name} (undistorted)", loc="left", fontsize=10)
+        for c, kind in ((1, "photometric"), (2, "geometric")):
+            depth = np.where(maps[kind] > 0, maps[kind], np.nan)
+            shown = axes[r, c].imshow(depth, cmap="turbo", vmin=low, vmax=high, interpolation="nearest")
+            filled = np.isfinite(depth).mean()
+            axes[r, c].set_title(f"{kind} pass: {100 * filled:.0f}% of pixels with depth", loc="left", fontsize=10)
+        fig.colorbar(shown, ax=axes[r, 1:], label="depth (mm)", shrink=0.9)
+        for ax in axes[r]:
+            ax.set_xticks([])
+            ax.set_yticks([])
+    path = os.path.join(p["out"], "colmap_depth_maps.png")
+    fig.savefig(path, dpi=110)
+    plt.close(fig)
+    print(f"  COLMAP depth maps of {', '.join(n for n, _, _ in rows)} -> {common.rel(path)}")
+
+
+def release_depth_maps(cfg, p, names):
+    """keep_depth_maps false: once fused.ply exists, save the previews and delete dense/stereo (the depth, normal
+    and consistency maps, ~58 MB per image), which fusion was their only use for."""
+    stereo = os.path.join(p["colmap"], "dense", "stereo")
+    if cfg["colmap"]["keep_depth_maps"] or not os.path.isdir(stereo):
+        return
+    if not os.path.exists(os.path.join(p["colmap"], "dense", "fused.ply")):
+        print("  depth maps kept: no fused.ply yet")
+        return
+    export_depth_previews(cfg, p, names)
+    shutil.rmtree(stereo)
+    print(f"  deleted {common.rel(stereo)} (keep_depth_maps is false)")
 
 
 def colmap_world_from_model(p, poses):
@@ -254,6 +335,7 @@ def main(argv=None):
     for method in cfg["methods"]:
         if method["kind"] == "colmap":
             record = run_colmap(cfg, p, names, args.skip_existing)
+            release_depth_maps(cfg, p, names)
         else:
             record = run_tsdf(cfg, p, method, args.skip_existing)
         runs.append({"step": f"{cfg['recording']['name']}: {method['name']}", **record})

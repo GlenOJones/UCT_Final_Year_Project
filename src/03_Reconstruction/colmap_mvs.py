@@ -582,9 +582,11 @@ def stage_patchmatch(ws, args):
     }, optional={"PatchMatchStereo.cache_size": args.cache_gb})
 
 
-def stage_fuse(ws, args, mask_path=None):
+def stage_fuse(ws, args, mask_path=None, max_image_size=None):
     """stereo_fusion of the geometric depth maps. mask_path: <mask_path>/<image name>.png masks in the
-    UNDISTORTED images' geometry, 0 = pixel not fused."""
+    UNDISTORTED images' geometry, 0 = pixel not fused. max_image_size: fuse the depth maps sampled down to this
+    longest side (px), which bounds memory: fusion keeps every point with the list of images that saw it, about
+    1.3 KB per point (S30, 688 images: 17.5 M points in 22 GB at full size)."""
     options = {
         "workspace_path": os.path.join(ws, "dense"),
         "input_type": "geometric",
@@ -593,6 +595,8 @@ def stage_fuse(ws, args, mask_path=None):
     }
     if mask_path:
         options["StereoFusion.mask_path"] = mask_path
+    if max_image_size:
+        options["StereoFusion.max_image_size"] = max_image_size
     colmap(ws, "stereo_fusion", options, optional={"StereoFusion.cache_size": args.cache_gb})
 
 

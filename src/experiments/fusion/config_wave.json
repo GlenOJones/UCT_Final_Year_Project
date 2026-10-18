@@ -1,0 +1,103 @@
+{
+ "_what": "Fusion comparison on Ice wave, shade: the full COLMAP pipeline against TSDF fusion of FoundationStereo and of tuned-SGBM depth, all three on the same COLMAP poses and frames, tags masked. No CAD model for ice, so the comparison is top-down coverage over the ice region (evaluation.region, picked by Glen from topdown.png) and the figures.",
+ "out_dir": "results/experiments/fusion",
+ "work_dir": "work/experiments/fusion",
+ "python": "src/venv/bin/python",
+ "recording": {
+  "name": "ice_wave_shade_wave1",
+  "title": "Ice wave, shade",
+  "frames": "data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm",
+  "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+  "_inputs": "Made by reproduce.py fusion_ice (pose_fusion_inputs): every frame, tags masked.",
+  "poses": "results/experiments/pose_fusion_inputs/ice_wave_shade_wave1/poses/colmap.yaml",
+  "sfm_workspace": "work/experiments/pose_fusion_inputs/ice_wave_shade_wave1/colmap",
+  "tag_masks": "work/experiments/pose_fusion_inputs/ice_wave_shade_wave1/tag_masks",
+  "depth": {
+   "foundationstereo": "work/experiments/pose_fusion_inputs/ice_wave_shade_wave1/depth/foundationstereo",
+   "sgbm_tuned": "work/experiments/pose_fusion_inputs/ice_wave_shade_wave1/depth/sgbm_tuned"
+  },
+  "reference_poses": "results/experiments/pose_fusion_inputs/ice_wave_shade_wave1/tag_poses.yaml"
+ },
+ "_frame_step": "Every 2nd posed frame for all three methods (Glen, 17 Oct): halves COLMAP's ~40 s per image.",
+ "frame_step": 2,
+ "methods": [
+  {
+   "name": "colmap",
+   "kind": "colmap",
+   "label": "COLMAP (full pipeline)",
+   "mode": "PatchMatch MVS with geometric consistency on the SfM model the COLMAP poses come from, then stereo_fusion; the tag masks (undistorted with the images) drop tag pixels from the fusion."
+  },
+  {
+   "name": "tsdf_fs",
+   "kind": "tsdf",
+   "depth": "foundationstereo",
+   "label": "TSDF, FoundationStereo",
+   "mode": "tsdf_fuse.py on depth_frames.py FoundationStereo depth (ViT-L, net scale 0.5, left-right check 3 px, tags masked) at the COLMAP poses."
+  },
+  {
+   "name": "tsdf_sgbm",
+   "kind": "tsdf",
+   "depth": "sgbm_tuned",
+   "label": "TSDF, SGBM (tuned)",
+   "mode": "tsdf_fuse.py on depth_frames.py tuned-SGBM depth (block 11, uniqueness 0, P1/P2 16/32, half resolution, tags masked) at the COLMAP poses."
+  }
+ ],
+ "colmap": {
+  "_why": "colmap_mvs.py's defaults, which were set on the Sep24/Sep30 lab scans (see its comments).",
+  "max_image_size": 1600,
+  "window_radius": 7,
+  "min_triangulation_angle": 1.0,
+  "sources": "rig",
+  "source_images": 20,
+  "min_fused_pixels": 3,
+  "cache_gb": 4,
+  "gpu": "0",
+  "mask_fusion": true,
+  "min_free_disk_gb": 20,
+  "_keep_depth_maps": "false: once fused, the depth maps are deleted (disk), after a preview of the images at preview_fractions of the frames used is saved.",
+  "keep_depth_maps": false,
+  "preview_fractions": [
+   0.25,
+   0.5,
+   0.75
+  ],
+  "_cache_gb": "4, not colmap_mvs.py's 12: on 17 Oct stereo_fusion on S30 (688 images, 25.9 M points) reached 25.8 GB with a 12 GB cache and was killed for lack of memory at its last step. The cache only sets how many depth maps stay in RAM; it does not change the fused cloud.",
+  "fusion_max_image_size": 1000,
+  "_fusion_max_image_size": "Stereo fusion samples the (full-size) depth maps down to 1000 px: on 18 Oct S30's full-size fusion reached 22 GB at image 479 of 688 (17.5 M points, ~1.3 KB each; all 688 would need ~30 GB, the whole laptop). At 1000 px points are still ~0.5 mm apart on the board, finer than TSDF's 1 mm voxels and the 1 mm scoring cells. Same for every recording so they are treated alike."
+ },
+ "tsdf": {
+  "_why": "tsdf_fuse.py's defaults: 1 mm voxels, truncation 4 mm (above the ~4 mm view-dependent disagreement found on Oct1), surface kept where >= 3 frames contributed (the counterpart of voxel voting's --min-views 3). Memory cap: the first uncapped trial ran the laptop out of memory.",
+  "argv": [
+   "--voxel",
+   "1",
+   "--trunc",
+   "4",
+   "--min-weight",
+   "3",
+   "--pixel-mm",
+   "1.2",
+   "--block-resolution",
+   "4",
+   "--mesh"
+  ],
+  "memory_max": "12G"
+ },
+ "evaluation": {
+  "_align": "One rigid fit of the COLMAP trajectory onto the tag poses over every frame both posed: camera centres plus a point align_lever_mm along each camera axis, as in the pose comparison (a straight pass leaves the roll about the track free otherwise).",
+  "align_lever_mm": 400,
+  "crop_half_mm": 85,
+  "_objects": "No CAD model for the ice.",
+  "objects": {},
+  "_report": "What the table and figures show: compare_to_cad.py's on_local_board fit (the object's own error, with the board levelled around it), for the objects listed. The egg blocks are left out for now: their CAD fit locks onto a wrong rotation, and EGG_2PKS's STL is unconfirmed.",
+  "report_fit": "on_local_board",
+  "report_objects": [],
+  "error_limit_mm": 5,
+  "_height_range_mm": "null: the colour range of the figures is set from the clouds (2nd-98th percentile).",
+  "height_range_mm": null,
+  "figure_dpi": 150,
+  "_region": "The ice, in the board frame: [x_min, x_max, y_min, y_max] mm, picked by Glen from topdown.png after the run (the tags are on a separate object, so the tag area is not the ice). null until then.",
+  "region": null,
+  "_coverage": "Top-down coverage (Glen, 17 Oct): % of the region's coverage_cell_mm cells with at least one point.",
+  "coverage_cell_mm": 1.0
+ }
+}

@@ -12,8 +12,13 @@ the board frame's); summary.csv has all three.
 
     src/venv/bin/python src/experiments/fusion/compare_fusion.py --config src/experiments/fusion/config.json
 
-Writes to results/<out_dir>/<recording>/:
-    table_accuracy.tex            T1: per report object and method, coverage and error statistics (LaTeX)
+A recording with no CAD objects (the ice) is compared on its top-down view instead: topdown.png shows every
+method's nearest-to-camera point per cell over the whole scan, on a 50 mm grid to read the ice region off; once
+evaluation.region is set, topdown_region.png, coverage.md/.csv and table_coverage.tex give each method's top-down
+coverage, the share of the region's cells with at least one point.
+
+Writes to results/<out_dir>/<recording>/ (recordings with CAD objects):
+    table_accuracy.tex           T1: per report object and method, coverage and error statistics (LaTeX)
     summary.md, summary.csv       the same table as Markdown; every object, method and fit as CSV
     accuracy_<object>.png         per report object: one row per method, signed distance to the CAD from above
                                   and profiles through the apex (compare_to_cad.py's own panels)
@@ -40,8 +45,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, os.path.join(SRC, "04_Comparison"))
+sys.path.insert(0, os.path.join(SRC, "03_Reconstruction"))
 import common  # noqa: E402
 import compare_to_cad  # noqa: E402
+import pose_files  # noqa: E402
 from run_fusion import recording_paths  # noqa: E402
 
 COMPARE_SCRIPT = os.path.join("src", "04_Comparison", "compare_to_cad.py")
@@ -214,6 +221,144 @@ def figures(cfg, p, results):
         print(f"-> {common.rel(path)}")
 
 
+# ====== TOP-DOWN VIEW AND COVERAGE (scans without CAD: the ice) ======
+def camera_side(p):
+    """+1 if the cameras sit on the board frame's +z side (S30: looking down on the board), -1 if on the -z side,
+    so 'height' can always be measured towards the camera and each cell keeps its point nearest the camera."""
+    _, reference, _ = pose_files.read_trajectory(p["reference"])
+    centres_z = [np.linalg.inv(T)[2, 3] for T in reference.values()]
+    return 1.0 if np.median(centres_z) >= 0 else -1.0
+
+
+def height_map(xyz, x_range, y_range, cell):
+    """Per cell, the height (towards the camera) of the point nearest the camera; NaN where empty. Rows = y from top."""
+    nx = int(np.ceil((x_range[1] - x_range[0]) / cell))
+    ny = int(np.ceil((y_range[1] - y_range[0]) / cell))
+    i = np.floor((xyz[:, 0] - x_range[0]) / cell).astype(int)
+    j = np.floor((y_range[1] - xyz[:, 1]) / cell).astype(int)
+    ok = (i >= 0) & (i < nx) & (j >= 0) & (j < ny)
+    grid = np.full(ny * nx, -np.inf)
+    np.maximum.at(grid, j[ok] * nx + i[ok], xyz[ok, 2])
+    grid[np.isinf(grid)] = np.nan
+    return grid.reshape(ny, nx)
+
+
+def board_clouds(cfg, p, side):
+    """{method name: board-frame points with z flipped to 'height towards the camera'} for the methods with a cloud."""
+    clouds = {}
+    for m in cfg["methods"]:
+        path = os.path.join(p["method"](m["name"]), "cloud_board.ply")
+        if os.path.exists(path):
+            xyz = np.asarray(o3d.io.read_point_cloud(path).points)
+            clouds[m["name"]] = xyz * np.array([1.0, 1.0, side])
+    return clouds
+
+
+def height_limits(ev, clouds, x_range, y_range):
+    if ev.get("height_range_mm"):
+        return ev["height_range_mm"]
+    z = np.concatenate([c[(c[:, 0] >= x_range[0]) & (c[:, 0] <= x_range[1]) & (c[:, 1] >= y_range[0]) &
+                          (c[:, 1] <= y_range[1]), 2] for c in clouds.values()])
+    return np.percentile(z, [2, 98]) if len(z) else (0, 1)
+
+
+def topdown_figure(cfg, p, clouds, x_range, y_range, path, title, region=None, grid_mm=50):
+    ev = cfg["evaluation"]
+    low, high = height_limits(ev, clouds, x_range, y_range)
+    methods = cfg["methods"]
+    fig, axes = plt.subplots(1, len(methods), figsize=(5.6 * len(methods), 5.4), squeeze=False, constrained_layout=True)
+    image = None
+    for ax, m in zip(axes[0], methods):
+        if m["name"] not in clouds:
+            ax.text(0.5, 0.5, "results pending", transform=ax.transAxes, ha="center", va="center",
+                    color=compare_to_cad.MUTED, fontsize=11)
+            ax.set_title(m["label"], loc="left", fontsize=10)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            continue
+        image = ax.imshow(height_map(clouds[m["name"]], x_range, y_range, ev["coverage_cell_mm"]),
+                          extent=(*x_range, *y_range), cmap="turbo", vmin=low, vmax=high, interpolation="nearest")
+        if region:
+            x0, x1, y0, y1 = region
+            ax.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, ec="k", lw=1.2, ls="--"))
+        # Grid lines every grid_mm, labels every 2 x grid_mm so they stay readable.
+        for axis, (low_, high_) in ((ax.xaxis, x_range), (ax.yaxis, y_range)):
+            axis.set_ticks(np.arange(np.ceil(low_ / grid_mm) * grid_mm, high_, grid_mm), minor=True)
+            axis.set_ticks(np.arange(np.ceil(low_ / (2 * grid_mm)) * 2 * grid_mm, high_, 2 * grid_mm))
+        ax.tick_params(labelsize=7)
+        ax.grid(True, which="both", color="k", alpha=0.25, lw=0.5)
+        ax.set_title(m["label"], loc="left", fontsize=10)
+        ax.set_xlabel("board x (mm)")
+        ax.set_ylabel("board y (mm)")
+    if image is not None:
+        fig.colorbar(image, ax=axes[0], label="height towards the camera (mm)", shrink=0.8)
+    fig.suptitle(title, x=0.01, ha="left", fontsize=11)
+    fig.savefig(path, dpi=ev["figure_dpi"])
+    plt.close(fig)
+    print(f"-> {common.rel(path)}")
+
+
+def topdown_and_coverage(cfg, p):
+    """topdown.png (every method over the whole scan, a 50 mm grid to read the ice region off); with
+    evaluation.region set, also topdown_region.png and the top-down coverage table."""
+    ev = cfg["evaluation"]
+    side = camera_side(p)
+    clouds = board_clouds(cfg, p, side)
+    if not clouds:
+        print("no clouds yet: no top-down figures")
+        return
+    union = np.concatenate(list(clouds.values()))
+    x_range = tuple(np.percentile(union[:, 0], [0.5, 99.5]) + [-10, 10])
+    y_range = tuple(np.percentile(union[:, 1], [0.5, 99.5]) + [-10, 10])
+    region = ev.get("region")
+    topdown_figure(cfg, p, clouds, x_range, y_range, os.path.join(p["out"], "topdown.png"),
+                   f"{cfg['recording']['title']}: nearest point to the camera per {ev['coverage_cell_mm']:g} mm cell, "
+                   "board frame" + ("" if region else " (pick the ice region from the grid)"), region)
+    if not region:
+        return
+    x0, x1, y0, y1 = region
+    topdown_figure(cfg, p, clouds, (x0, x1), (y0, y1), os.path.join(p["out"], "topdown_region.png"),
+                   f"{cfg['recording']['title']}: ice region", grid_mm=20)
+    cell = ev["coverage_cell_mm"]
+    total = int(np.ceil((x1 - x0) / cell) * np.ceil((y1 - y0) / cell))
+    rows = []
+    for m in cfg["methods"]:
+        if m["name"] not in clouds:
+            rows.append({"method": m["name"], "label": m["label"], "blank": True})
+            continue
+        xyz = clouds[m["name"]]
+        inside = (xyz[:, 0] >= x0) & (xyz[:, 0] < x1) & (xyz[:, 1] >= y0) & (xyz[:, 1] < y1)
+        filled = np.isfinite(height_map(xyz[inside], (x0, x1), (y0, y1), cell)).sum()
+        rows.append({"method": m["name"], "label": m["label"], "points": int(inside.sum()),
+                     "cells_filled": int(filled), "cells_total": total, "coverage": filled / total})
+    frames = len(json.load(open(os.path.join(p["out"], "run_fusion.json")))["frames"])
+    with open(os.path.join(p["out"], "coverage.csv"), "w", newline="") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["method", "points", "cells_filled", "cells_total", "coverage"])
+        writer.writeheader()
+        writer.writerows({k: r.get(k) for k in writer.fieldnames} for r in rows)
+    tex = ["% Made by src/experiments/fusion/compare_fusion.py from run_fusion.py's clouds; do not edit.",
+           r"\begin{table}[H]", r"\centering",
+           rf"\caption{{Top-down coverage of the ice region, {cfg['recording']['title']}, {frames} frames, COLMAP poses: "
+           rf"the share of the region's {cell:g}~mm cells with at least one point.}}",
+           rf"\label{{tab:fusion_coverage_{cfg['recording']['name']}}}", r"\begin{tabular}{lrr}", r"\toprule",
+           r"Method & Coverage (\%) & Points in region ($\times10^3$) \\", r"\midrule"]
+    md = [f"# Top-down coverage: {cfg['recording']['title']}", "",
+          f"Region x {x0:g}..{x1:g}, y {y0:g}..{y1:g} mm (board frame), {cell:g} mm cells, {frames} frames.", "",
+          "| Method | Coverage | Points in region |", "|---|---|---|"]
+    for r in rows:
+        if r.get("blank"):
+            tex.append(rf"{r['label']} & -- & -- \\")
+            md.append(f"| {r['label']} | - | - |")
+        else:
+            tex.append(rf"{r['label']} & {100 * r['coverage']:.1f} & {r['points'] / 1000:.0f} \\")
+            md.append(f"| {r['label']} | {r['coverage']:.1%} | {r['points']:,} |")
+    tex += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    for filename, lines in (("table_coverage.tex", tex), ("coverage.md", md)):
+        with open(os.path.join(p["out"], filename), "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+    print("\n".join(md))
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=os.path.join(HERE, "config.json"))
@@ -222,9 +367,12 @@ def main(argv=None):
     p = recording_paths(cfg)
     with open(os.path.join(p["out"], "run_fusion.json"), encoding="utf-8") as fh:
         run_record = json.load(fh)
-    results = score_all(cfg, p)
-    write_tables(cfg, p, table_rows(cfg, results), run_record)
-    figures(cfg, p, results)
+    if cfg["evaluation"]["objects"]:
+        results = score_all(cfg, p)
+        write_tables(cfg, p, table_rows(cfg, results), run_record)
+        figures(cfg, p, results)
+    else:
+        topdown_and_coverage(cfg, p)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@
     src/venv/bin/python src/experiments/reproduce.py pose_comparison   # experiment 4 on experiment 5's recordings
     src/venv/bin/python src/experiments/reproduce.py pose_ice          # pose on the ice passes (shade, sun pass 2)
     src/venv/bin/python src/experiments/reproduce.py fusion            # COLMAP vs TSDF (FS, SGBM) on S30
+    src/venv/bin/python src/experiments/reproduce.py fusion_ice        # the same on the ice pyramid, cubes, wave
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -232,9 +233,37 @@ def fusion(config, skip_existing):
                           inputs, [], runs, {"poses": common.rel(common.project_path(rec["poses"]))})
 
 
+FUSION_ICE_CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_wave.json")
+
+
+def fusion_ice(config, skip_existing):
+    """The fusion comparison on three ice passes (pyramid, cubes, wave; shade). Inputs: the pyramid's come from
+    pose_comparison; the cubes' and wave's are made here by the same pipeline runs (run_poses.py,
+    pose_estimation/config_fusion_inputs.json). Then, per pass, run_fusion.py and compare_fusion.py (top-down
+    view; coverage once the pass's evaluation.region is set). --config runs one pass's fusion config only."""
+    import compare_fusion
+    import run_fusion
+    import run_poses
+
+    inputs_config = os.path.join(HERE, "pose_estimation", "config_fusion_inputs.json")
+    runs = run_poses.main(["--config", inputs_config] + (["--skip-existing"] if skip_existing else []))
+    configs = [config] if config else [os.path.join(HERE, "fusion", c) for c in FUSION_ICE_CONFIGS]
+    for path in configs:
+        cfg = common.load_config(path)
+        print(f"\n######## fusion: {cfg['recording']['name']} ########")
+        fusion_runs = run_fusion.main(["--config", path] + (["--skip-existing"] if skip_existing else []))
+        compare_fusion.main(["--config", path])
+        rec = cfg["recording"]
+        inputs = [common.project_path(rec["frames"]), common.project_path(rec["tag_masks"])]
+        inputs += [common.project_path(d) for d in rec["depth"].values()]
+        common.write_manifest(os.path.join(common.project_path(cfg["out_dir"]), rec["name"]), "fusion_ice",
+                              [path, inputs_config], inputs, [], runs + fusion_runs,
+                              {"poses": common.rel(common.project_path(rec["poses"]))})
+
+
 EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation,
                "pose_estimation": pose_estimation, "depth_matchers": depth_matchers,
-               "pose_comparison": pose_comparison, "pose_ice": pose_ice, "fusion": fusion}
+               "pose_comparison": pose_comparison, "pose_ice": pose_ice, "fusion": fusion, "fusion_ice": fusion_ice}
 
 
 def main(argv=None):

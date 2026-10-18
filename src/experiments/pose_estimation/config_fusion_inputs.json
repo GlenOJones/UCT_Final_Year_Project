@@ -1,0 +1,191 @@
+{
+ "_what": "Fusion inputs for the ice Cubes and Wave scans (fusion experiment): the same pipeline runs as the pose comparison (config_comparison.json) - AprilGrid reference, tag masks, FoundationStereo and tuned-SGBM depth, COLMAP and ICP poses - on two more ice passes. The ICP estimators are kept because run_poses.py makes depth only for the sources an ICP estimator uses, and the fusion needs both depth sources. Every frame, as for the pyramid passes; the fusion then uses every 2nd.",
+ "out_dir": "results/experiments/pose_fusion_inputs",
+ "work_dir": "work/experiments/pose_fusion_inputs",
+ "python": {
+  "default": "src/venv/bin/python",
+  "ffs": "envs/ffs/bin/python"
+ },
+ "recordings": [
+  {
+   "name": "ice_cubes_shade_cub2",
+   "title": "Ice cubes, shade",
+   "frames": "data/3DRecon/Ice/Cubes/Shade/cub2_frames_horiz_pass_v_close_580mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "tag_size_mm": 50,
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400,
+   "frame_step": 1,
+   "_icp_argv": "As for the other ice passes (same trolley).",
+   "icp_argv": [
+    "--max-step",
+    "35"
+   ]
+  },
+  {
+   "name": "ice_wave_shade_wave1",
+   "title": "Ice wave, shade",
+   "frames": "data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "tag_size_mm": 50,
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400,
+   "frame_step": 1,
+   "_icp_argv": "As for the other ice passes (same trolley).",
+   "icp_argv": [
+    "--max-step",
+    "35"
+   ]
+  }
+ ],
+ "frame_step": 1,
+ "reference": {
+  "_why": "tag_poses.py at its defaults; its poses are the reference the others are scored against.",
+  "label": "AprilGrid",
+  "mode": "tag_poses.py: AprilTag 36h11 corners (sub-pixel) triangulated in stereo, max reprojection 0.8 px; one tag layout fitted to all frames, each frame a rigid fit of the layout. Sees the tags (the only method that does). Grip: tag corners triangulated in the frame.",
+  "max_reprojection_px": 0.8
+ },
+ "tag_masks": {
+  "_why": "Hide the tags (and their white surround) from every markerless estimator: ice has no tags.",
+  "enabled": true,
+  "scale": 1.6
+ },
+ "depth": {
+  "sgbm_tuned": {
+   "_why": "Experiment 5's tuned SGBM (depth_matchers/config.json sgbm_tuned).",
+   "python": "default",
+   "argv": [
+    "--matcher",
+    "sgbm",
+    "--block-size",
+    "11",
+    "--uniqueness",
+    "0",
+    "--sgbm-mode",
+    "hh",
+    "--p1",
+    "16",
+    "--p2",
+    "32",
+    "--speckle-window",
+    "200",
+    "--speckle-range",
+    "2",
+    "--disp12-max-diff",
+    "1",
+    "--prefilter-cap",
+    "63",
+    "--sgbm-scale",
+    "0.5",
+    "--median-filter",
+    "0",
+    "--voxel",
+    "1"
+   ]
+  },
+  "foundationstereo": {
+   "_why": "The fs_s05 settings, as in experiments 4 and 5.",
+   "python": "ffs",
+   "argv": [
+    "--matcher",
+    "foundationstereo",
+    "--fs-model",
+    "vitl",
+    "--net-scale",
+    "0.5",
+    "--net-iters",
+    "32",
+    "--lr-tolerance",
+    "3",
+    "--fs-max-disp",
+    "416",
+    "--voxel",
+    "1"
+   ]
+  }
+ },
+ "_estimators": "One mode each. ICP: frame-to-local-map, point-to-plane, chosen in experiment 4 on S30 (map beat frame-to-frame: ATE 2.9 vs 4.4 mm on FS, 5.2 vs 10.1 mm on SGBM; coloured ICP matched point-to-plane at ~3x the time).",
+ "estimators": [
+  {
+   "name": "colmap",
+   "kind": "colmap",
+   "label": "COLMAP",
+   "mode": "colmap_poses.py: incremental SfM on SIFT (GPU), intrinsics and stereo rig fixed from the calibration, sequential matching of 12 frames either side, SIFT kept off the masked tags. Grip: SIFT keypoints the final model triangulated (left image).",
+   "argv": [
+    "--window",
+    "12",
+    "--gpu",
+    "0"
+   ]
+  },
+  {
+   "name": "icp_fs",
+   "kind": "icp",
+   "depth": "foundationstereo",
+   "label": "ICP, FoundationStereo",
+   "mode": "depth_frames.py with FoundationStereo (ViT-L, net scale 0.5, 32 iterations, left-right check 3 px), tags masked; icp_poses.py frame-to-local-map (10 frames), point-to-plane, voxels 4 then 2 mm, search 2.5 voxels, 30 iterations, translation-only constant-velocity guess; lost if fitness < 0.3 or step > max-step / 5 deg. Grip: 2 mm depth points whose normal resists a slide along the track (|n . d| > 0.5).",
+   "argv": [
+    "--target",
+    "map",
+    "--metric",
+    "plane",
+    "--scales",
+    "4",
+    "2",
+    "--max-distance",
+    "2.5",
+    "--iterations",
+    "30",
+    "--map-frames",
+    "10",
+    "--min-fitness",
+    "0.3",
+    "--max-step",
+    "20",
+    "--max-rotation",
+    "5"
+   ]
+  },
+  {
+   "name": "icp_sgbm",
+   "kind": "icp",
+   "depth": "sgbm_tuned",
+   "label": "ICP, SGBM (tuned)",
+   "mode": "depth_frames.py with tuned SGBM (block 11, uniqueness 0, P1/P2 16/32, half resolution), tags masked; ICP exactly as for FoundationStereo. Grip: as for FoundationStereo.",
+   "argv": [
+    "--target",
+    "map",
+    "--metric",
+    "plane",
+    "--scales",
+    "4",
+    "2",
+    "--max-distance",
+    "2.5",
+    "--iterations",
+    "30",
+    "--map-frames",
+    "10",
+    "--min-fitness",
+    "0.3",
+    "--max-step",
+    "20",
+    "--max-rotation",
+    "5"
+   ]
+  }
+ ],
+ "evaluation": {
+  "_why": "Drift is measured over windows of this much reference travel.",
+  "rpe_distance_mm": 50,
+  "align_lever_mm": 400
+ },
+ "detections": {
+  "_why": "Where each method gets its grip: images for frames spread along each pass, and the grip per frame over every frame for the table.",
+  "frames": 4,
+  "icp_voxel_mm": 2.0,
+  "icp_normal_radius_mm": 6.0,
+  "slide_threshold": 0.5,
+  "image_dpi": 150
+ }
+}
