@@ -233,11 +233,11 @@ def fusion(config, skip_existing):
                           inputs, [], runs, {"poses": common.rel(common.project_path(rec["poses"]))})
 
 
-FUSION_ICE_CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_wave.json")
+FUSION_ICE_CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_wave.json", "config_overhang.json")
 
 
 def fusion_ice(config, skip_existing):
-    """The fusion comparison on three ice passes (pyramid, cubes, wave; shade). Inputs: the pyramid's come from
+    """The fusion comparison on four ice passes (pyramid, cubes, wave, overhang; shade). Inputs: the pyramid's come from
     pose_comparison; the cubes' and wave's are made here by the same pipeline runs (run_poses.py,
     pose_estimation/config_fusion_inputs.json). Then, per pass, run_fusion.py and compare_fusion.py (top-down
     view; coverage once the pass's evaluation.region is set). --config runs one pass's fusion config only."""

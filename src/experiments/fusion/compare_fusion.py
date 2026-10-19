@@ -68,9 +68,9 @@ def crop(cloud_path, centre, half, out_path):
 
 def score(job):
     """compare_to_cad.py on one crop; its metrics.json, or None if it failed."""
-    method, name, crop_path, stl, out_dir, python = job
+    method, name, crop_path, stl, out_dir, python, extra = job
     result = subprocess.run([python, common.project_path(COMPARE_SCRIPT), crop_path, "--out-dir", out_dir,
-                             "--reference", common.project_path(os.path.join(STL_DIR, stl)), "--no-summary"],
+                             "--reference", common.project_path(os.path.join(STL_DIR, stl)), "--no-summary", *extra],
                             capture_output=True, text=True, cwd=common.PROJECT_ROOT)
     metrics_path = os.path.join(out_dir, name, "metrics.json")
     if result.returncode != 0 or not os.path.exists(metrics_path):
@@ -92,8 +92,10 @@ def score_all(cfg, p):
             crop_path = os.path.join(p["out"], "objects", method["name"], f"{name}.ply")
             n = crop(cloud, obj["centre"], ev["crop_half_mm"], crop_path)
             print(f"{method['name']}/{name}: {n} points cropped")
+            # obj["square_yaw"]: the object sits square on the board (see compare_to_cad.py --square-yaw).
+            extra = ["--square-yaw", str(obj["square_yaw"])] if "square_yaw" in obj else []
             jobs.append((method["name"], name, crop_path, obj["stl"],
-                         os.path.join(p["out"], "comparison", method["name"]), common.project_path(cfg["python"])))
+                         os.path.join(p["out"], "comparison", method["name"]), common.project_path(cfg["python"]), extra))
     with ThreadPoolExecutor(4) as pool:
         return list(pool.map(score, jobs))
 
@@ -101,7 +103,7 @@ def score_all(cfg, p):
 # ====== T1: ACCURACY TABLE ======
 def table_rows(cfg, results):
     rows = []
-    for (method, name, _, stl, _, _), metrics in results:
+    for (method, name, _, stl, _, _, _), metrics in results:
         if metrics is None:
             continue
         for fit in FITS:

@@ -1,5 +1,5 @@
 {
- "_what": "Fusion inputs for the ice Cubes and Wave scans (fusion experiment): the same pipeline runs as the pose comparison (config_comparison.json) - AprilGrid reference, tag masks, FoundationStereo and tuned-SGBM depth, COLMAP and ICP poses - on two more ice passes. The ICP estimators are kept because run_poses.py makes depth only for the sources an ICP estimator uses, and the fusion needs both depth sources. Every frame, as for the pyramid passes; the fusion then uses every 2nd.",
+ "_what": "Fusion inputs for the ice Cubes, Wave and Overhang (shade) scans (fusion experiment): the same pipeline runs as the pose comparison (config_comparison.json) - AprilGrid reference, tag masks, FoundationStereo and tuned-SGBM depth, COLMAP and ICP poses - on two more ice passes. The ICP estimators are kept because run_poses.py makes depth only for the sources an ICP estimator uses, and the fusion needs both depth sources. Every frame, as for the pyramid passes; the fusion then uses every 2nd.",
  "out_dir": "results/experiments/pose_fusion_inputs",
  "work_dir": "work/experiments/pose_fusion_inputs",
  "python": {
@@ -26,6 +26,21 @@
    "name": "ice_wave_shade_wave1",
    "title": "Ice wave, shade",
    "frames": "data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm",
+   "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+   "tag_size_mm": 50,
+   "depth_min_mm": 400,
+   "depth_max_mm": 1400,
+   "frame_step": 1,
+   "_icp_argv": "As for the other ice passes (same trolley).",
+   "icp_argv": [
+    "--max-step",
+    "35"
+   ]
+  },
+  {
+   "name": "ice_overhang_shade_hang1",
+   "title": "Ice overhang, shade",
+   "frames": "data/3DRecon/Ice/Overhang/Shade/hang1_frames_pass2_830mm",
    "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
    "tag_size_mm": 50,
    "depth_min_mm": 400,

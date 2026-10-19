@@ -25,13 +25,27 @@ import common  # noqa: E402
 import compare_fusion  # noqa: E402
 from run_fusion import recording_paths  # noqa: E402
 
-CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_wave.json")
-TITLES = {"ice_pyramid_shade_pyr1_pass4": "Pyramid", "ice_cubes_shade_cub2": "Cubes", "ice_wave_shade_wave1": "Wave"}
+CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_wave.json", "config_overhang.json")
+TITLES = {"ice_pyramid_shade_pyr1_pass4": "Pyramid", "ice_cubes_shade_cub2": "Cubes", "ice_wave_shade_wave1": "Wave",
+          "ice_overhang_shade_hang1": "Overhang"}
 HEIGHT_PERCENTILES = (10, 99.5)
 # Rows shown before their scan has been fused: (row title, config whose data stands in). The stand-in is marked
 # "placeholder" in every tile; replace the entry with the scan's own config once it exists.
-PLACEHOLDERS = [("Overhang", "config_cubes.json")]
-FONT = {"title": 16, "row": 16, "label": 14, "ticks": 12, "note": 12}
+PLACEHOLDERS = []   # the overhang placeholder was replaced by its own run on 19 Oct
+FONT = {"title": 20, "row": 20, "label": 14, "ticks": 12, "note": 12}
+
+
+def place_row_labels(fig, axes, labels, fontsize, strip=0.04):
+    """Row names on one vertical line, each centred on its row: the layout is kept out of a strip of this width at
+    the figure's left, and the names are centred in it. Panels holding narrower images are drawn inset, so axis
+    labels would not line up; the names are placed after the layout is final (then frozen)."""
+    fig.get_layout_engine().set(rect=(strip, 0, 1 - strip, 1))
+    fig.canvas.draw()
+    fig.set_layout_engine("none")
+    for ax, label in zip(axes[:, 0], labels):
+        box = ax.get_position()
+        fig.text(strip / 2, (box.y0 + box.y1) / 2, label, rotation=90, ha="center", va="center",
+                 fontsize=fontsize, fontweight="bold")
 
 
 def main(argv=None):
@@ -78,14 +92,13 @@ def main(argv=None):
             ax.set_xticks([])
             ax.set_yticks([])
             if row == 0:
-                ax.set_title(m["label"], fontsize=FONT["title"])
-            if col == 0:
-                ax.set_ylabel(placeholder or TITLES.get(cfg["recording"]["name"], cfg["recording"]["title"]),
-                              fontsize=FONT["row"])
+                ax.set_title(m["label"], fontsize=FONT["title"], fontweight="bold")
         if image is not None:
             bar = fig.colorbar(image, ax=axes[row, :], shrink=0.85, pad=0.01)
             bar.set_label("height towards camera (mm)", fontsize=FONT["label"])
             bar.ax.tick_params(labelsize=FONT["ticks"])
+    place_row_labels(fig, axes, [placeholder or TITLES.get(cfg["recording"]["name"], cfg["recording"]["title"])
+                                 for placeholder, cfg in rows], FONT["row"])
     out = args.out or os.path.join(common.project_path(cfgs[0]["out_dir"]), "ice_grid.png")
     fig.savefig(out, dpi=150)
     plt.close(fig)

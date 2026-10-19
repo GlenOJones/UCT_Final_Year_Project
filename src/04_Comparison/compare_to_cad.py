@@ -99,6 +99,9 @@ def parse_args(argv=None):
                     help="mm; colour scale of the error map runs from minus to plus this (default 5)")
     ap.add_argument("--no-summary", action="store_true",
                     help="leave results/<session>/summary.csv alone (score_objects.py keeps its own table)")
+    ap.add_argument("--square-yaw", type=float, default=None,
+                    help="deg; the object sits square on the board: start the yaw search near 0/90/180/270 deg and "
+                         "keep only fits within this of square (for repeating shapes such as the egg cartons)")
     args = ap.parse_args(argv)
     if not args.clouds:
         paths.require_scan(args, ap)
@@ -262,20 +265,39 @@ def local_board_levelling(reference, xyz, T_board_ref):
     return C, offset, float(np.degrees(angle))
 
 
-def align(reference, points, dof, min_height, margin, start=None):
-    """Best ICP result over starting yaws about the object's centre (or from `start`)."""
+def off_square_deg(T):
+    """How far the yaw of T is from the nearest multiple of 90 degrees."""
+    yaw = np.degrees(np.arctan2(T[1, 0], T[0, 0]))
+    return abs((yaw + 45) % 90 - 45)
+
+
+def align(reference, points, dof, min_height, margin, start=None, square_yaw=None):
+    """Best ICP result over starting yaws about the object's centre (or from `start`).
+
+    square_yaw (deg): the object is known to sit square on the board, so start only near 0/90/180/270 deg and keep
+    only fits within square_yaw of square. Repeating surfaces (the egg cartons) otherwise fit about as well at a
+    wrong yaw: on S30 the unconstrained fits landed 7-17 deg off square, where the pyramids land within 1 deg."""
     if start is not None:
         return icp(reference, points, start, dof, min_height, margin)
     centre = np.median(points[:, :2], axis=0)
-    best = None
-    for yaw in range(0, 360, YAW_START_STEP):
+    yaws = range(0, 360, YAW_START_STEP) if square_yaw is None else [b + o for b in (0, 90, 180, 270) for o in (-5, 0, 5)]
+    best, best_any = None, None
+    for yaw in yaws:
         T = np.eye(4)
         T[:3, :3] = cv2.Rodrigues(np.array([0, 0, np.radians(yaw)]))[0]
         T[:2, 3] = centre - T[:2, :2] @ reference.centre_xy
         result = icp(reference, points, T, dof, min_height, margin)
         # Prefer the fit explaining the most points, then the lowest residual.
+        if best_any is None or (result[2], -result[1]) > (best_any[2], -best_any[1]):
+            best_any = result
+        if square_yaw is not None and off_square_deg(result[0]) > square_yaw:
+            continue
         if best is None or (result[2], -result[1]) > (best[2], -best[1]):
             best = result
+    if best is None:
+        print(f"  no fit within {square_yaw} deg of square; keeping the best fit at "
+              f"{off_square_deg(best_any[0]):.1f} deg off")
+        return best_any
     return best
 
 
@@ -563,7 +585,8 @@ def main():
         print(f"\n{rel(cloud_path)}: {len(xyz)} points, {len(points)} on the object")
 
         fits = {}
-        T_on_board, _, _ = align(reference, points, FITS["on_board"], args.min_height, args.margin)
+        T_on_board, _, _ = align(reference, points, FITS["on_board"], args.min_height, args.margin,
+                                 square_yaw=args.square_yaw)
         T_shape, _, _ = align(reference, points, FITS["shape"], args.min_height, args.margin, start=T_on_board)
         for fit, T in (("on_board", T_on_board), ("shape", T_shape)):
             stats, _, _, _ = evaluate(reference, points, T, args)
