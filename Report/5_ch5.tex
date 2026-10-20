@@ -402,7 +402,7 @@ y_d &= y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1\,(r^2 + 2y^2) + 2p_2 x y
 where $(x, y)$ are the undistorted coordinates, $r = \sqrt{x^2 + y^2}$, and
 $(x_d, y_d)$ are the distorted coordinates.
 
-OpenCV implements this through \texttt{cv2.calibrateCamera}, using \citet{zhang}'s method for an initial estimate followed by
+OpenCV implements this through \texttt{cv2.calibrateCamera}, using \citet{zhangFlexibleNewTechnique2000}'s method for an initial estimate followed by
  Levenberg-Marquart optimisation to refine all parameters.  \cite{CvCalibrateCameraAuroraVision}.
 
  % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html

@@ -182,6 +182,10 @@
     \PassOptionsToPackage{authoryear,round,semicolon}{natbib}
 \fi
 \usepackage{natbib}
+% \citeurl{key}{url}: author (year) as a single link to url instead of to
+% the bibliography entry. booktabs, tabularx, array and hyperref are loaded
+% above; the Y column type is in 0_documentproperties.tex.
+\newcommand{\citeurl}[2]{\href{#2}{\begin{NoHyper}\citet{#1}\end{NoHyper}}}
 %=====================================================================
 \usepackage{refcount}                % Arithmetic on \pageref values, for the
                                      % automatic page count on the declaration
@@ -272,10 +276,11 @@
 %---------------------------------------------------------------------
 \input{0_glossaryentries}
 
-% CLAUDE: fast preview -- only typeset chapter 3. Other chapters keep their
-% numbering/refs from their .aux files. Comment out for a full build.
+% CLAUDE: fast preview -- only typeset the literature review (chapter 2).
+% Other chapters keep their numbering/refs from their .aux files. Comment
+% out for a full build.
 % 0_documentproperties must stay listed: it defines \titl, \auth, etc.
-\includeonly{0_documentproperties,3_ch3,5_ch5,5b_reconstruction,9_appendix}
+\includeonly{0_documentproperties,2_review}
 %---------------------------------------------------------------------
 %	DOCUMENT
 %---------------------------------------------------------------------
