@@ -197,17 +197,18 @@ bottom surfaces of melting floes and, beneath the near-shore land-fast ice,
 layers of ice platelets up to 5\,m thick extending as far as 35\,km from the
 ice-shelf edge \citep{langeDevelopmentSeaIce1989}.
 
-Optical methods use cameras to reconstruct surfaces through photogrammetry, providing centimeter-scale or finer resolution. 
-However, under-ice cameras on ROVs have mostly been used to estimate algal biomass \citep{katleinNewRemotelyOperated2017}, 
+Optical methods use cameras to reconstruct surfaces through photogrammetry, 
+providing centimeter-scale or finer resolution. 
+However, under-ice cameras on ROVs have mostly been used to estimate 
+algal biomass \citep{katleinNewRemotelyOperated2017}, 
 and are affected by the imaging challenges described in \autoref{sec:ch2.imaging_challenges}.
 
 It was not until 2018 that cameras were used for 3D reconstruction of the ice underside. 
 \citet{cimoliUnderIceHyperspectralRGB2019} mounted an RGB camera and a hyperspectral imager 
 on a sled winched along the underside of land-fast ice at Cape Evans, Antarctica. 
 Structure-from-motion photogrammetry of a 20\,m transect, imaged from about 1.2\,m, produced 
-a digital elevation model of the ice bottom at sub-millimetre resolution. The model was initially 
-bent and deformed, and had to be corrected using ground control markers; no quantitative 
-accuracy was reported. The same group later deployed HIcyBot, an ROV whose stereo camera 
+a digital elevation model of the ice bottom at sub-millimetre resolution.
+The same group later deployed HIcyBot, an ROV whose stereo camera 
 pair produced 3D reconstructions of the ice underside and helped compensate for vehicle motion 
 when acoustic positioning degraded beneath the ice \citep{cimoliAdvancingMonitoringNearshore2026}. 
 
@@ -249,7 +250,15 @@ Light bends at the water-glass-air interface \citep{shortisCalibrationTechniques
 camera behind a flat port no longer has a single viewpoint, meaning the standard pinhole model produces 
 distant dependendent geometric errors (for further info see section X).
 
-These four effects combine to make clean, geometrically accurate images
+\textbf{Low Texture Environment.}
+The ice underside offers little texture for feature-based reconstruction: surfaces are often 
+smooth \citep{langeDevelopmentSeaIce1989}, and visible features such as air bubbles are small, 
+low in contrast and repetitive. \citet{zhaoModifyingAffordableROV2021} deployed an 
+upward-looking stereo camera on a BlueROV2, the same platform used in this work, beneath 
+freshwater sheets ice in Michigan. Despite sufficient natural light, visual odometry failed because 
+features were ``ubiquitous and similar'' across the low-contrast images.
+
+These effects combine to make clean, geometrically accurate images
 difficult to capture. This places heavy emphasis on calibration and image
 correction. Cameras must either be optically correctted or well calibrated \citep{shortisCalibrationTechniquesAccurate2015}, and careful attention
 must be paid to lighting conditions and distance from the ice \citep{jaffeComputerModelingDesign1990}.
@@ -334,108 +343,34 @@ drift, and mesh fusion The timing of processing range from roughly the equivelan
 texture on a featureless surface, which is relevant to the weakly textured underside of pancake ice.
 
 
+\section{Underwater camera calibration and refraction-compensating optics}
+\label{sec:ch2.calibration}
+Underwater calibration must account for refraction at the air, housing and water interfaces, which 
+increased the principal distance of a camera behind a flat port by a factor of 1.34 
+\citep{shortisCalibrationTechniquesAccurate2015}. The most common approach calibrates in water and 
+absorbs refraction into the lens distortion parameters, but introduces scale errors outside the 
+calibrated range. Explicit ray-tracing models are exact but often housing-specific 
+\citep{shortisCalibrationTechniquesAccurate2015}. The Pinax model offers a compromise for flat ports, 
+converting images into an equivalent pinhole view so the camera need only be calibrated once in air 
+\citep{luczynskiPinaxmodelAccurateEfficient2017}.
 
-\section{Calibration for underwater cameras}
-\label{sec:ch2.underwater_calibration}
-
-
-
+Refraction can also be reduced optically. A dome port eliminates refraction if the lens is centred 
+exactly at the dome's centre of curvature \citep{kunzHemisphericalRefractionCamera2008,mennaGeometricOpticCharacterization2016}, 
+while corrector lenses counteract the aberrations of a flat window \citep{CorrectingLensesUnderwater1960}. 
+This project uses two global-shutter stellarHD cameras with Aquagon lenses, a seven-element design 
+specified to have less than 1.5\% distortion and a $78\times67^\circ$ field of view in water 
+\citep{dweStellarHDTechnicalSpecifications}. However, such optics only approximate a perfect central 
+projection and are sufficient alone only for low-accuracy 2D work, so calibration remains necessary 
+for 3D reconstruction \citep{shortisCalibrationTechniquesAccurate2015}. In either case, cameras must 
+be rigidly fixed with focus locked, under which accuracies of around 0.5\% of measured lengths are 
+achievable \citep{shortisCalibrationTechniquesAccurate2015}.
 
 \section{Critique of existing literature}
 \label{sec:ch2.literature_critique}
 
 probs 0.25 pages
 
-
-
-
-%=====================================================================
-\section{Underwater 3D reconstruction techniques}
-\label{sec:ch2.reconstruction_applications}
-Find where its been applied. Boarts, choral reefs, wrecks etc
-
-\section{Calibration for underwater cameras}
-\label{sec:ch2.underwater_calibration}
-
-\section{Stereo vision underwater: matching algorithms and low-texture surfaces}
-\label{sec:ch2.underwater_stereo}
-
-\section{3D representation and data fusion}
-\label{sec:ch2.representation_fusion}
-
-\section{Evalu}
-\label{sec:ch2.evaluation}
-%=====================================================================
-\section{Underwater challenges and calibration techniques}
-\label{sec:ch2.underwater_challenges}
-%---------------------------------------------------------------------
-% Connection back to original prohject
-% Existing calibration techniques and how they compensate (S2667393226000153)
-% 		- Ignore refratcion and absorb into distortion
-%		- Explicit physical / ray-tracing models
-%		- The Pinax modl
-%		- Corrective optics
-% Point to methedology chapter
-% Concerns around IMU that uses magnometer in high / low lattitudes
-
-At its core, we need to get transfrom pixel data and measurements into metric values. This transformation is largely system dependent and calibration is required to compensate. A set of intrinsic parameters are needed to be determined \citet{semeniutaAnalysisCameraCalibration2016}:
-
-\begin{table}[H]
-    \centering
-    \caption[Intrinsic camera parameters.]{\textbf{Intrinsic camera parameters.} The parameters that map metric scene coordinates onto pixel coordinates, together with the measurement that recovers each one.}
-    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3cm}>{\raggedright\arraybackslash}m{1.8cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
-    \toprule[2.25pt]
-    \textbf{Parameter} & \textbf{Symbol} & \textbf{Description} & \textbf{Method of determination} \\
-    \midrule[1pt]
-    Pixel size & $s_x$, $s_y$ & Physical width and height of a sensor element, setting the scale between millimetres and pixels. & Sensor datasheet, or absorbed into the focal lengths $f_x$, $f_y$ expressed in pixels. \\
-    Centre of projection & $c_x$, $c_y$ & Pixel coordinate at which the optical axis pierces the image plane. & Estimated with the remaining intrinsics from multiple views of a planar target. \\
-    Principal length & $f$ & Distance from the centre of projection to the image plane in the pinhole model. & Estimated from the homographies induced by a target of known geometry. \\
-    Skew & $\gamma$ & Departure of the sensor axes from orthogonality; negligible for modern digital sensors. & Estimated during calibration, or fixed at zero. \\
-    Distortion characteristics & $k_1 \dots k_n$, $p_1$, $p_2$ & Radial and tangential departures of the lens from the pinhole model. & Non-linear refinement of the reprojection error over the calibration image set. \\
-    \bottomrule[2.25pt]
-    \end{tabularx}
-    \label{table:ch2.intrinsics}
-\end{table}
- \citet{semeniutaAnalysisCameraCalibration2016}:
-
-Can find these parameters by...
-
-% INtroduce the challenges, explored solutions.
-% How to now pivot to why we are using stereo cams.
-% IF so, then air calibration, reconstrucion
-
-% --- Degradation of the underwater image (moved here from the calibration notes)
-"degradation factors, such as lighting intensity attenuation, back scattering, forward scattering and macroscopic floating particles"
-
-"Due to these effects, underwater images generally present low contrast, non-uniform lighting, blurring and noise [19]."
-
-% --- Fiducial markers and detection algorithms
-\cite{dossantoscesarEvaluationArtificialFiducial2015} compared different fiducial markers in an underwater tanks across  six turbitiy ? and 2 lighting conditions. They compared ARToolKit, AprilTags, ArUco and found that AprilTags were able to detect smaller targers across all turbifiry, lighting levels aswell as at larger angles. Found to be comnputationally the slowest, not an issue here. Ideally test myself but dont have tiem.
-
-% Tweaking opencv for underwater thresholding (also editing original opencv code)
-% https://www.mdpi.com/2072-4292/11/4/459
-
-% --- Image enhancement and filtering prior to detection
-CLAHE for Grid intersections
-Bilateral \& Guided Filtering
-
-Filtering for 3D reconstruction
-% https://www.mdpi.com/2072-4292/10/10/1652?utm_source=gemini
-Marion  (ref) provides guidelnes for image enhancements in underwater environments, aswell as methods for benchmarking results for 3D Reconstruction performance.
-
-
-%=====================================================================
-\section{Existing underwater 3D reconstruction}
-\label{sec:ch2.existing_reconstruction}
-%---------------------------------------------------------------------
-% Published underwater stereo / photogrammetry systems and what accuracy they
-% report, and under what turbidity and range
-
-
-%=====================================================================
-\section{Critique of the existing literature}
-\label{sec:ch2.critique}
-%---------------------------------------------------------------------
+-------------------
 % Where the gap is that this project fills, leading into Chapter 3
 
 
@@ -463,16 +398,3 @@ Marion  (ref) provides guidelnes for image enhancements in underwater environmen
 
 
 
-I am writing a Literature review for a research project, looking at scanning the underside of antarctic sea ice in the MIZ. This involves pancake ice and 
-general ice.  My current structure is:
-- Intro
-- Importance of the MIZ and Southern Ocean
-- Existing Methods and techniques (Satellite and remote sensing, In-situ acuoistic methods, Optical methods)
-- Existing Underwater 3D reconstruction
-- Underwater challenges and calibration techniques
-- 
-- Stereo vision for 3D reconstruction, underwater
-- Critiques of existing literature
-
-I have a Theoretical development after this explaining everything from pinhole model up to 3D reconstruction and voxels. What else should I be adding
-for a honours IEE thesis?

@@ -115,6 +115,7 @@
 \usepackage{subcaption}              % Sub-figures support
 \usepackage{caption}                 % Caption formatting
 \usepackage{tikz}                    % Create vector graphics
+\usetikzlibrary{arrows.meta, positioning, calc} % Stealth arrow tips, right=of placement, $(a)!0.5!(b)$ midpoints
 \usepackage{mdframed}                % Framed text boxes
 
 %---------------------------------------------------------------------
@@ -280,7 +281,7 @@
 % Other chapters keep their numbering/refs from their .aux files. Comment
 % out for a full build.
 % 0_documentproperties must stay listed: it defines \titl, \auth, etc.
-\includeonly{0_documentproperties,2_review}
+\includeonly{0_documentproperties,3_ch3}
 %---------------------------------------------------------------------
 %	DOCUMENT
 %---------------------------------------------------------------------

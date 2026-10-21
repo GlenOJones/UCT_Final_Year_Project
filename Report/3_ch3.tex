@@ -3,32 +3,310 @@
 %*********************************************************************
 \chapter{Theoretical development}
 \label{ch:theory}
-%---------------------------------------------------------------------
-% TODO: ADD CMOS REFERENCE
-Modern digital use a sensor matrix to capture incoming light, captured with photosensitive. Modern cameras mostly use complementary metal-oxide semiconductor technology (CMOS) . Each phototransistor makes up a single pixel sensor,
- with sensor matrices being NcolxNrows arrays of phototransistors \cite{klette2014concise}. This section explains the theory behind
- how a camera projects the 3D world scene onto a 2D plane, camera-specific (intrinsic and extrinsic) parameters affecting this projection, the effects
- of the underwater environment on camera theory and the calibration and compensation used to correct for them.
+%-----------------------
+\section{Introduction and notation}
+% Exokaub pipeline :calibrated camera → stereo depth → pose → fused surface → error metrics.
+% NOtation table - sure this goes here not in the units section?
 
-%=====================================================================
-\section{Camera models}
-\label{sec:ch3.cameramodels}
-% TODO: 23 Sep
-%=====================================================================
-Camera models do what?
-They can be split into central and non-central camera models.
+\section{Image Formation}
+%---------------------------------------------------------------------
+\subsection{The pinhole camera}
+\label{subsec:ch3.pinhole}
+%---------------------------------------------------------------------
+% Merge the two sections
+%---------------------------------------------------------------------
+Before working processing images, it is important to understand the basic working of cameras how a camera maps a $3D$ point from a scene to a pixel.
+Each point on a 3D image emits light in multiple directions. For a sensor receiving this light, each point on the sensor receives light from every point of the object, resulting in a blur 
+across the sensor. This can be fixed with a barrier and a tiny hole (aperture) allowing only one or a small number of rays get through the aperture to the
+sensor. Each point's rays therefore only land on a single sensor point, allowing for a clear image and a mapping from the 3D object to the 2D sensor. 
+This is known as the pinhole camera model \citep{hataCS231ACourseNotes} and is shown in \autoref{fig:ch3.pinhole_model} below.
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.6\textwidth]{figs/Ch3/pinhole_model2.png}
+	\caption[Placeholder Example]{\textbf{Pinhole Model.} Incoming rays with aperture and barrier.}
+	\label{fig:ch3.pinhole_model}
+\end{figure}
+\
+
+
+The following terms are used for the pinhole camera throughout this report \citep{hataCS231ACourseNotes,hartleyMultipleViewGeometry2004}:
+\begin{itemize}
+	\item \textbf{Camera centre} $O$: the pinhole, through which every ray passes. It is also called the optical centre or centre of projection.
+	\item \textbf{Image plane} $\Pi'$: the plane of the sensor, on which the inverted image forms.
+	\item \textbf{Focal length} $f$: the distance from $O$ to the image plane.
+	\item \textbf{Optical axis}: the line through $O$ perpendicular to the image plane.
+	\item \textbf{Principal point}: the point where the optical axis meets the image plane.
+	\item \textbf{Virtual image plane} $\Pi'_v$: an imaginary plane a distance $f$ \textit{in front} of $O$. The image on it is identical to the sensor image except that it is not inverted, so it is the plane used in the derivations that follow.
+	\item \textbf{Camera coordinate frame}:The \textit{camera frame} has its origin at $O$, with axes $\hat{\mathbf{x}}_c$, $\hat{\mathbf{y}}_c$ and $\hat{\mathbf{z}}_c$, where $\hat{\mathbf{z}}_c$ lies along the optical axis towards the scene.
+	 A point in this frame has coordinates $\mathbf{M}_c = [X_c, Y_c, Z_c]^T$.
+\end{itemize}
+
+
+Suppose $\mathbf{M}_c = [X_c, Y_c, Z_c]^T$ is a point in the camera frame, and let $\mathbf{m}' = [x', y']^T$ be 
+where it appears on the virtual image plane. Since every point on this plane lies at $Z = f$, only its first two coordinates are needed.
+The image coordinates $(x', y')$ can be found from the scene coordinates using similar triangles, as shown in the cross-section of 
+\autoref{fig:ch3.pinhole_detailed}.
+The smaller triangle is shown in orange and the larger triangle shown in blue. Both are 
+right-angled and share the angle at $O$, so they are similar triangles with their corresponding sides haiving equal ratios:
+\begin{equation}
+	\frac{x'}{f} = \frac{X_c}{Z_c}, \qquad \frac{y'}{f} = \frac{Y_c}{Z_c}
+	\qquad\Longrightarrow\qquad
+	x' = f\,\frac{X_c}{Z_c}, \qquad y' = f\,\frac{Y_c}{Z_c}.
+	\label{eq:ch3.persp}
+\end{equation}
+ 
+% TODO: relabel the figure to match the text: M_c, m', f, Z_c and O
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=1\textwidth]{figs/Ch3/pinhole_detailed2.png}
+	\caption[Similar triangles in the pinhole model]{\textbf{Similar triangles in the pinhole model.} Cross-section through the optical axis.
+	 The triangle formed by $O$, the optical axis and the scene point $\mathbf{M}_c$ is similar to the triangle formed by $O$, 
+	 the principal point and the image point $\mathbf{m}'$, which gives \autoref{eq:ch3.persp}.}
+	\label{fig:ch3.pinhole_detailed}
+\end{figure}
+ 
+
+\autoref{eq:ch3.persp} are the equations of \textit{perspective projection} \citep{hataCS231ACourseNotes,hartleyMultipleViewGeometry2004}. 
+From these equations two key observations can be made. Objects appear smaller with distance, 
+since the image coordinates scale with $1/Z_c$. 
+Secondly, and more importantly, depth is lost in the mapping from $3D$ to $2D$.
+Every point along the ray through $\mathbf{M}_c$ projects to the same image point. Recovering depth requires a second 
+viewpoint (\autoref{sec:ch3.stereo_geometry}). Setting $f = 1$ gives the \textit{normalised image coordinates}
+\begin{equation}
+	x = \frac{X_c}{Z_c}, \qquad y = \frac{Y_c}{Z_c},
+	\label{eq:ch3.normcoord}
+\end{equation}
+which depend only on the direction of the ray, not on the lens or sensor \citep{hartleyMultipleViewGeometry2004}.
+ 
+Real cameras replace the pinhole with a lens, which gathers more light while still focusing the rays from each point onto one sensor point.
+A focused lens follows the same projection as \autoref{eq:ch3.persp}, with $f$ the lens-to-sensor distance \citep{hataCS231ACourseNotes}. 
+As the lenses used in this project are fixed-focus (\autoref{sec:ch4.hardware}), this distance is constant and a single calibration holds for all images.
+ 
+% MAYBE INCLUDE THE IMAGE?
+
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.5\textwidth]{figs/Ch3/pinhole_lens2.png}
+	\caption{lense..}
+	\label{fig:ch3.pinhole_lens}
+\end{figure}
+ 
+Because $Z_c$ appears in the denominator, \autoref{eq:ch3.persp} is nonlinear: it cannot be written as a matrix product, and scaling a point along its ray leaves its image unchanged rather than scaling it. Homogeneous coordinates restore linearity by deferring the division to a single final step, so that projection, rotation and translation can be written as matrices and chained together \citep{hartleyMultipleViewGeometry2004}.
 
 %---------------------------------------------------------------------
-\subsection{Central camera models}
-\label{subsec:ch3.central_camera_models}
+\subsection{Homogeneous coordinates}
+\label{subsec:ch3.homogeneous}
+%---------------------------------------------------------------------
+The division by $Z_c$ makes \autoref{eq:ch3.persp} nonlinear, so it cannot be written as a matrix. Homogeneous coordinates
+solve this by adding an extra coordinate that holds the scale \citep{hartleyMultipleViewGeometry2004}. A 2D point $[x, y]^T$
+becomes $\tilde{\mathbf{m}} = [x, y, 1]^T$, and a 3D point becomes $\tilde{\mathbf{M}} = [X, Y, Z, 1]^T$. Any multiple of a
+homogeneous vector represents the same point, so $[2x, 2y, 2]^T$ still represents $[x, y]^T$; the point is recovered by dividing
+by the last element. This lets the division be left until the end, so that projection, rotation and translation can all be
+written as matrices and chained together. Perspective projection then becomes:
+\begin{equation}
+	Z_c
+	\begin{bmatrix} x' \\ y' \\ 1 \end{bmatrix}
+	=
+	\begin{bmatrix}
+		f & 0 & 0 & 0 \\
+		0 & f & 0 & 0 \\
+		0 & 0 & 1 & 0
+	\end{bmatrix}
+	\begin{bmatrix} X_c \\ Y_c \\ Z_c \\ 1 \end{bmatrix}.
+	\label{eq:ch3.persp_homog}
+\end{equation}
+The matrix product gives $[fX_c, fY_c, Z_c]^T$, and dividing by its last element returns \autoref{eq:ch3.persp}. The unknown
+scale, here $Z_c$, is written $\lambda$ in general.
+%---------------------------------------------------------------------
+\subsection{Intrinsic parameters}
+\label{subsec:ch3.intrinsics}
+%---------------------------------------------------------------------
+\autoref{eq:ch3.persp} gives image positions in millimetres, measured from the principal point. 
+A digital image instead uses pixels $\mathbf{m} = [u, v]^T$, measured from the top-left corner. 
+The intrinsic matrix $\mathbf{K}$ converts between the two \citep{zhangFlexibleNewTechnique2000}:
+\begin{equation}
+	\tilde{\mathbf{m}} = \mathbf{K}\,\tilde{\mathbf{x}},
+	\qquad
+	\mathbf{K} =
+	\begin{bmatrix}
+		\alpha & \gamma & u_0 \\
+		0      & \beta  & v_0 \\
+		0      & 0      & 1
+	\end{bmatrix},
+	\label{eq:ch3.K}
+\end{equation}
+where $\tilde{\mathbf{x}} = [x, y, 1]^T$ are the normalised coordinates. Its parameters are:
+\begin{itemize}
+	\item $\alpha$ and $\beta$: the focal length in pixels, horizontally and vertically, equal to $f$ multiplied by the number of pixels per millimetre.
+	\item $(u_0, v_0)$: the principal point in pixels, usually close to the image centre.
+	\item $\gamma$: the skew between the sensor axes. It is negligible for modern sensors 
+	and set to zero in OpenCV \citep{opencvCameraCalibration3D}.
+\end{itemize}
+
+OpenCV writes $\alpha$, $\beta$, $u_0$ and $v_0$ as $f_x$, $f_y$, $c_x$ and $c_y$. 
+Since $\mathbf{K}$ is invertible, $\mathbf{K}^{-1}\tilde{\mathbf{m}}$ converts a pixel back into the direction of its ray. 
+For the StellarHD cameras (\autoref{sec:ch4.hardware}), the 3.0\,mm lens and 3\,$\mu$m pixels give a nominal focal length of about 1000 pixels in air and X 
+in water.
+
+
+%---------------------------------------------------------------------
+\subsection{Extrinsic parameters}
+\label{subsec:ch3.extrinsics}
+%---------------------------------------------------------------------
+Scene points are usually given in a \textit{world frame} fixed in the scene.
+The \textit{extrinsic parameters} describe the  rotation and translation,
+ from the world frame to the camera frame \citep{hartleyMultipleViewGeometry2004}:
+\begin{equation}
+	\mathbf{M}_c = \mathbf{R}\,\mathbf{M}_w + \mathbf{t}
+	\quad\Longleftrightarrow\quad
+	\tilde{\mathbf{M}}_c = \mathbf{T}_{cw}\,\tilde{\mathbf{M}}_w,
+	\qquad
+	\mathbf{T}_{cw} =
+	\begin{bmatrix}
+		\mathbf{R} & \mathbf{t} \\
+		\mathbf{0}^T & 1
+	\end{bmatrix},
+	\label{eq:ch3.extrinsic}
+\end{equation}
+where $\mathbf{R}$ is a $3 \times 3$ rotation matrix and $\mathbf{t}$ is a translation vector.
+ Together they have six degrees of freedom: three angles and three distances. $\mathbf{R}$ rotates without stretching or mirroring.
+  Note that $\mathbf{t}$ is the position of the world origin seen from the camera, not the position of the camera itself, which is $-\mathbf{R}^T\mathbf{t}$. In this report, 
+  $\mathbf{T}_{ab}$ maps points from frame $b$ into frame $a$, so $\mathbf{T}_{cw}$ corresponds to the \texttt{T\_cam\_world} poses given in \autoref{ch:reconstruction}. 
+The intrinsics stay fixed for a camera, while the extrinsics change with every image.
+
+
+
+%---------------------------------------------------------------------
+\subsection{The projection chain}
+\label{subsec:ch3.projection}
+%---------------------------------------------------------------------
+Combining the extrinsics, perspective projection and intrinsics gives the pinhole camera model \citep{zhangFlexibleNewTechnique2000}:
+\begin{equation}
+	\lambda\,\tilde{\mathbf{m}} = \mathbf{K}\,[\mathbf{R} \mid \mathbf{t}]\,\tilde{\mathbf{M}}_w = \mathbf{P}\,\tilde{\mathbf{M}}_w,
+	\label{eq:ch3.P}
+\end{equation}
+where $\lambda$ is the depth $Z_c$ and $\mathbf{P}$ is the $3 \times 4$ \textit{projection matrix}. 
+This assumes an ideal lens. Lens distortion cannot be written as a matrix, so it is applied separately to
+ the normalised coordinates \citep{heikkilaFourstepCameraCalibration1997,opencvCameraCalibration3D}.
+  The full projection is therefore the four steps of \autoref{fig:ch3.projection_chain}, written
+\begin{equation}
+	\mathbf{m} = \pi(\mathbf{M}_w;\; \mathbf{K}, \bm{\kappa}, \mathbf{R}, \mathbf{t}),
+	\label{eq:ch3.pi}
+\end{equation}
+where $\bm{\kappa}$ holds the distortion coefficients. This is the model that calibration estimates. 
+Run in reverse, a pixel gives only a ray, because the depth $Z_c$ is lost.
+\begin{figure}[H]
+	\centering
+	\begin{tikzpicture}[
+			node distance = 0.55cm,
+			box/.style   = {draw, rounded corners=2pt, align=center, minimum height=1.1cm, text width=2.3cm, font=\small},
+			op/.style    = {font=\scriptsize, align=center, text width=2.0cm},
+			>={Stealth[length=2mm]}
+		]
+		\node[box] (w) {World point\\$\mathbf{M}_w$};
+		\node[box, right=of w] (c) {Camera point\\$\mathbf{M}_c$};
+		\node[box, right=of c] (n) {Normalised\\$(x, y)$};
+		\node[box, right=of n] (d) {Distorted\\$(x_d, y_d)$};
+		\node[box, right=of d] (p) {Pixel\\$(u, v)$};
+		\draw[->] (w) -- (c);
+		\draw[->] (c) -- (n);
+		\draw[->] (n) -- (d);
+		\draw[->] (d) -- (p);
+		\node[op, below=0.15cm of $(w.south)!0.5!(c.south)$] {Extrinsics\\$\mathbf{R}, \mathbf{t}$};
+		\node[op, below=0.15cm of $(c.south)!0.5!(n.south)$] {Divide by $Z_c$};
+		\node[op, below=0.15cm of $(n.south)!0.5!(d.south)$] {Distortion\\$\bm{\kappa}$};
+		\node[op, below=0.15cm of $(d.south)!0.5!(p.south)$] {Intrinsics\\$\mathbf{K}$};
+	\end{tikzpicture}
+	\caption[The projection chain]{\textbf{The projection chain.} Extrinsics (\autoref{eq:ch3.extrinsic}), perspective division (\autoref{eq:ch3.normcoord}), lens distortion (\autoref{eq:ch3.bc_x}) and intrinsics (\autoref{eq:ch3.K}). Depth is lost at the division.}
+	\label{fig:ch3.projection_chain}
+\end{figure}
+ 
+%---------------------------------------------------------------------
+\subsection{Lens distortion}
+\label{subsec:ch3.distortion}
+%---------------------------------------------------------------------
+Real lenses do not follow the pinhole model exactly. The main differnce is \textit{radial distortion}. For real lenses, magnification can vary slightly
+ with distance from the image centre,  so points are pushed towards or away from the principal point. This bends straight lines outwards (\textit{barrel}) 
+ or inwards (\textit{pincushion}), as shown  in \autoref{fig:ch3.radial_distortion} \citep{brownCloseRangeCameraCalibration1971}. 
+A smaller \textit{tangential} distortion occurs when the lens is not perfectly centred or parallel to the sensor \citep{brownDecenteringDistortionLenses1966}.
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.85\textwidth]{figs/Ch3/radial_distortion.pdf}
+	\caption[Radial lens distortion]{\textbf{Radial lens distortion.} A square grid (a) undistorted, (b) with barrel distortion and (c) with pincushion distortion, from the first radial term of \autoref{eq:ch3.bc_x}. Dashed lines show the undistorted grid; the cross marks the principal point.}
+	\label{fig:ch3.radial_distortion}
+\end{figure}
+ 
+
+Both effects are described by the \textit{Brown--Conrady} model \citep{brownDecenteringDistortionLenses1966,brownCloseRangeCameraCalibration1971}, in the form used by OpenCV \citep{heikkilaFourstepCameraCalibration1997,opencvCameraCalibration3D}.
+Different methods for mapping normalised coordinates to distorted coordinates are described and compared in \autoref{sec:ch4.compensationstage}.
+
+
+
+%=========================
+%=====================================================================
+% Chapter 3: Camera calibration
+%=====================================================================
+\section{Camera calibration}
+\label{sec:ch3.calibration}
+
+Calibration estimates the the intrinsics $\mathbf{K}$ and distortion $\bm{\kappa}$, shared by all images, and a pose $(\mathbf{R}_i, \mathbf{t}_i)$ for each image $i$. It uses a target of known geometry. The world coordinates $\mathbf{M}_j$ of points on the target are known from its design, and their pixel positions $\mathbf{m}_{ij}$ are detected in each image. Each detected point gives two equations, so a set of images with many points over-determines the unknowns, which are then found by least squares \citep{zhangFlexibleNewTechnique2000}.
+
+%---------------------------------------------------------------------
+\subsection{Targets and corner detection}
+\label{subsec:ch3.targets}
+%---------------------------------------------------------------------
+Checkerboard targets require the whole board to be visible, so that each corner can be identified by its position in the grid. Fiducial markers such as AprilTags instead encode a unique ID in each tag, so every detected corner can be matched to its known position even when the board is partly out of view \citep{olsonAprilTagRobustFlexible2011}. This project uses an AprilGrid, a board of AprilTags \citep{furgaleUnifiedTemporalSpatial2013}, as AprilTags were the most reliably detected of the markers tested in turbid water by \citet{dossantoscesarEvaluationArtificialFiducial2015}. Detection thresholds the image, searches for square outlines and decodes each tag's ID, after which the corners are refined to sub-pixel accuracy \citep{wangAprilTagEfficientRobust2016}. The detector settings are given in \autoref{sec:ch4.calibration}.
+
+%---------------------------------------------------------------------
+\subsection{Zhang's method}
+\label{subsec:ch3.zhang}
+%---------------------------------------------------------------------
+Zhang's method works in two stages \citep{zhangFlexibleNewTechnique2000}. Because the board is flat, the mapping from board points to image points in each image is a simple plane-to-plane transformation, a \textit{homography}. Its form depends on both $\mathbf{K}$ and the board's pose, so the homographies from three or more images of the board at different angles are enough to calculate $\mathbf{K}$ and each pose directly. This first estimate ignores lens distortion and noise, so it is only a starting point.
+
+In the second stage, all parameters, including distortion, are refined together by minimising the \textit{reprojection error}: the distance between each detected corner and where the camera model predicts it should appear,
+\begin{equation}
+	E = \sum_{i}\sum_{j} \left\| \mathbf{m}_{ij} - \pi(\mathbf{M}_j;\, \mathbf{K}, \bm{\kappa}, \mathbf{R}_i, \mathbf{t}_i) \right\|^2 .
+	\label{eq:ch3.reproj}
+\end{equation}
+As the camera model is nonlinear, this is solved iteratively with the Levenberg--Marquardt algorithm \citep{marquardtAlgorithmLeastSquaresEstimation1963}. The fit is reported as the root-mean-square (RMS) reprojection error in pixels. Once the camera is calibrated, the same minimisation over the pose alone gives the position of the board in a new image, known as the Perspective-n-Point (PnP) problem \citep{hartleyMultipleViewGeometry2004}. This is how held-out images are scored in \autoref{ch:experiment}.
+
+%---------------------------------------------------------------------
+\subsection{Stereo calibration}
+\label{subsec:ch3.stereo_calib}
+%---------------------------------------------------------------------
+In a stereo pair, both cameras view the same board. If $(\mathbf{R}_l, \mathbf{t}_l)$ and $(\mathbf{R}_r, \mathbf{t}_r)$ are the board's poses in the left and right cameras, the rigid transformation from the left camera frame to the right is \citep{opencvCameraCalibration3D}:
+\begin{equation}
+	\mathbf{R}_{rl} = \mathbf{R}_r\,\mathbf{R}_l^T, \qquad \mathbf{t}_{rl} = \mathbf{t}_r - \mathbf{R}_{rl}\,\mathbf{t}_l .
+	\label{eq:ch3.stereo_extrinsics}
+\end{equation}
+As the cameras are rigidly mounted, this transformation is the same for every image pair. It is refined together with both cameras' parameters by minimising the reprojection error in both images. The distance between the camera centres, $B = \|\mathbf{t}_{rl}\|$, is the \textit{baseline}.
+
+%---------------------------------------------------------------------
+\subsection{Calibrating underwater}
+\label{subsec:ch3.underwater_calib}
+%---------------------------------------------------------------------
+Underwater cameras view the scene through a window in their housing. With a flat window, or \textit{port}, light passes from water through glass into air, bending at each surface according to Snell's law \citep{hechtOptics2017}:
+\begin{equation}
+	n_w \sin\theta_w = n_g \sin\theta_g = n_a \sin\theta_a ,
+	\label{eq:ch3.snell}
+\end{equation}
+where $n$ is the refractive index and $\theta$ the angle to the port normal in water, glass and air. The glass only shifts rays sideways, so the overall bending depends on water and air. Near the optical axis, $\sin\theta \approx \tan\theta$, so a ray arriving at angle $\theta_w$ reaches the camera at $\tan\theta_a \approx n \tan\theta_w$, where $n = n_w / n_a \approx 1.33$. The image is therefore magnified by about 1.33: the effective focal length increases and the field of view narrows \citep{shortisCalibrationTechniquesAccurate2015}. Further from the axis this approximation breaks down and the magnification grows, an error that increases towards the image edges much like pincushion distortion.
+
+Refraction also breaks the pinhole assumption. Traced back into the water, the refracted rays no longer pass through a single point, so the camera is no longer \textit{central} \citep{treibitzFlatRefractiveGeometry2012}. Instead, every ray passes through one line, the port normal through the camera centre, which makes it an \textit{axial} camera \citep{agrawalTheoryMultilayerFlat2012}. A pinhole model fitted underwater is therefore only exact at certain distances, and its errors depend on how far away the scene is \citep{treibitzFlatRefractiveGeometry2012}.
+
+Underwater calibration methods fall into three groups \citep{shortisCalibrationTechniquesAccurate2015}:
+\begin{enumerate}
+	\item \textbf{Absorb refraction into the lens model.} Calibrating in water with a standard model lets the distortion coefficients absorb most of the refraction. This is simple and works with any housing, but is most accurate over the distances it was calibrated at \citep{shortisCalibrationTechniquesAccurate2015}.
+	\item \textbf{Calibrate in air and correct separately.} The camera is calibrated in air, and refraction is corrected using the port geometry and the refractive index of the water, as in the Pinax model \citep{luczynskiPinaxmodelAccurateEfficient2017}.
+	\item \textbf{Model refraction explicitly.} The non-central ray geometry is modelled directly, for example by ray tracing through the port \citep{agrawalTheoryMultilayerFlat2012}. This is the most physically accurate, but more complex and often specific to one housing.
+\end{enumerate}
+The methods tested in this project are described in \autoref{sec:ch4.compensationstage} and compared in \autoref{ch:experiment}.
+
 %---------------------------------------------------------------------
 A central camera has a single optical center that every incoming ray passes through.
 Most models are central camera models.
 
-%---------------------------------------------------------------------
-\subsection{Non-central camera models}
-\label{subsec:ch3.noncentral_camera_models}
-%---------------------------------------------------------------------
 Non-central camera models do not have a single optical center.
 (Something about back-projection, maybe mention later).
 \cite{sturmCameraModelsFundamental2011} breaks the non-central cameras into
@@ -38,6 +316,30 @@ Non-central camera models do not have a single optical center.
 	\item \textbf{X-slit cameras}: axial cameras with two lines every ray crosses.
 \end{itemize}
 Important for underwater why...?
+
+
+\subsection{Compensation strategies}
+
+
+\subsection{Attenuation and scattering}
+
+
+
+
+
+
+
+
+
+
+
+
+
+% ====
+%========================
+ OLD CONTENT:
+%---------------------------------------------------------------------
+
 
 %---------------------------------------------------------------------
 \subsection{Model parameters: global, local and discrete}
@@ -49,6 +351,37 @@ Global models (e.g.\ Pinhole) have parameters for the whole image, local separat
 for different section of the image. Discrete models have their projection function sampled at
 different points, e.g.\ one per pixel. For discrete models, interpolation needed for back-projecting
 to non-sampled image points, essentially making them local models.
+
+
+%=========================================================
+% TODO: ADD CMOS REFERENCE
+Modern digital use a sensor matrix to capture incoming light, captured with photosensitive. Modern cameras mostly use complementary metal-oxide semiconductor technology (CMOS) . Each phototransistor makes up a single pixel sensor,
+ with sensor matrices being NcolxNrows arrays of phototransistors \cite{klette2014concise}. This section explains the theory behind
+ how a camera projects the 3D world scene onto a 2D plane, camera-specific (intrinsic and extrinsic) parameters affecting this projection, the effects
+ of the underwater environment on camera theory and the calibration and compensation used to correct for them.
+
+
+
+ At its core, we need to get transfrom pixel data and measurements into metric values. This transformation is largely system dependent and calibration is required to compensate. A set of intrinsic parameters are needed to be determined \citet{semeniutaAnalysisCameraCalibration2016}:
+
+\begin{table}[H]
+    \centering
+    \caption[Intrinsic camera parameters.]{\textbf{Intrinsic camera parameters.} The parameters that map metric scene coordinates onto pixel coordinates, together with the measurement that recovers each one.}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3cm}>{\raggedright\arraybackslash}m{1.8cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Parameter} & \textbf{Symbol} & \textbf{Description} & \textbf{Method of determination} \\
+    \midrule[1pt]
+    Pixel size & $s_x$, $s_y$ & Physical width and height of a sensor element, setting the scale between millimetres and pixels. & Sensor datasheet, or absorbed into the focal lengths $f_x$, $f_y$ expressed in pixels. \\
+    Centre of projection & $c_x$, $c_y$ & Pixel coordinate at which the optical axis pierces the image plane. & Estimated with the remaining intrinsics from multiple views of a planar target. \\
+    Principal length & $f$ & Distance from the centre of projection to the image plane in the pinhole model. & Estimated from the homographies induced by a target of known geometry. \\
+    Skew & $\gamma$ & Departure of the sensor axes from orthogonality; negligible for modern digital sensors. & Estimated during calibration, or fixed at zero. \\
+    Distortion characteristics & $k_1 \dots k_n$, $p_1$, $p_2$ & Radial and tangential departures of the lens from the pinhole model. & Non-linear refinement of the reprojection error over the calibration image set. \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch2.intrinsics}
+\end{table}
+ \citet{semeniutaAnalysisCameraCalibration2016}:
+
 
 %---------------------------------------------------------------------
 \subsection{Forward vs back-projection}
@@ -70,14 +403,20 @@ The notation used in this report will follow the following notation:
 	\item[$\rayvec{l}$] Ray written as a single $6 \times n$ vector computed from $\rayvec{i}$ and $\rayvec{f}$.
 \end{description}
 
+%---------------------------------------------------------------------
 \subsection{Radial distortion}
 \label{subsec:ch3.radial_distortion}
+%---------------------------------------------------------------------
 
+%---------------------------------------------------------------------
 \subsection{Extrinsic parameters}
 \label{subsec:ch3.extrinsic_parameters}
+%---------------------------------------------------------------------
 
+%---------------------------------------------------------------------
 \subsection{Intrinsic parameters}
 \label{subsec:ch3.intrinsic_parameters}
+%---------------------------------------------------------------------
 
 % Reinhard Klette
 Intrinsic (camera specific) and extrinsic parameters are required.
@@ -85,154 +424,6 @@ Intrinsic: (effective) focal length, dimensions of the sensor matrix, sensor cel
 Extrinsic: applied affine transforms for identifying poses (location and direction) of cameras in a world coordinate system.
 
 Each new placement in the 3D scene defines a different world coordinate system.
-
-
-%---------------------------------------------------------------------
-\subsection{Pinhole model and coordinate projection}
-\label{subsec:ch3.pinhole}
-% TODO ADD IMAGE
-% TODO 23 Sep
-%---------------------------------------------------------------------
-Before working with images, it is important to understand the basic working of cameras by looking at a simple camera model. 
-Each point on a 3D image emits light in multiple directions. For a sensor receiving this light, each point on the sensor receives light from every point of the object, resulting in a blur 
-across the sensor. This can be fixed with a barrier and a tiny hole (aperture). The barrier means that from each 3D point, only one or a small number of rays get through the aperture to the
-film. Each point's rays therefore only land on a single sensor point, allowing for a clear image and a mapping from the 3D object to the 2D sensor. 
-This is known as the pinhole camera model \citep{hataCS231ACourseNotes}.
-\autoref{fig:ch3.pinhole_model} below shows a basic version of this pinhole model showing the flipped image on the sensor.
-
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_model2.png}
-	\caption[Placeholder Example]{\textbf{Pinhole Model.} Incoming rays with aperture and barrier.}
-	\label{fig:ch3.pinhole_model}
-\end{figure}
-\
-
-
-
-[INSERT 2D Diagram of the setup]
-Suppose P is a point in the 3D world visible to the camera, Po = (x, y, z). Its projection onto the 2D image plane is:
-P′ = (x′, y′). To understand how the 3D world maps into the image, we need the relationship between P and P'.
-
-
-This can be done using similar triangles. Triangle P',C' ,and O is similar to triangle P,O and the point (0,0,z) on the optical axis.
-Similar triangles have equal ratios between corresponding sides, meaning:
-
-% EXPLAIN RO AND RI meaning in this context
-% Attempt 2: https://www.youtube.com/watch?v=_EhY31MSbNM
-\begin{align*}
-    \bm{r}_0 &= (x_0, y_0, z_0) \\
-    \bm{r}_i &= (x_i, y_i, z_i)
-\end{align*}
-
-
-Using similar triangles, we get:
-
-\begin{equation}
-\frac{\vec{r}_{0}}{f} = \frac{\vec{r}_{i}}{z_0} 
-\end{equation}
-
-broken down into its components we get:
-
-\[
-\frac{x_i}{f} = \frac{x_o}{z_o}, \qquad \frac{y_i}{f} = \frac{y_o}{z_o}
-\]
-
-These are the equations of perspective projection. 
-
-
-This shows that a 3D image's coordinates are its x and y coordinates scaled by f/z. This is however with the assumption
-that all rays pass through a singular point. In reality, the aperture needs to be sufficiently large to allow for a brighter image.
-This brings about blur due to X?. Modern cameras use lenses to fix this. A lens gathers a group of rays from a 3D point and bends it so
-that all the rays hit the sensor at a singular point. This works for a set distance, further or closer the incoming rays form a 
-small disc instead of a point, causing blur. This is known as being 'in focus' or 'out of focus'.
-
-\begin{figure}[htbp]
-	\centering
-	\includegraphics[width=0.8\textwidth]{figs/Ch3/pinhole_lens.png}
-	\caption[short caption]{\textbf{Lead-in.} Description.}
-	\label{fig:ch3.pinhole_lens}
-\end{figure}
-
-focus point
-
-Camera lenses also focus
-
-
-===============ROUND 2 USING ZHANGS NOTATION ===============================
-\subsection{Pinhole camera model and coordinate projection}
-\label{subsec:ch3.pinhole_camera_model}
-This section uses theory from standford notres, Textbook and zhangs calibration to explain. Zhangs notation use used.
-
-Before working with images, it is important to understand how a camera forms an image. This is done using a simple camera model, called the pinhole camera.
-Every point on a 3D object reflect or emits light in multiple directions. For an open sensor infront of the object, each point on the sensor receives light 
-from every point of the object, resulting in a uniform blur across the image(REF FIG 1A)
- This can be fixed by placing a barrier with a tiny hole, \textit{aperture} between the object and the sensor. From each 3D point, only one or a small number 
- of rays pass through the aperture and reach the sensor. Each point's rays therefore only land on a single sensor point, creating a one-to-one mapping from the 
- 3D object to the 2D sensor. The rays cross at the rays cross at the aperture, resulting in an upside down image (REF FIG 1B).
- This is known as the pinhole camera model \citep{hataCS231ACourseNotes}.
-
-
-
- (INSERT ORIGINAL PHOTO OF PENGUIN DIAGRAM, ONE WITH NO BARRIER AND ONE WITH). ADAPTED FROM STANFORD COURSE NOTES
-
- %---------------------------------------------
-\subsubsection{Projecting a 3D point to a 2D image plane}
-The standard terminology for a pinhole camera model used in this report is as follows:
-\begin{itemize}
-	\item \textbf{Camera center} $O$: the pinhole, the single point through which all rays pass.
-    \item \textbf{Focal length}, $f$: distance from $O$ to the image plane. % Check difference with effective and actual
-    \item \textbf{Optical axis}: 
-    \item \textbf{Virtual Principal point}: 
-    \item \textbf{Principal point}: 
-	\item \textbf{Object plane}, $\Pi$: The plane containing the object
-    \item \textbf{Image plane}, $\Pi'$: the sensor, on which the image is inverted.
-    \item \textbf{Virtual image plane}, $\Pi'_v$: imaginary plane placed at a distance $f$ \textit{in front} of $O$, between the pinhole and object. 
-		The image formed on this plane is identical to the real sensor iamge, except not inverted. 
-    \item \textbf{Camera Coordinate system $(i,j,k)$:} a $3D$ coordinate frame with its origin at $O$. The $k$ axis is perpendicular to the image plane, 
-	pointing along the viewing direction. Coordinates within this frame have are written (Xc, Yc, Zc).
-\end{itemize}
-
-% MAYBE COMMENT ON 2D AND 3D PROJECTION AND BACKPROJECTION
-
-Figure X expressed a $2D$ cross section alogng the X plane showing incoming rays.
-Suppose $M_c = [X_c, Y_c, Z_c]^T$ is a object point in the 3D world expressed in the camera coordinate frame. This point's projection onto the 2D virtual
-in the image plane is $\textbf{m'}=[x',y']^T$. To understand this mapping between the 3D world and the sensor image, we need to define the relationship between
- $\textbf{M}_c$ and $m'$.
-
- To determine this relationship, we can use the properties of similar triangles. 
-\autoref{fig:ch3.pinhole_detailed} shows the two similar triangles. The smaller  triangle is formed by the camera centre $O$, 
-the point $(0, 0, f)$ where the  optical axis meets the virtual image plane, and the projected point $\mathbf{m}'$. 
-The larger triangle is formed by $O$, the point $(0, 0, Z_c)$ on the optical axis, and the 3D point $\mathbf{M}_c$. These triangles are both right angled
-triangles with a common angle, making them similar. Similar triangles have equal ratios between corresponding sides meaning
-
-\begin{equation}
-	\frac{x'}{f} = \frac{X_c}{Z_c}, \qquad \frac{y'}{f} = \frac{Y_c}{Z_c}
-	\qquad\Longrightarrow\qquad
-	x' = f\,\frac{X_c}{Z_c}, \qquad y' = f\,\frac{Y_c}{Z_c}.
-	\label{eq:ch3.persp}
-\end{equation}
-
-\begin{figure}[H]
-	\centering
-	\includegraphics[width=1\textwidth]{figs/Ch3/pinhole_detailed2.png}
-	\caption[Placeholder Example]{\textbf{Similar triangles in the pinhole model.} Description.}
-	\label{fig:ch3.pinhole_detailed}
-\end{figure}
-
-These make the equations of \textit{perspective projection} \citep{hataCS231ACourseNotes}. They show how the $2D$ image coordinates of a 3D point can be
-defined by its $X_c$ and $Y_c$ coordinates scald by $\frac{f}{Z_c}$. This has two direct consequneces:
-\begin{itemize}
-	\item The further away an object is (increased $Z_c$), the smaller it appears in the image as $x'$ and $y'$ shrink towards the center of the image
-	\item Depth is lost when the image is formed. The projection takes $(X_c,Y_c,Z_c)$ and outputs $(x'.y')$. The pixel only tells you the ray the point lands on,
-	 not where on the ray. TO do this you ned two cameras (see section X, maybe take this into stereo camera justification section).
-\end{itemize}
-
-These equations can be simplified setting $f=1$ to produce the \textit{normalised image coordinates}:
-\begin{equation}
-	x = \frac{X_c}{Z_c}, \qquad y = \frac{Y_c}{Z_c}
-	\label{eq:ch3.normcoord}
-\end{equation}
 
 
  % \subsubsection % CLAUDE: commented out -- no title given, which broke the build. Add your title in {} and uncomment.
@@ -252,8 +443,10 @@ bends straight lines in the image, producin radial distortion. (REF HERE SOMEWHE
 
 
 
+%---------------------------------------------------------------------
 \subsection{The Camera Matrix}
 \label{subsec:ch3.camera_matrix}
+%---------------------------------------------------------------------
 \autoref{eq:ch3.persp} provides the points on the camera's sensor in millimeters measured from the principal point. An image however uses pixels to define positions.
 To join the two, we need additional paramters which compined with the position and orientation of the camera in the world provide us 
 the \textit{camera matrix} \cite{szeliskiComputerVisionAlgorithmsa}. 
@@ -262,7 +455,8 @@ the \textit{camera matrix} \cite{szeliskiComputerVisionAlgorithmsa}.
 
 %---------------------------------------------------------------------
 \subsection{Intrinsic parameters}
-\label{subsec:ch3.intrinsics}
+\label{old.subsec:ch3.intrinsics}
+%---------------------------------------------------------------------
 % TODO 23 Sep
 There are three differences between the image plane and the digital image captured by the sensor:
 \begin{enumerate}
@@ -282,14 +476,15 @@ There are three differences between the image plane and the digital image captur
 
 %---------------------------------------------------------------------
 \subsection{Extrinsic parameters}
-\label{subsec:ch3.extrinsics}
+\label{old.subsec:ch3.extrinsics}
+%---------------------------------------------------------------------
 % TODO 23 Sep
 %---------------------------------------------------------------------
 % Rotation and translation of each camera in the world frame
 
 %------------------------------------------IMG---------------------------
 \subsection{Lens distortion}
-\label{subsec:ch3.distortion}
+\label{old.subsec:ch3.distortion}
 %---------------------------------------------------------------------
 \textbf{Lens Distortion:} the 3D-2D image point mapping combines a perspective projection (deviating from the pinhole camera) caused by radial distortion.
 Gives (simplified) two equations to explain.
@@ -516,6 +711,7 @@ Tags are detected with OpenCV's \texttt{ArucoDetector} using the AprilTag 36h11 
 %---------------------------------------------------------------------
 \subsection{OpenCV Calibration and Reprojection error}
 \label{subsec:ch3.reprojectionerror}
+%---------------------------------------------------------------------
 % "OpenCV's cv::calibrateCamera() returns the RMS of all lengths"
 % https://calib.io/blogs/knowledge-base/understanding-reprojection-errors
 
