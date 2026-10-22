@@ -1,8 +1,7 @@
 """Cropped examples of how underwater images differ from in-air ones, beyond magnification.
 
-Matched pairs (angle C1, right camera) at the same MEASURED distance: the distance labels of the two
-setups have a 10 cm offset (air label L sits where water label L+10 does), so pairs are chosen by the
-board distance solved from each image (see the 8 Oct distance check). Each crop covers the same block of
+Matched pairs (angle C1, right camera) at the same MEASURED distance, the board distance solved from each
+image (see the 8 Oct distance check). Since Water C1 was relabelled on 12 Oct, equal labels are matched pairs. Each crop covers the same block of
 board tags in both media, placed with the board pose (solvePnP on the saved detections, the run's own
 calibration), and both are shown at the same size so the magnification is taken out.
 
@@ -12,8 +11,8 @@ and board.
 Use (from the project root, after run_study.py; reproduce.py channels runs it):
     src/venv/bin/python src/experiments/channels/plot_air_water_crops.py
 Poses come from the study's gray runs. Writes <out_dir>/air_vs_water_crops/: one PNG per crop, fig_air_vs_water_crops.{pdf,png} and
-fig_single_tag_close_far.{pdf,png} (one tag and its border per matched image, real pixels; only Air and
-Water are labelled on it, the rest of its description is printed for the caption).
+fig_single_tag_close_far.{pdf,png} (one tag and its border per matched image, real pixels; Air left, Water
+right, nothing labelled on it: its description is printed for the caption).
 """
 import argparse
 import json
@@ -100,8 +99,6 @@ def single_tag_figure(study, out):
             s = CROP_HEIGHT / img.shape[0]
             ax = axes[row, col]
             ax.imshow(cv2.cvtColor(cv2.resize(img, None, fx=s, fy=s, interpolation=cv2.INTER_NEAREST), cv2.COLOR_BGR2RGB))
-            if row == 0:
-                ax.set_title(medium, loc="left", fontsize=10)
             caption.append(f"{medium}, {label} ({name}): board {dist:.1f} cm, crop {img.shape[1]} x {img.shape[0]} px "
                            f"in the original")
             ax.axis("off")

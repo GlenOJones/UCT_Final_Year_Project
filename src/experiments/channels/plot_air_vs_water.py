@@ -1,7 +1,7 @@
 """One air frame beside one water frame, with the tags the study's detector found outlined.
 
-The figure shows only the frames, labelled Air and Water; the description is printed for the report's
-caption: the board's distance from the camera (solvePnP on the saved detections, with that medium's own
+The figure shows only the frames, unlabelled, in the order the config lists them (Air left, Water right);
+the description is printed for the report's caption: the board's distance from the camera (solvePnP on the saved detections, with that medium's own
 calibration), the camera's horizontal field of view from the same calibration, how many board tags were
 found and their mean side in pixels. Nothing is detected here: the tags are the ones the study's run saved
 in its corners file.
@@ -53,7 +53,6 @@ def panel(ax, study, medium, image, camera, channel):
     sides = [np.mean(np.linalg.norm(c - np.roll(c, 1, axis=0), axis=1)) for _, c in tags]
     for _, c in tags:
         ax.add_patch(Polygon(c, closed=True, fill=False, edgecolor=FOUND_COLOUR, linewidth=1.0))
-    ax.set_title(medium, loc="left", fontsize=10)
     ax.axis("off")
     return {"distance_cm": float(distance_cm), "hfov_deg": hfov, "tags": len(tags), "mean_side_px": float(np.mean(sides))}
 
