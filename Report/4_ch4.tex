@@ -1,96 +1,402 @@
 %*********************************************************************
-%	CHAPTER 4 - PIPELINE DESIGN
+%	CHAPTER 4 - SYSTEM DESIGN AND IMPLEMENTATION
 %*********************************************************************
-\chapter{Pipeline design}
+% PURPOSE OF THIS CHAPTER
+%   Everything that was BUILT and then held FIXED across the experiments:
+%   hardware, test environment, software, what each pipeline stage does,
+%   and how accuracy is measured.
+%
+% WHERE THINGS GO (rule of thumb)
+%   - Choice justified by a datasheet or a calculation (e.g. tag size from
+%     the pinhole model)  -> explain it HERE.
+%   - Choice made by running a test (filter sweep, detector tuning,
+%     compensation method, depth matcher, pose method, fusion method)
+%     -> only LIST the candidates here and point forward with
+%        "selected in Section~\ref{...}". The test itself lives in Ch5 / 5b.
+%
+% CROSS-REFERENCES
+%   Ch3 = theory (why it works). Ch4 = implementation (how it was done here).
+%   Avoid re-deriving equations from Ch3; cite the Ch3 section instead.
+%*********************************************************************
+\chapter{System design and implementation}
 \label{ch:design}
 %---------------------------------------------------------------------
+% Chapter intro (2-4 sentences): what this chapter covers and that
+% Chapters 5 and 5b refer back to it for setup and metrics.
+
 
 %=====================================================================
-\section{Pipeline overview}
+\section{Overview and design requirements}
 \label{sec:ch4.overview}
 %=====================================================================
-% Video -> extract frames -> Channel comparison -> Filtering (for detection) -> detection (and tuning) ->
-%                        |-> Filtering (for 3D recon) -> Compensation -> 3D reconstruction
+% 1) DESIGN REQUIREMENTS
+%    Turn the project objectives (Ch1, sec "Project objectives") into
+%    numbers that later sections design against. A small table works well:
+%      Requirement            | Value               | Source / reason
+%      Working range          | 0.3 - 2.0 m         | min focus 25 cm; scan distance under ice
+%      Worst-case turbidity   | ~3 NTU              | bloom turbidity spikes (Garcia 2020, Schallenberg 2019)
+%      Min tag size in image  | >= 40 px            | underwater detection margin (see boardsizing)
+%      Image resolution       | 1600 x 1200         | sensor max
+%      Accuracy target        | ?? mm               | TODO: decide - what accuracy is "useful" for ice draft?
+%    Each later design choice should point back to one of these rows.
+
+% 2) PIPELINE BLOCK DIAGRAM
+%    Implementation version of fig:ch3.pipeline - do NOT redraw the theory
+%    figure. Each block gets the script/module that does it:
+%
+%      Video (.mp4, L+R)
+%        -> Frame extraction ............. preproccessing/extract_stereo_frames.py,
+%                                          blur_check.py, select_scan_frames.py
+%        -> Channel selection + filtering  experiments/channels/
+%        -> Tag detection + calibration .. 01_Calibration/Calibration.py,
+%                                          detector_presets.json
+%        -> Refraction compensation ...... experiments/compensation/
+%        -> Rectify + depth per frame .... 03_Reconstruction/depth_frames.py,
+%                                          dense_stereo.py (SGBM / FoundationStereo / AquaStereo)
+%        -> Pose per frame ............... tag_poses.py / icp_poses.py / colmap_poses.py
+%        -> Fusion ....................... tsdf_fuse.py / median_fuse.py / colmap_mvs.py
+%        -> Evaluation ................... 04_Comparison/compare_to_cad.py, score_objects.py
+%
+%    Note the split after frame extraction: filtering for DETECTION is not
+%    the same as filtering for 3D RECONSTRUCTION (old note:
+%    "Filtering (for detection) -> detection" vs "Filtering (for 3D recon)
+%    -> Compensation -> 3D reconstruction"). Show this as two branches.
+%    TODO: draw in draw.io (diagram style rules), export PDF to fi tgs/Ch4/.
+%
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=\textwidth]{figs/Ch4/pipeline_impl.pdf}
+%     \caption[Implemented pipeline]{\textbf{Implemented pipeline.} Each block
+%     is labelled with the script that performs it. Stages with several
+%     candidate methods are compared in Chapters~\ref{ch:experiments} and 5b.}
+%     \label{fig:ch4.pipeline}
+% \end{figure}
 
 
 %=====================================================================
 \section{Hardware}
 \label{sec:ch4.hardware}
 %=====================================================================
+% Order: cameras -> how they are mounted -> lighting -> calibration target.
+ 
+This project uses an existing BlueROV2 Heavy, owned by UCT.
+The system is designed by Blue Robotics markets as
+a low-cost, high-performance platform for research and inspection
+\cite{TODO-bluerobotics-bluerov2}. The Heavy configuration adds two vertical
+thrusters to the standard six, giving full six-degree-of-freedom control
+ \cite{TODO-bluerobotics-bluerov2}.
+ 
+In addition to the vehicle's standard forward monocular camera
+% TODO: name the stock camera model on UCT's unit (check the vehicle).
+two Deepwater Exploration (DWE) stellarHD cameras are fitted in a stereo camera configuration, 
+with a 150mm base line. Both have Aquagon lenses and are mounted to the lower front of the frame.
+Four Lumen subsea lights at the front of the ROV provide controlalble lights
+ \cite{TODO-bluerobotics-lumen}.
+
+ \begin{figure}[H]
+    \centering
+    % TODO: replace placeholder with a photo of the stereo cameras on the ROV (e.g. figs/Ch4/rig.jpg)
+    \includegraphics[width=0.8\textwidth]{example-image}
+    \caption[Stereo camera rig]{\textbf{Stereo camera rig.} The two StellarHD
+    cameras mounted on the BlueROV2, with the baseline marked.}
+    \label{fig:ch4.rig}
+\end{figure}
+ 
+The vehicle is controlled by a Raspberry Pi with a
+Blue Robotics Navigator flight controller. The Navigator is a Pi
+expansion board  that provides the IMU, compass,
+barometer, ADC and PWM outputs for the thrusters and lights
+\cite{TODO-bluerobotics-navigator}. A Doppler velocity
+log (DVL), a scanning sonar, and the three cameras are connected over USB and ethernet ports.
+% TODO: confirm models (e.g. Ping360 is a *mechanical scanning* sonar, not side-scan).
+connect to the Pi over its USB and Ethernet ports.
+ 
+The ROV was already assembled and configured when this research began, but
+the stereo camera feeds were dropping out. The cause was traced to USB
+bandwidth. All three cameras shared a single USB bus, which was being throttled. The
+original Raspberry Pi~4 was replaced with a Raspberry Pi~5. The new Pi~5's
+two independent USB controllers allowed the cameras to be split across
+separate controllers, eliminating the dropouts. 
+%---------------------------------------------------------------------
+\subsection{Cameras and lenses}
+\label{subsec:ch4.cameras}
+%---------------------------------------------------------------------
+% Sources:
 % https://storage.googleapis.com/docs-product-files/stellarHD-series/stellarHD/datasheets/stellarHD-datasheet.pdf
 % One of these; https://www.ovt.com/products/#image-sensor?is_technology=omnipixel3-gs
-% What lenses we have + stats
-% How they are optically calibrated, resulting in different FOV in air and in water
+% TODO: cite the datasheets in the caption / text (add to Zotero, not the .bib).
+% TODO: explain how the lenses are optically corrected, giving a different
+%       FOV in air and in water (links to Ch3 "Calibrating underwater").
+The StellarHD cameras are specifically designed to compensate for the underwater environment.
+ Add some details and reference their website on how they do this.
 
+REsearch how corrective optics work and add a one sentence with reference
+The key camera specs are listed below ( GO dounle check these...)
 The StellarHD cameras are paired with Aquagon lenses. These lenses compensate for ... using 7 lens elements (2 aspherical and 2 extra-low dispersion).
+% Bullet lists from the old draft merged into one table.
+\begin{table}[H]
+    \centering
+    \caption[Camera and lens specifications.]{\textbf{Camera and lens specifications} \citep{dweStellarHDDatasheet}. Field of view is quoted in water.}
+    \label{table:ch4.cameraspecs}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabularx}{\textwidth}{@{} l X @{\hspace{1.5em}} l X @{}}
+    \toprule[2.25pt]
+    \multicolumn{2}{@{}l}{\textbf{StellarHD sensor}} & \multicolumn{2}{l@{}}{\textbf{Aquagon lens}} \\
+    \midrule[1pt]
+    Sensor        & 1/2.9-inch OmniPixel3-GS CMOS & Focus          & Fixed \\
+    Pixel size    & 3 $\times$ 3\,\textmu m        & Focal length   & 3.0\,mm \\
+    Shutter       & Global                         & Aperture       & f/1.6 \\
+    Resolution    & 1600 $\times$ 1200             & Min.\ focus    & 25\,cm \\
+    Frame rate    & Up to 60\,fps (MJPEG)          & Distortion     & $< -1.5$\,\% \\ % TODO: measured how?
+                  &                                & FOV (H/V/D)    & 78\textdegree{}/67\textdegree{}/93\textdegree{} \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+\end{table}
 
-\textbf{Aquagon Lens details:}
- \begin{itemize}
- 	\item Fixed Focus
- 	\item 3.0mm Focal Length
- 	\item f/1.6 Aperture
- 	\item 25cm Minimum Focus distance
- 	\item Distortion <-1.5\% (Measured how?)
- 	\item Back Focal Length 2.05mm
- 	\item IR Filter 650nm
- 	\item Horizontal FOV 78 degrees
- 	\item Vertical FOV 67 degrees
- 	\item Diagonal FOV 93 degrees
- \end{itemize}
+The StellarHD cameras support leader--follower frame synchronisation, 
+but the current setup lacks the shared cable wire it requires.
+In the current configuration, the two cameras can start with a time offset
+or drift. This synchronisation only 
+supported at 60\,fps thus limiting it to MJPEG.
 
- \textbf{Sensor Specifications}
- \begin{itemize}
- 	\item 1/2.9" Omnivision OmniPixel 3-GS\texttrademark{} CMOS Sensor
- 	\item Pixel Size 3 \textmu m (H) $\times$ 3 \textmu m (V)
- 	\item Global Shutter
- 	\item Max Resolution 1600x1200
- 	\item YUY2, MJPEG Compression formats
- \end{itemize}
 
- HYPERFOCUS for fixed focus lens, fixed from then onwards.
+\section{Supporting Laptop}
+The BlueROV connects to a laptop via a tether and adapter. This laptop is
+used to contorl the ROV via Cockpit software and an Xbox controller. 
 
-The Aquagon quotes its FOV values as in-water readings. While these FOV values are extracted during camera calibration, the choice of calibration method is somewhat dependent on the camera setup (i.e. is it wide-angle).
+This laptop is a X laptop, and 
+is where all the post processign for this project has been done.
+The laptop has a x GPU, what core and 32 GB of what type of RAM. 
+All compute completed within this project was completed using
+this compute hardware.
 
-Go down non-wide angle calibration mode.
 
-Compare different algorithms and which applications to use them in.
-% Comparison of software: https://www.mdpi.com/1424-8220/24/20/6595
+%==============
+\subsection{Calibration Board and test Rig Construction}
+
+
+% Calibration tests (in air vs underwater)
+As explained in \autoref{subsec:ch3.targets}, an AprilGrid can still be used for
+calibration when only some of its tags are detected. To get a target that is flat and
+waterproof, a custom AprilGrid was generated with Kalibr
+\citep{furgaleUnifiedTemporalSpatial2013, kalibrRepo} and printed on white aluminium
+Dibond by Orms Print Room \citep{ormsPrintRoom}. The board was planned at A1 with 50\,mm
+tags, to match standard Kalibr targets \citep{calibioKalibrTargets}. Because of a
+miscommunication, it was printed at A2 instead, which reduced the tag size to 36.65\,mm.
+
+A sliding rig was designed using 2020 aluminium extrusions and custom 3D-printed sliding mounts for the ROV. The rig allows
+one-degree-of-freedom sliding towards and away from a calibration board mounted at its end. The board is attatched with a variable angle
+mount, allowing it to be set at angles rangeing from horizontal to vertical in intervals of 10 degrees. The board's mount can be mounted
+to the center, right or left of the end of the end rail. This allows for repeatable position, distance and relative angle between the board and the cameras
+across different tests.
+
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.33\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
+        \caption{Description. Sliding image}
+        \label{fig:ch5.rail_in_air}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.66\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
+        \caption{Description. Showing set angles}
+        \label{fig:ch5.rig_in_water}
+    \end{subfigure}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.test_rig}
+\end{figure}
+
 
 
 %=====================================================================
-\section{Calibration target design}
-\label{sec:ch4.boarddesign}
+\section{Software environment}
+\label{sec:ch4.software}
 %=====================================================================
-I'll use tag36h11 because it is standard and what they used in the report comparison.
-We want to have a 30-50mm white border to avoid merging of the background into the tag borders.
+% Keep short: a table plus one paragraph on code layout and config.
+% Versions taken from src/requirements.txt and src/venv on 2026-10-22.
+% CHECK: Open3D is in requirements.txt but not installed in src/venv -
+%        confirm which environment the TSDF runs used.
+% CHECK: COLMAP version (4.3 mentioned in code comments) and the
+%        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
 
-Chose to go with AprilGrid.
+\begin{table}[H]
+    \centering
+    \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline, with versions.}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{2.4cm}>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
+    \midrule[1pt]
+    Python & 3.14 & All pipeline code \\
+    OpenCV (\texttt{opencv-python}) & 5.0.0 & Tag detection, calibration, rectification, SGBM \\
+    NumPy & 2.5.3 & Array maths \\
+    SciPy & 1.18.1 & Optimisation, rotations \\ % CHECK usage
+    Open3D & 0.20.0 & Point clouds, ICP, TSDF fusion \\
+    COLMAP & 4.3 & Pose estimation and multi-view stereo \\
+    FoundationStereo & TODO & Learnt stereo matching \\
+    AquaStereo & TODO & Underwater learnt stereo matching \\
+    Matplotlib & 3.11.1 & Figures \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch4.software}
+\end{table}
+
+% CODE LAYOUT - one paragraph, folder names in \texttt{}, link to Appendix A
+% (A_gitrepo.tex, label it if it has none yet):
+%   src/preproccessing/      frame extraction, blur check, frame selection
+%   src/01_Calibration/      detection + mono/stereo calibration
+%   src/03_Reconstruction/   depth, pose, fusion, cloud post-processing
+%   src/04_Comparison/       scoring clouds against CAD
+%   src/experiments/<name>/  one folder per Ch5/5b experiment, each with a
+%                            config.json; experiments/reproduce.py reruns them
+% Point: every experiment is driven by a JSON config so results can be
+% reproduced exactly - this is worth one sentence.
+
+
+%=====================================================================
+\section{Pipeline stages}
+\label{sec:ch4.stages}
+%=====================================================================
+% One subsection per block in fig:ch4.pipeline. Keep the SAME pattern in each:
+%   Input -> What the stage does (implementation, not theory) -> Output
+%   -> Options compared later ("see Section~\ref{...}").
+% Reconstruction split (moved from 5b sec:ch5.reconstruction_steps -
+% delete it there once happy with this version):
+The reconstruction part of the pipeline follows three core steps \cite{szeliskiComputerVisionAlgorithmsa}:
+\begin{enumerate}
+    \item \textbf{Depth per frame:} each rectified stereo pair is turned into a depth map.
+    \item \textbf{Pose per frame:} the position and orientation of the camera in a common world frame is found for each frame.
+    \item \textbf{Fusion:} the per-frame point clouds are combined into a single surface.
+\end{enumerate}
+% These come after frame extraction, calibration and compensation below.
 
 %---------------------------------------------------------------------
-\subsection{Sizing for turbidity and range}
-\label{subsec:ch4.boardsizing}
+\subsection{Frame extraction and image conditioning}
+\label{sec:ch4.preprocessing}
 %---------------------------------------------------------------------
-"Bio-optical sensors measuring light scattering and particulate backscatter record these temporary biological blooms as modest turbidity spikes in the range of ~1 to 3 NTU (Garcia et al., 2020; Schallenberg et al., 2019)"
+% Label kept as sec:ch4.preprocessing so existing refs still work.
+% Input:  left/right video. Output: synchronised 8-bit grayscale frame pairs.
+% Scripts: extract_stereo_frames.py, blur_check.py, select_scan_frames.py
+% TODO: describe frame rate / subsampling, blur rejection threshold,
+%       how L/R frames are paired.
+% Section in literature review reference
+All chosen filters take and return the 8-bit grayscale image. A parameter sweep was done on all the different filtering options, using the metric of number of detected corners. (What is the concern regarding affecting corner values?)
+% ^ The SWEEP itself is an experiment -> move the results to Ch5 Exp 1;
+%   here just list the filter options and that they share one interface.
+
+% Channel selection: which makes sense to choose (reference lit review),
+% analytical comparison (what metric? tags? corners?)
+% -> channel comparison is TESTED (experiments/channels) -> Ch5.
+% ======================================
+
+
+%=====================================================================
+\section{Software environment}
+\label{sec:ch4.software}
+%=====================================================================
+% Keep short: a table plus one paragraph on code layout and config.
+% Versions taken from src/requirements.txt and src/venv on 2026-10-22.
+% CHECK: Open3D is in requirements.txt but not installed in src/venv -
+%        confirm which environment the TSDF runs used.
+% CHECK: COLMAP version (4.3 mentioned in code comments) and the
+%        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
+
+\begin{table}[H]
+    \centering
+    \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline, with versions.}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{2.4cm}>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
+    \midrule[1pt]
+    Python & 3.14 & All pipeline code \\
+    OpenCV (\texttt{opencv-python}) & 5.0.0 & Tag detection, calibration, rectification, SGBM \\
+    NumPy & 2.5.3 & Array maths \\
+    SciPy & 1.18.1 & Optimisation, rotations \\ % CHECK usage
+    Open3D & 0.20.0 & Point clouds, ICP, TSDF fusion \\
+    COLMAP & 4.3 & Pose estimation and multi-view stereo \\
+    FoundationStereo & TODO & Learnt stereo matching \\
+    AquaStereo & TODO & Underwater learnt stereo matching \\
+    Matplotlib & 3.11.1 & Figures \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch4.software}
+\end{table}
+
+% CODE LAYOUT - one paragraph, folder names in \texttt{}, link to Appendix A
+% (A_gitrepo.tex, label it if it has none yet):
+%   src/preproccessing/      frame extraction, blur check, frame selection
+%   src/01_Calibration/      detection + mono/stereo calibration
+%   src/03_Reconstruction/   depth, pose, fusion, cloud post-processing
+%   src/04_Comparison/       scoring clouds against CAD
+%   src/experiments/<name>/  one folder per Ch5/5b experiment, each with a
+%                            config.json; experiments/reproduce.py reruns them
+% Point: every experiment is driven by a JSON config so results can be
+% reproduced exactly - this is worth one sentence.
+
+
+%=====================================================================
+\section{Pipeline stages}
+\label{sec:ch4.stages}
+%=====================================================================
+% One subsection per block in fig:ch4.pipeline. Keep the SAME pattern in each:
+%   Input -> What the stage does (implementation, not theory) -> Output
+%   -> Options compared later ("see Section~\ref{...}").
+% Reconstruction split (moved from 5b sec:ch5.reconstruction_steps -
+% delete it there once happy with this version):
+The reconstruction part of the pipeline follows three core steps \cite{szeliskiComputerVisionAlgorithmsa}:
+\begin{enumerate}
+    \item \textbf{Depth per frame:} each rectified stereo pair is turned into a depth map.
+    \item \textbf{Pose per frame:} the position and orientation of the camera in a common world frame is found for each frame.
+    \item \textbf{Fusion:} the per-frame point clouds are combined into a single surface.
+\end{enumerate}
+% These come after frame extraction, calibration and compensation below.
+
+%---------------------------------------------------------------------
+\subsection{Frame extraction and image conditioning}
+\label{sec:ch4.preprocessing}
+%---------------------------------------------------------------------
+% Label kept as sec:ch4.preprocessing so existing refs still work.
+% Input:  left/right video. Output: synchronised 8-bit grayscale frame pairs.
+% Scripts: extract_stereo_frames.py, blur_check.py, select_scan_frames.py
+% TODO: describe frame rate / subsampling, blur rejection threshold,
+%       how L/R frames are paired.
+% Section in literature review reference
+All chosen filters take and return the 8-bit grayscale image. A parameter sweep was done on all the different filtering options, using the metric of number of detected corners. (What is the concern regarding affecting corner values?)
+% ^ The SWEEP itself is an experiment -> move the results to Ch5 Exp 1;
+%   here just list the filter options and that they share one interface.
+
+% Channel selection: which makes sense to choose (reference lit review),
+% analytical comparison (what metric? tags? corners?)
+% -> channel comparison is TESTED (experiments/channels) -> Ch5.se with \cite{} keys.
 
 Design around a turbidity of 3 NTU, choosing AprilTag for the worst case scenario.
 
 The paper expresses detected marker size in pixels. At an FTU of 3.6, the detected marker size is as low as 21 pixels. In order to evaluate the capability of the marker systems to detect small markers in turbid underwater environments, the camera is centred in front of the markers and then moved further away, increasing the distance between the camera and the markers and therefore decreasing the marker size in pixels.
+% TODO: "The paper" - which one? add \cite.
 
 Underwater, the required pixel count rises above the 25-pixel rule: the minimum pixel size required for reliable detection increases significantly. The 25-pixel rule used in air is an absolute lower bound; underwater, aim for 40 to 60+ pixels per tag to maintain sub-pixel corner accuracy. We are going with a minimum of 40 pixels for the maximum turbidity situation.
 
 We want to work with 1-2 metres calibrated, and the minimum focus distance is 25cm.
+% NOTE: requirements table says 0.3-2.0 m; keep these consistent.
 
 \textbf{Pin-hole model pixel calculation.} The pixel width $p$ of a tag in the image plane depends on the tag size $S$ (metres), distance $D$ (metres), and focal length $f_x$ (pixels):
 \begin{equation}
 p = \frac{S \cdot f_x}{D}.
 \end{equation}
+% Could reference the pinhole model in Ch3 (sec Image Formation) here.
 For a standard camera underwater (assuming a $60^\circ$ to $70^\circ$ horizontal field of view in water due to flat-port refraction), the focal length $f_x$ typically ranges between 1200 and 1400 pixels for a 1600-pixel wide sensor. Assuming an average focal length $f_x = 1300$ pixels:
 \begin{itemize}
 	\item Option A, $65\text{ mm}$ tag size ($S = 0.065\text{ m}$): at 1 m, $p \approx 84.5$ pixels (excellent detection); at 3 m, $p \approx 28.1$ pixels (slightly low for underwater contrast).
 	\item Option B, $85\text{ mm}$ tag size ($S = 0.085\text{ m}$): at 1 m, $p \approx 110.5$ pixels (excellent detection); at 3 m, $p \approx 36.8$ pixels (safe margin for underwater blur).
 \end{itemize}
+% TODO: once calibrated, swap the assumed f_x = 1300 for the measured value.
 
 The board finally used was chosen based on the commercially available option and the 50mm tag size indicated by the underwater testing:
+% CHECK: text says 50 mm but the spec below says 0.150 m tag size.
+% TODO: convert verbatim block to a small table for consistency.
 \begin{verbatim}
 family:       tag36h11
 tag size:     0.150 m   (black square, outer edge)
@@ -101,11 +407,13 @@ resolution:   1600x1200
 range:        0.3 - 2.0 m
 \end{verbatim}
 
-%---------------------------------------------------------------------
-\subsection{Board material and manufacture}
+%.....................................................................
+\subsubsection{Board material and manufacture}
 \label{subsec:ch4.boardmaterial}
-%---------------------------------------------------------------------
+%.....................................................................
 % DETERMINING BOARD SIZE AND MATERIAL
+% These read as notes to a supplier - rewrite as "the board was made from
+% ... because ...", past tense, once the final board is confirmed.
 Dibond - give reference for why, comment on shrinkage.
 Type of Dibond offered by Orms - give reference for which.
 Size - give reference for why.
@@ -119,85 +427,208 @@ A custom quote is needed to avoid the wood sub-frame, which will swell and delam
 Seal the cut edges. Dibond is two aluminium skins over a polyethylene core, and seawater might cause corrosion in the aluminium/PE crevice. A bead of epoxy will do the trick.
 
 Ask about the gloss levels of the UV inks. Tend towards semi-gloss, and matte if possible. Ask about printer accuracy.
+% TODO: add photo of the finished board.
+
+
+
+%---------------------------------------------------------------------
+\subsection{Test tank and rig}
+\label{subsec:ch4.tank}
+%---------------------------------------------------------------------
+% TODO: pool/tank (location, depth, water type), test rail, how the ROV was
+%       moved (rail vs swimmer-guided), lighting conditions, turbidity
+%       (measured? estimated?), and how ground truth was obtained.
+%       Also: calibration recordings (in air and underwater) - where/how.
+
 
 
 %=====================================================================
-\section{Frame extraction and image conditioning}
-\label{sec:ch4.preprocessing}
+\section{Test environment and datasets}
+\label{sec:ch4.testenv}
 %=====================================================================
-% Section in literature review reference
-All chosen filters take and return the 8-bit grayscale image. A parameter sweep was done on all the different filtering options, using the metric of number of detected corners. (What is the concern regarding affecting corner values?)
+% ONE description of the test setup, used by both Ch5 (calibration) and
+% 5b (reconstruction). Both chapters then just \ref this section.
+%
+% MOVE HERE (then delete from the original file to avoid duplicate labels):
+%   - 5_ch5.tex  sec:ch5.setup  "Experimental setup" (currently empty;
+%     planned: rig, tank, lighting, turbidity control, ground truth)
+%   - 5b_reconstruction.tex  sec:ch5.test_rig_dataset  "Test rig and Dataset"
+%     incl. subsections "3D printed shapes" and "Fake Sea ice" and their
+%     figures (fig:ch5.printed_shapes, fig:ch5.fake_sea_ice).
+%   When moving, either keep the ch5.* labels or rename to ch4.* and
+%   update every \ref / \autoref.
+%
+% Suggested subsections:
 
-% Channel selection: which makes sense to choose (reference lit review),
-% analytical comparison (what metric? tags? corners?)
+%---------------------------------------------------------------------
+\subsection{Datasets}
+\label{subsec:ch4.datasets}
+%---------------------------------------------------------------------
+% TODO: move "3D printed shapes" and "Fake Sea ice" here from 5b.
+%       Lead with WHY two datasets: prints = known CAD geometry -> accuracy;
+%       foam = ice-like texture/colour/upward view -> realism, no CAD.
+%       A summary table helps: recording name | target | air/water |
+%       frames | ground truth available? | used in which experiment.
+%       The held-out recording details in Appendix E (E_heldout.tex)
+%       can be referenced from here.
+
+% LEGACY (COMMENT OUT FROM HERE ONWARDS)
+
+% %---------------------------------------------------------------------
+% \subsection{Tag detection and calibration}
+% \label{sec:ch4.calibrationstage}
+% %---------------------------------------------------------------------
+% % Input:  conditioned frames + board model. Output: K, distortion, R, T
+% %         (stereo extrinsics), saved per recording.
+% % Theory is in Ch3 sec:ch3.calibration - don't repeat Zhang's method here.
+% \begin{enumerate}
+% 	\item \texttt{build\_board()} builds a model of the board as a list of 3D points, in mm, of the corners of every tag.
+% 	\item Detect the tags and refine the corners. For every image, the visible tags are detected and each tag corner is found to sub-pixel accuracy. This is the "observed" set.
+% 	% TODO: steps 3+: matchImagePoints -> calibrateCameraExtended (per camera)
+% 	%       -> stereoCalibrate -> save. The commented-out "legacy" part of
+% 	%       3_ch3.tex (OpenCV Calibration and Reprojection error) has the
+% 	%       inputs/outputs list - it fits here in short form.
+% \end{enumerate}
+% % NOTE: Ch3 "AprilTag detection stages" is commented out, so this ref is
+% % currently broken (??). Either bring those four stages back (here is a
+% % good place) or drop the reference.
+% The settings for the detector stages described in Section~\ref{subsec:ch3.detectionstages} are stored in \texttt{detector\_presets.json} to allow for quick changing and testing.
+% These configs are stored in a JSON for future use
+% \begin{table}[H]
+%     \centering
+%     \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
+%     \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+%     \toprule[2.25pt]
+%     \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
+%     \midrule[1pt]
+%     \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
+%     \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
+%     \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
+%     \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
+%     \midrule
+%     \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
+%     \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
+%     \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
+%     \bottomrule[2.25pt]
+%     \end{tabularx}
+%     \label{table:ch4.detectorparams}
+% \end{table}
+% % Options compared later: detector presets (experiments/detector_sweep)
+% % -> Ch5 "Optimising for Detection".
+
+% % ---- MOVE TO CH5 EXP 1 (these are test results, not design) ----
+% % ACCURACY CHECK:
+
+% % FOR THE ORIGINAL DEFAULT SETTINGS - GRAYSCALE, OPENCV DEFUALT AND THEN THIS CHANNEL MERGING, OPENCV OPTIMISED VERSION CALCULATE AND COMPARE:
+% % COMPARING RMS ERROR metrics (mean, max, median) provided by opencv calaibrataion function
+% % 		- HELPED IDENTIFY FRAMES THAT WERE MAKING IT WORSE - MISALIGNED CAUSED BY WHAT:
+% %															FALSE DETECTION -
+% % STANDARD DEVIATION IN CAMERA MATRIX VALUES provided by opencv calaibrataion function
+% % COMPARING MEASUREMENT ACCURACY TO THE WATERCOMPARISON ONE (DO CENTER OF FRAME, LEFT FRAME, RIGHT FRAME)
+% % polygonalApproxAccuracyRate = 0.08 resulted in improved detection but bad accuracy (how we know? what metric)
+% % ---- END MOVE ----
+
+% %---------------------------------------------------------------------
+% \subsection{Refraction compensation}
+% \label{sec:ch4.compensationstage}
+% %---------------------------------------------------------------------
+% % Input:  detected corners from underwater recordings.
+% % Output: a camera model that accounts for the housing/port refraction.
+% % TODO: one paragraph on how compensation slots into the pipeline
+% %       (absorbed into intrinsics/distortion vs explicit refractive model).
+% % Options compared later (experiments/compensation configs: full, axial,
+% % single-viewpoint, Kannala-Brandt close, Pinax sensitivity)
+% % -> Ch5 "Compensation techniques tested". Just list them here.
+
+% %---------------------------------------------------------------------
+% \subsection{Depth per frame}
+% \label{subsec:ch4.depth}
+% %---------------------------------------------------------------------
+% % Input:  stereo pair + calibration. Output: depth map / point cloud in the
+% %         left-camera frame.
+% % Scripts: 03_Reconstruction/depth_frames.py, dense_stereo.py, *_matcher.py
+% % Steps: undistort + rectify (Ch3 subsec:ch3.rectification) -> disparity
+% %        -> depth (Ch3 subsec:ch3.disparity) -> masking/filtering.
+% % Options compared later: SGBM, FoundationStereo, AquaStereo (RAFT?)
+% % -> 5b "Testing Depth Map Generation" (sec:ch5.depth_test).
+% %
+% % Old notes on ML stereo models - these are LIT REVIEW material (or future
+% % work in Ch8) unless they were actually run. AquaStereo IS tested in 5b,
+% % so its description belongs in the lit review / 5b, not here.
+% % AI:
+% % 2. Underwater-specific stereo models
+% % StereoAdapter-2
+% % Adapts the Depth Anything 3 model to underwater stereo using lightweight fine-tuning (LoRA).
+% % Trained on a new 80,000-pair synthetic underwater dataset with 20–50 cm camera baselines, and tested on a real BlueROV2.
+% % Code: https://github.com/AIGeeksGroup/StereoAdapter-2
+% % AquaStereo (ECCV 2026)
+% % Designed specifically for underwater colour loss, turbidity and low texture, which is exactly your problem.
+% % Code and pretrained weights (ViT-B and ViT-S) are on Hugging Face.
+% % UWStereo (dataset, not a model)
+% % 29,568 synthetic underwater stereo pairs with exact depth.
+% % Its authors found that current models still generalise poorly to new underwater scenes, which is a good reason to test several models on your target.
+
+% %---------------------------------------------------------------------
+% \subsection{Pose per frame}
+% \label{subsec:ch4.pose}
+% %---------------------------------------------------------------------
+% % Input:  frames (+ depth for ICP). Output: camera-to-world transform per
+% %         frame (pose_files.py format).
+% % Options compared later: AprilTag poses (tag_poses.py), ICP (icp_poses.py),
+% % COLMAP (colmap_poses.py) -> 5b "What the Pose".
+% % Mention: tag poses double as ground truth for the other methods.
+
+% %---------------------------------------------------------------------
+% \subsection{Fusion}
+% \label{subsec:ch4.fusion}
+% %---------------------------------------------------------------------
+% % Input:  per-frame clouds + poses. Output: one point cloud / mesh.
+% % Options compared later: TSDF (tsdf_fuse.py), median fusion
+% % (median_fuse.py), COLMAP MVS (colmap_mvs.py) -> 5b "Light the Fuse".
+% % Mention post-processing (postprocess_cloud.py) if applied to all methods.
 
 
-%=====================================================================
-\section{Calibration stage}
-\label{sec:ch4.calibrationstage}
-%=====================================================================
-\begin{enumerate}
-	\item \texttt{build\_board()} builds a model of the board as a list of 3D points, in mm, of the corners of every tag.
-	\item Detect the tags and refine the corners. For every image, the visible tags are detected and each tag corner is found to sub-pixel accuracy. This is the "observed" set.
-\end{enumerate}
-kg
-The settings for the detector stages described in Section~\ref{subsec:ch3.detectionstages} are stored in \texttt{detector\_presets.json} to allow for quick changing and testing.
-These configs are stored in a JSON for future use
-\begin{table}[H]
-    \centering
-    \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
-    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
-    \toprule[2.25pt]
-    \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
-    \midrule[1pt]
-    \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
-    \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
-    \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
-    \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
-    \midrule
-    \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
-    \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
-    \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
-    \bottomrule[2.25pt]
-    \end{tabularx}
-    \label{table:ch4.detectorparams}
-\end{table}
+% %=====================================================================
+% \section{Evaluation metrics}
+% \label{sec:ch4.metrics}
+% %=====================================================================
+% % Define every metric ONCE here; Ch5 and 5b only \ref these subsections.
+% % Ch3 keeps the theory; this section says how each number is computed in
+% % the code. Currently scattered across:
+% %   - 3_ch3.tex legacy (commented out): reprojection error, depth error,
+% %     cloud-to-mesh stubs
+% %   - 5b_reconstruction.tex sec:ch5.evaluation_metrics (coverage + RMS
+% %     stub) -> move here and delete there.
 
+% %---------------------------------------------------------------------
+% \subsection{Reprojection error}
+% \label{subsec:ch4.reprojection}
+% %---------------------------------------------------------------------
+% % TODO: per-view RMS and overall RMS (pooled over all corners, so frames
+% % with more tags weigh more). Equation with x_ij and \hat{x}_ij.
+% % Source: cv2.calibrateCameraExtended perViewErrors / retval.
+% % Also stDeviationIntrinsics as a stability measure.
+% % Held-out reprojection on unseen frames -> Appendix E (E_heldout.tex).
 
+% %---------------------------------------------------------------------
+% \subsection{Depth error}
+% \label{subsec:ch4.deptherror}
+% %---------------------------------------------------------------------
+% % TODO: depth from stereo vs ground truth from board/tag pose
+% % (experiments/depth_matchers/board_truth.py). State units (mm), and
+% % whether it is reported per distance band (Appendix E "Distance bands").
 
-% ACCURACY CHECK:
+% %---------------------------------------------------------------------
+% \subsection{Cloud-to-mesh error and coverage}
+% \label{subsec:ch4.cloud2mesh}
+% %---------------------------------------------------------------------
+% % TODO: from 04_Comparison/compare_to_cad.py + score_objects.py:
+% %   - alignment of cloud to CAD (which fit? ICP? "fit" column)
+% %   - signed / unsigned point-to-mesh distance -> mean, RMS (mm)
+% %   - coverage = % of CAD surface with a reconstructed point within ?? mm
+% %   - coverage threshold below which a fit is flagged unreliable
+% % Only the 3D prints have CAD, so the foam ice gets coverage/qualitative only.
 
-% FOR THE ORIGINAL DEFAULT SETTINGS - GRAYSCALE, OPENCV DEFUALT AND THEN THIS CHANNEL MERGING, OPENCV OPTIMISED VERSION CALCULATE AND COMPARE:
-% COMPARING RMS ERROR metrics (mean, max, median) provided by opencv calaibrataion function 
-% 		- HELPED IDENTIFY FRAMES THAT WERE MAKING IT WORSE - MISALIGNED CAUSED BY WHAT:
-%															FALSE DETECTION - 
-% STANDARD DEVIATION IN CAMERA MATRIX VALUES provided by opencv calaibrataion function
-% COMPARING MEASUREMENT ACCURACY TO THE WATERCOMPARISON ONE (DO CENTER OF FRAME, LEFT FRAME, RIGHT FRAME)
-polygonalApproxAccuracyRate = 0.08 resulted in improved detection but bad accuracy (how we know? what metric)
-%=====================================================================
-\section{Refraction compensation}
-\label{sec:ch4.compensationstage}
-%=====================================================================
-
-
-%=====================================================================
-\section{3D reconstruction stage}
-\label{sec:ch4.reconstructionstage}
-%=====================================================================
-
-AI:
-2. Underwater-specific stereo models
-StereoAdapter-2
-Adapts the Depth Anything 3 model to underwater stereo using lightweight fine-tuning (LoRA).
-Trained on a new 80,000-pair synthetic underwater dataset with 20–50 cm camera baselines, and tested on a real BlueROV2.
-Code: https://github.com/AIGeeksGroup/StereoAdapter-2
-AquaStereo (ECCV 2026)
-Designed specifically for underwater colour loss, turbidity and low texture, which is exactly your problem.
-Code and pretrained weights (ViT-B and ViT-S) are on Hugging Face.
-UWStereo (dataset, not a model)
-29,568 synthetic underwater stereo pairs with exact depth.
-Its authors found that current models still generalise poorly to new underwater scenes, which is a good reason to test several models on your target.
-
-%*********************************************************************
-% END
-%*********************************************************************
+% %*********************************************************************
+% % END
+% %*********************************************************************
