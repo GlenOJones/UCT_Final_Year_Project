@@ -1,0 +1,7 @@
+# envs/raft: RAFT-Stereo matcher (dense_stereo.py --matcher raft).
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.14.0+cu130
+numpy==2.5.3
+opencv-python==5.0.0.93
+scipy==1.18.1
+opt_einsum==3.4.0

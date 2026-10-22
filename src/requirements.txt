@@ -1,3 +1,5 @@
 numpy==2.5.3
 opencv-python==5.0.0.93
 open3d==0.20.0
+scipy==1.18.1
+matplotlib==3.11.2
