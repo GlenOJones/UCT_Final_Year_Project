@@ -35,7 +35,10 @@
 %---------------------------------------------------------------------
 % BASIC DOCUMENT CONFIGURATION
 %---------------------------------------------------------------------
-\usepackage[T1]{fontenc}              % Modern font encoding
+\usepackage{iftex}                    % \ifpdftex: engine tests used below
+\ifpdftex
+    \usepackage[T1]{fontenc}          % Modern font encoding (pdfLaTeX only; XeLaTeX uses fontspec's TU)
+\fi
 \usepackage[british]{babel}            % British English hyphenation and dates
 \usepackage{setspace}                 % Line spacing commands
 
@@ -78,13 +81,13 @@
 \usepackage{color}                   % Basic colour support
 \usepackage[dvipsnames,table,xcdraw]{xcolor} % Extended colours
 \usepackage{gensymb}                 % Generic symbols (e.g. °)
-% Times New Roman. pdfLaTeX: newtxtext (newtxmath is in MATHS below, as it
-% must load after amsmath). XeLaTeX/LuaLaTeX: fontspec.
-\usepackage{iftex}
+% Times New Roman. pdfLaTeX: newtxtext. XeLaTeX/LuaLaTeX: fontspec with the
+% real Times New Roman. [no-math] stops fontspec touching the maths fonts, so
+% newtxmath (in MATHS below, after amsmath) gives Times maths on both engines.
 \ifpdftex
     \usepackage{newtxtext}
 \else
-    \usepackage{fontspec}
+    \usepackage[no-math]{fontspec}
     \setmainfont{Times New Roman}
 \fi
 
@@ -126,6 +129,9 @@
 % REFERENCES, CITATIONS, AND LINKS
 %---------------------------------------------------------------------
 \usepackage{hyperref}                % Hyperlinks in PDF
+\usepackage{bookmark}                % PDF bookmarks without the fragile .out file (a stale or
+                                     % half-written .out from an aborted or other-engine build
+                                     % stopped every XeLaTeX run at \begin{document})
 %---------------------------------------------------------------------
 %   hidelinks removes the coloured boxes hyperref draws around every link,
 %   reference and URL. They are invisible on screen in some viewers and
@@ -185,8 +191,19 @@
 % MATHS
 %---------------------------------------------------------------------
 \usepackage{amsmath, amsthm, amssymb} % Core maths packages
-\ifpdftex
-    \usepackage{newtxmath}            % Times maths (pdfLaTeX); must follow amsmath
+% Times maths on both engines; must follow amsmath. Under XeLaTeX, newtxmath
+% copies \rmdefault (the fontspec Times New Roman family) for the operators,
+% \mathrm and \mathbf fonts, but asks for it in OT1, which an OpenType font
+% does not have, so digits, bold symbols, accents and \max fell back to
+% Computer Modern. Pointing \rmdefault at newtx's own Times (ntxtlf) while
+% newtxmath loads keeps every part of the maths in Times.
+\ifpdftex\else
+    \let\thesisrmdefault\rmdefault
+    \renewcommand{\rmdefault}{ntxtlf}
+\fi
+\usepackage{newtxmath}
+\ifpdftex\else
+    \let\rmdefault\thesisrmdefault
 \fi
 \usepackage{bm}                       % Bold maths symbols
 

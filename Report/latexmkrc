@@ -1,18 +1,27 @@
 # =====================================================================
 #   latexmk configuration
 # =====================================================================
-#   pdfLaTeX. The thesis is set in Times (newtx), a pdfLaTeX font package.
+#   XeLaTeX. Text is the real Times New Roman (fontspec), maths is newtxmath.
 #
 #       latexmk 0_main
 #
 #   Overleaf reads this file too, so the word count works there as well.
 # =====================================================================
-# Engine: XeLaTeX (pdf_mode 5), so fontspec can set Times New Roman.
-# To go back to pdfLaTeX, set $pdf_mode = 1; the preamble handles both.
+# Engine: XeLaTeX, ALWAYS. pdf_mode 5 = XeLaTeX -> .xdv -> xdvipdfmx.
+#
+# The thesis used to fail to build at random. The cause was two engines
+# taking turns: VS Code's default LaTeX Workshop recipe is "latexmk -pdf",
+# which forces pdfLaTeX whenever the workspace is opened at 4022/ instead of
+# Report/ (Report/.vscode is then not read), while this file asked for
+# XeLaTeX. Each engine then tripped over the other's leftover .aux/.out files.
+#
+# So $pdflatex below ALSO runs xelatex: whatever flag latexmk is given
+# (-pdf, -xelatex or none) the same engine builds the thesis. To really go
+# back to pdfLaTeX, set $pdf_mode = 1 and restore the pdflatex sub below.
 $pdf_mode = 5;
 
 # ---------------------------------------------------------------------
-#   Run pdfLaTeX TWICE per latexmk pass.
+#   Run the engine TWICE per latexmk pass.
 # ---------------------------------------------------------------------
 #   The page count on the declaration is computed as
 #
@@ -27,15 +36,15 @@ $pdf_mode = 5;
 #   that, run the engine twice every time. It costs a few seconds and it
 #   cannot be got wrong.
 #
-#   Done as a perl sub, not 'pdflatex %O %S ; pdflatex %O %S': latexmk
+#   Done as a perl sub, not 'xelatex %O %S ; xelatex %O %S': latexmk
 #   only fills in the FIRST %O, so the second run lost -interaction=nonstopmode
 #   and sat waiting for keyboard input on any error, hanging the build.
+#
+#   $pdflatex points at the same sub on purpose (see the engine note at the
+#   top). Called that way xelatex writes the PDF directly, which is what
+#   latexmk expects in -pdf mode.
 # ---------------------------------------------------------------------
-$pdflatex = 'internal pdflatex_twice %O %S';
-sub pdflatex_twice {
-    system('pdflatex', @_);
-    return system('pdflatex', @_);
-}
+$pdflatex = 'internal xelatex_twice %O %S';
 $xelatex = 'internal xelatex_twice %O %S';
 sub xelatex_twice {
     system('xelatex', @_);
@@ -114,12 +123,26 @@ sub count_words {
     return $words;
 }
 
+#   Runs only on a Full build: the Ctrl+S "Fast preview" is a plain xelatex
+#   pass that never reads this file. The file is only rewritten when the
+#   count changes; touching it every time made latexmk treat it as a changed
+#   input and rerun.
 sub write_wordcount {
     my $n = count_words();
+    my $body = "% GENERATED FILE. Do not edit it, and do not commit it.\n"
+             . "% Written by latexmkrc on a Full build. See .gitignore.\n"
+             . "\\renewcommand{\\wordcount}{$n}\n";
+    if (open(my $in, '<', 'thesis-wordcount.tex')) {
+        local $/;
+        my $old = <$in>;
+        close $in;
+        if (defined $old && $old eq $body) {
+            print "latexmkrc: word count = $n (unchanged)\n";
+            return;
+        }
+    }
     open(my $fh, '>', 'thesis-wordcount.tex') or return;
-    print $fh "% GENERATED FILE. Do not edit it, and do not commit it.\n";
-    print $fh "% Written by latexmkrc on every build. See .gitignore.\n";
-    print $fh "\\renewcommand{\\wordcount}{$n}\n";
+    print $fh $body;
     close $fh;
     print "latexmkrc: word count = $n\n";
 }

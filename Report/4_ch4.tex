@@ -80,23 +80,21 @@ NB - GET THIS DOEN TO 5 PAGES
 % Order: cameras -> how they are mounted -> lighting -> calibration target.
  
 This project uses an existing BlueROV2 Heavy, owned by UCT.
-The system is designed by Blue Robotics markets as
-a low-cost, high-performance platform for research and inspection
-\cite{TODO-bluerobotics-bluerov2}. The Heavy configuration adds two vertical
-thrusters to the standard six, giving full six-degree-of-freedom control
- \cite{TODO-bluerobotics-bluerov2}.
+The system is designed by Blue Robotics and is
+a low-cost, high-performance underwater ROV for research and inspection
+\cite{bluerobBlueROV2}. The setup system has six thrusters. The Heavy configuration adds two more,
+giving the ROV active roll and pitch control  \cite{bluerobBlueROV2Heavy}.
  
-In addition to the vehicle's standard forward monocular camera
-% TODO: name the stock camera model on UCT's unit (check the vehicle).
+In addition to the vehicle's standard forward monocular camera,
 two Deepwater Exploration (DWE) stellarHD cameras are fitted in a stereo camera configuration, 
 with a 150mm base line. Both have Aquagon lenses and are mounted to the lower front of the frame.
 Four Lumen subsea lights at the front of the ROV provide controlalble lights
- \cite{TODO-bluerobotics-lumen}.
+ \cite{bluerobLumen}.
 
  \begin{figure}[H]
     \centering
     % TODO: replace placeholder with a photo of the stereo cameras on the ROV (e.g. figs/Ch4/rig.jpg)
-    \includegraphics[width=0.5\textwidth]{example-image}
+    \includegraphics[width=0.4\textwidth]{example-image}
     \caption[Stereo camera rig]{\textbf{Stereo camera rig.} The two StellarHD
     cameras mounted on the BlueROV2, with the baseline marked.}
     \label{fig:ch4.rig}
@@ -106,7 +104,7 @@ The vehicle is controlled by a Raspberry Pi with a
 Blue Robotics Navigator flight controller. The Navigator is a Pi
 expansion board  that provides the IMU, compass,
 barometer, ADC and PWM outputs for the thrusters and lights
-\cite{TODO-bluerobotics-navigator}. A Doppler velocity
+\cite{bluerobNavigator}. A Doppler velocity
 log (DVL), a scanning sonar, and the three cameras are connected over USB and ethernet ports.
 % TODO: confirm models (e.g. Ping360 is a *mechanical scanning* sonar, not side-scan).
 connect to the Pi over its USB and Ethernet ports.
@@ -127,12 +125,13 @@ separate controllers, eliminating the dropouts.
 % TODO: cite the datasheets in the caption / text (add to Zotero, not the .bib).
 % TODO: explain how the lenses are optically corrected, giving a different
 %       FOV in air and in water (links to Ch3 "Calibrating underwater").
-The StellarHD cameras are specifically designed to compensate for the underwater environment.
- Add some details and reference their website on how they do this.
-
-REsearch how corrective optics work and add a one sentence with reference
-The key camera specs are listed below ( GO dounle check these...)
-The StellarHD cameras are paired with Aquagon lenses. These lenses compensate for ... using 7 lens elements (2 aspherical and 2 extra-low dispersion).
+The StellarHD cameras have DWE's Aquagon lenses, which are designed to counteract the effects of the underwater environment \citep{dweAquagon}, 
+correcting for distortion and chromatic aberration.
+Corrective optics address this by placing additional lens elements behind the port, so that the camera sees a virtual 
+image equivalent to the scene in air \citep{slaterAfocalViewportOptics2014}.
+The Aquagon lenses have seven elements, two of them aspherical and two extra-low dispersion, 
+behind a sapphire front port. The manufacturer quotes distortion below 1.5\,\% in water \citep{dweStellarHDDatasheet}.
+The key camera specifications are listed in \autoref{table:ch4.cameraspecs}.
 % Bullet lists from the old draft merged into one table.
 \begin{table}[H]
     \centering
@@ -153,22 +152,22 @@ The StellarHD cameras are paired with Aquagon lenses. These lenses compensate fo
     \end{tabularx}
 \end{table}
 
-The StellarHD cameras support leader--follower frame synchronisation, 
-but the current setup lacks the shared cable wire it requires.
+The StellarHD cameras support leader follower frame synchronisation, 
+but the current setup does not have the shared cabling it needs.
+ This synchronisation only 
+supported at 60\,fps and is therefore limited to MJPEG.
 In the current configuration, the two cameras can start with a time offset
-or drift. This synchronisation only 
-supported at 60\,fps thus limiting it to MJPEG.
+or drift.
 
+\section{Control and processing laptop} 
+The BlueROV2 connects to a laptop through its tether and a tether interface
+adapter \cite{bluerobFXTI}. The laptop runs Blue Robotics' Cockpit software \cite{bluerobCockpit}, and the ROV is piloted
+with an Xbox controller. The same laptop, a Lenovo LOQ 15IRX10 \cite{lenovoLOQ15IRX10} running
+Ubuntu 26.04 LTS, was used for all post-processing in this project. It has an
+Intel Core i7-14700HX CPU, an NVIDIA GeForce RTX 5060 Laptop GPU with 8\,GB of
+VRAM and 32\,GB of DDR5 RAM. All computation completed for
+in this project was done on this machine.
 
-\section{Supporting Laptop}
-The BlueROV connects to a laptop via a tether and adapter. This laptop is
-used to contorl the ROV via Cockpit software and an Xbox controller. 
-
-This laptop is a X laptop, and 
-is where all the post processign for this project has been done.
-The laptop has a x GPU, what core and 32 GB of what type of RAM. 
-All compute completed within this project was completed using
-this compute hardware.
 
 
 %==============
@@ -180,35 +179,37 @@ As explained in \autoref{subsec:ch3.targets}, an AprilGrid can still be used for
 calibration when only some of its tags are detected. To get a target that is flat and
 waterproof, a custom AprilGrid was generated with Kalibr
 \citep{furgaleUnifiedTemporalSpatial2013, kalibrRepo} and printed on white aluminium
-Dibond by Orms Print Room \citep{ormsPrintRoom}. The board was planned at A1 with 50\,mm
-tags, to match standard Kalibr targets \citep{calibioKalibrTargets}. Because of a
-miscommunication, it was printed at A2 instead, which reduced the tag size to 36.65\,mm.
+Dibond by Orms Print Room \citep{ormsPrintRoom}. The board was sized as A1 with 50\,mm
+tags, to match standard Kalibr targets \citep{calibioKalibrTargets}. Due to a
+miscommunication, it was printed as A2 instead, which reduced the tag size to 36.56\,mm.
 
 % Test rig
-A customsliding rig was designed and manufactured 
-using 2020 aluminium extrusions and 3D-printed sliding mounts for the ROV. The rig allows
+A custom sliding rig was designed and manufactured 
+using 2020 aluminium extrusions.
+The ROV is secured to 3D-printed rollers, fitted with ball bearings, that run along the top and bottom faces of the horizontal extrusions.
+ The rig allows
 one-degree-of-freedom sliding towards 
-and away from the calibration board mounted at its end.
+and away from the calibration board mounted at its end. 
 The board is attatched with a variable angle
 mount, allowing it to be set at angles rangeing
  from horizontal to vertical in intervals of 10 degrees.
-  The board's mount can be mounted
+  The board can be mounted
 to the center, right or left of the end of the end rail.
  This allows for repeatable position, distance and
   relative angle between the board and the cameras
 across different tests.
 
-
+TODO: PUT NEW LEFT PHOTO AND MAKE SMALLER
 \begin{figure}[htbp]
     \centering
-    \begin{subfigure}[b]{0.33\textwidth}
+    \begin{subfigure}[b]{0.2\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
         \caption{36h11 calibration board (further settings)}
         \label{fig:ch5.rail_in_air}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.66\textwidth}
+    \begin{subfigure}[b]{0.3\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
         \caption{ROV mounted to sliding test rig underwater. Note: warping
@@ -219,43 +220,132 @@ across different tests.
     \label{fig:ch5.test_rig}
 \end{figure}
 
+%=====================================================================
+\subsection{Software}
+\label{sec:ch4.software}
+%=====================================================================
+% Keep short: a table plus one paragraph on code layout and config.
+% Versions taken from src/requirements.txt and src/venv on 2026-10-22.
+% CHECK: Open3D is in requirements.txt but not installed in src/venv -
+%        confirm which environment the TSDF runs used.
+% CHECK: COLMAP version (4.3 mentioned in code comments) and the
+%        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
+
+The code is split into one folder per pipeline stage. Each stage is a standalone Python script that reads
+the previous stage's output and writes its own. This allows stages to be swapped out and compared without
+rerunning the earlier stages. The output of each stage is analysed by experiment scripts stored in
+\texttt{src/experiments/}. For the folder structure, file formats and instructions on running the code,
+refer to the project's GitHub repository:
+\href{https://github.com/GlenOJones/UCT_Final_Year_Project}{github.com/GlenOJones/UCT\_Final\_Year\_Project}.
+
+ \begin{figure}[htbp]
+    \centering
+    % Font: TeX Gyre Heros (Helvetica clone) on XeLaTeX, \sffamily on pdfLaTeX.
+    \ifdefined\newfontfamily
+        \ifdefined\pipelinefont\else
+            \newfontfamily\pipelinefont{texgyreheros}[Extension=.otf, UprightFont=*-regular, BoldFont=*-bold]
+        \fi
+    \else
+        \providecommand{\pipelinefont}{\sffamily}
+    \fi
+    \begin{tikzpicture}[font=\pipelinefont\fontsize{8}{9.6}\selectfont,
+      box/.style={draw=black, line width=0.4pt, align=center, minimum height=16mm, inner sep=0.6mm},
+      ends/.style={draw=black, rounded corners=2mm, line width=0.4pt, align=center, minimum height=16mm, inner sep=1mm},
+      stage/.style={font=\pipelinefont\fontsize{8}{9.6}\selectfont\bfseries, text height=1.6ex, text depth=0.4ex},
+      flow/.style={-{Stealth[length=2mm]}, line width=0.4pt}]
+      \node[ends, minimum width=14mm, text width=12.8mm] (n0) at (7.0mm,0) {Stereo\\recording};
+      \node[box, minimum width=21mm, text width=19.8mm] (n1) at (27.5mm,0) {extract\_stereo\_\\frames.py\\(GUI)};
+      \node[stage, above=1.2mm of n1] {Frame extraction};
+      \node[box, minimum width=20mm, text width=18.8mm] (n2) at (51.0mm,0) {Calibration.py};
+      \node[stage, above=1.2mm of n2] {Calibration};
+      \node[box, minimum width=15mm, text width=13.8mm] (n3) at (71.5mm,0) {depth\_\\frames.py};
+      \node[stage, above=1.2mm of n3] {Depth};
+      \node[box, minimum width=23mm, text width=21.8mm] (n4) at (93.5mm,0) {tag\_poses.py\\colmap\_poses.py\\icp\_poses.py};
+      \node[stage, above=1.2mm of n4] {Pose};
+      \node[box, minimum width=21mm, text width=19.8mm] (n5) at (118.5mm,0) {tsdf\_fuse.py\\colmap\_mvs.py};
+      \node[stage, above=1.2mm of n5] {Fusion};
+      \node[box, minimum width=19mm, text width=17.8mm] (n6) at (141.5mm,0) {postprocess\_\\cloud.py};
+      \node[stage, above=1.2mm of n6] {Clean-up};
+      \node[ends, minimum width=11mm, text width=9.8mm] (n7) at (159.5mm,0) {Point\\cloud};
+      \foreach \a/\b in {n0/n1, n1/n2, n2/n3, n3/n4, n4/n5, n5/n6, n6/n7}
+          \draw[flow] (\a) -- (\b);
+    \end{tikzpicture}
+    \caption[Processing pipeline.]{\textbf{Processing pipeline.} Stages from the stereo recording to the point cloud, with the script that runs each stage. Where a stage lists several scripts, they are alternative methods.}
+    \label{fig:ch4.pipeline}
+\end{figure}
+
+All source code, including the script running on the ROV, is available on GitHub at \url{https://github.com/GlenOJones/UCT_Final_Year_Project}. 
+The versions of the libraries and tools used are listed in Table~\ref{table:ch4.software}.
+
+The main pipeline runs in one Python virtual environment. The learnt stereo
+matchers have conflicting dependencies, so each runs in its own environment.
+The script \texttt{src/setup\_envs.sh} creates all of them with pinned versions
+and downloads the matchers and their weights. Setup instructions are given in
+\href{https://github.com/GlenOJones/UCT_Final_Year_Project/blob/main/src/SETUP.md}{\texttt{src/SETUP.md}}.
+
+
+\begin{table}[H]
+    \centering
+    \newcommand{\repo}[2]{\href{#1}{\textcolor{blue}{#2}}}% blue links, this table only
+    \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline. Each name links to the project's source repository. The learnt matchers have no release numbers, so the commit and date of the code used are given (linked).}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.0cm}>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
+    \midrule[1pt]
+    \repo{https://github.com/python/cpython}{Python} & 3.14.4 & All pipeline code \\
+    \repo{https://github.com/opencv/opencv-python}{OpenCV} & 5.0.0 (\texttt{opencv-python}) & Tag detection, calibration, rectification, SGBM \\
+    \repo{https://github.com/numpy/numpy}{NumPy} & 2.5.3 & Array maths \\
+    \repo{https://github.com/scipy/scipy}{SciPy} & 1.18.1 & Nearest-neighbour search (KD-trees), least-squares model fitting \\
+    \repo{https://github.com/isl-org/Open3D}{Open3D} & 0.20.0 & Point clouds, ICP, TSDF fusion \\
+    \repo{https://github.com/colmap/colmap}{COLMAP} & 4.3.0-dev, \repo{https://github.com/colmap/colmap/commit/f773e79}{\texttt{f773e79}} & Pose estimation and multi-view stereo \\
+    \repo{https://github.com/pytorch/pytorch}{PyTorch} & 2.14 (CUDA 13.0) & Running the learnt stereo matchers on the GPU \\
+    \repo{https://github.com/NVlabs/FoundationStereo}{FoundationStereo} & \repo{https://github.com/NVlabs/FoundationStereo/commit/6e88068}{\texttt{6e88068}} (Dec 2025) & Learnt stereo matching (ViT-L weights) \\
+    \repo{https://github.com/qz-wei/AquaStereo}{AquaStereo} & \repo{https://github.com/qz-wei/AquaStereo/commit/6091725}{\texttt{6091725}} (Jul 2026) & Underwater learnt stereo matching (ViT-B weights) \\
+    \repo{https://github.com/FFmpeg/FFmpeg}{FFmpeg} & 8.0.1 & Decoding the raw YUYV camera video into frames \\
+    \repo{https://github.com/matplotlib/matplotlib}{Matplotlib} & 3.11.2 & Figures \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch4.software}
+\end{table}
+
 
 
 
 %=====================================================================
 % SECTION: Test rig and Dataset
 %=====================================================================
-\section{Test rig and Dataset}
+\section{Reconstruction Targets}
 \label{sec:ch5.test_rig_dataset}
 % Explain both the ice and the shapes, both serve different purposes.
 % Intro, why two
-Two datasets were collected. First, a side on of four 3D printed shapes with known geometry, and a set of foam trgets designed to approcimate
-the appearance and structure of sea ice.
+
 
 \subsection{3D printed shapes}
 \label{subsec:ch5.3d_printed_shapes}
-The 3D-printed targets were designed by Aggi as part of her undergraduate
-thesis~\cite{aggi_thesis}. The set used consists of four objects, two
-pyramids and two with curved surfaces. Custom adapters were printed so that
-the ROV could be mounted on the test rail rotated by 90\textdegree{},
-allowing it to complete a side-on scan of the targets. AprilTags were placed on the board between the targets to
-provide ground truth for both the camera pose and the location of each
-object.
+The 3D-printed targets were designed by Agoritsa Spirakis as part of her
+undergraduate thesis \cite{aggi_thesis}. The set used contains
+two pyramids and two curved surfaces resembling egg boxes. Images of each
+shape are given in \autoref{app:printed_shapes}, the raw STL files can be found on Agi's project github (ref link).
+\autoref{fig:ch5.G_side} shows the four shapes during data collection (\autoref{subsec:ch5.recordings_tested}).
+The 3D prints act as ground truth, with their exact geometry given in their CAD files.
+The reconstructed point clouds are compared against them to measure accuracy.
 
-% TODO: Replace left image with CAD of the shapes maybe
+% TODO: create the appendix with the shape images and add \label{app:printed_shapes}
+
+% TODO: Replace both with the test files
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.49\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Description. Left: air. Right: water.}
+        \caption{Foam Ice shapes.}
         \label{fig:ch5.3DPrint_In_Air}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.49\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/G_side.JPG}
-        \caption{Description. Left: air. Right: water.}
+        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
+        \caption{Side on data collection showing 3D prints}
         \label{fig:ch5.G_side}
     \end{subfigure}
     \caption[short caption]{\textbf{Lead-in.} Description.}
@@ -263,309 +353,80 @@ object.
 \end{figure}
 
 \subsection{Fake Sea ice}
-\label{subsec:ch5.fake_sea_ice}
 While the 3D prints are useful for measuring accuracy, they do not
 represent sea ice well. The black surfaces differ from ice in both texture and contrast. 
 Furthermore, under-ice scanning looks upwards towards the
 surface, where incoming sunlight affects the images. To better approximate real ice, four foam structures were
 cut with a hot wire and painted light blue. The set includes a grid of
-2\,$\times$\,2\,cm cubes to emulate ice spikes, an overhang to emulate large
+2\,$\times$\,2\,cm cubes to emulate repetitive patterns, an overhang to emulate large
 occlusions, a stepped pyramid to emulate layered ice, and a wave pattern to
-emulate curved ice features. The blocks were placed in a fixed position, and a swimmer guided
-the ROV in passes beneath them. \autoref{fig:ch5.foam_blocks} shows the four
-blocks and \autoref{fig:ch5.foam_test} shows the test in progress. AprilTags were attached 
-to cubes placed alongside the blocks to provide ground-truth camera poses.
-% TODO: Switch to FOAM 2x2 grid for left image
+emulate curved ice features. \autoref{fig:ch5.foam_blocks} shows the four
+blocks and \autoref{fig:ch5.foam_test}
+
+
+%========================
+\section{Datasets}
+\label{sec:ch4.datasets}
+Data was recorded both in air (ARU laboratory) and in water (swimming pool). The swiming pool recordings
+were completed over three days, in varying lighting conditions. The weather, pool conditions and time 
+of all the data used within this project is given in the appendix. 
+
+All recordings were completed in 1600\,$\times$\,1200\,px, 30\,fps, MJPEG. The choice of MJPEG was to allow for more than 5 fps for 
+continous capture aswell as due to an issue in setting the YUYV white balance when testing underwater. This is also the format supported by
+the camera synchronisation that will likely be implemented on the system before a deployment.
+
 \begin{figure}[htbp]
     \centering
-    \begin{subfigure}[b]{0.49\textwidth}
+    \begin{subfigure}[t]{0.32\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.foam_blocks}
+        \includegraphics[width=\linewidth]{figs/Ch5/G_calib.JPG}
+        \caption{DS1: calibration board at the end of the rail.}
+        \label{fig:ch4.data_calib}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.49\textwidth}
+    \begin{subfigure}[t]{0.32\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/G_side.JPG}
+        \caption{DS2: side scan of the 3D prints, ROV rotated 90\,$^\circ$.}
+        \label{fig:ch4.data_side}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.32\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/G_up.JPG}
-        \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.foam_test}
+        \caption{DS3: upward scan of the pyramid in overcast late-afternoon light.}
+        \label{fig:ch4.data_up}
     \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.fake_sea_ice}
+    \caption[Underwater datasets.]{\textbf{Underwater datasets.} The three datasets recorded in the pool: (a) calibration recordings, (b) side scans of the 3D prints on the rail, and (c) upward-looking scans of the foam blocks, positioned by a swimmer.}
+    \label{fig:ch4.datasets}
 \end{figure}
 
+%======================================
+\subsection{DS1: Calibration recordings}
+The calibration dataset was recorded on the test rail, with the calibration board mounted at one end.
+The board was mounted at two positions across the rail, centre and left. Its angle, measured from the
+horizontal, was set to 0, 20, 30, 40, 50 and 60\,$^\circ$ at the centre and 0, 20, 40 and 60\,$^\circ$ on the left.
+At each angle, recordings were taken every 10\,cm at distances from 40 to 150\,cm.
+This test was repeated both in air in the ARU experimantal space, and underwater in a students pool.
+
+\subsection{DS2: Side scans of the 3D prints}
+To 3D printed targets were fixed to a flat board with AprilTags placed around them. The tags provide a ground truth
+for pose (\autoref{sec:XXX}) and serve as reference points for separating the objects.
+The ROV was rolled past the board, stopping every 10\,cm. This was repeated with the stereo cameras
+20, 30, 40, 50 and 60\,cm from the board.
+
+\subsection{DS3: Upward-looking scans of the foam blocks}
+The four blocks (pyramid, overhang, wave and cubes) were held in place in the water while a swimmer
+moved the ROV around below them, with the cameras facing directly upwards.
+Each block was scanned separately, next to a flat foam block carrying AprilTags. As in DS2, the tags
+provide a ground-truth pose reference. Each scan consists of a single pass. Because the ROV was not fixed
+in place, the distance to the blocks was found by triangulating the AprilTags.
+
+The scans were repeated in two conditions: in direct sunlight at around 13:00, and in overcast
+late-afternoon light at around 17:00. \autoref{fig:ch4.data_up} shows a scan of the pyramid in the
+darker conditions.
 
 
-
-
-%=====================================================================
-\section{Software environment}
-\label{sec:ch4.software}
-%=====================================================================
-% Keep short: a table plus one paragraph on code layout and config.
-% Versions taken from src/requirements.txt and src/venv on 2026-10-22.
-% CHECK: Open3D is in requirements.txt but not installed in src/venv -
-%        confirm which environment the TSDF runs used.
-% CHECK: COLMAP version (4.3 mentioned in code comments) and the
-%        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
-
-\begin{table}[H]
-    \centering
-    \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline, with versions.}
-    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{2.4cm}>{\raggedright\arraybackslash}X}
-    \toprule[2.25pt]
-    \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
-    \midrule[1pt]
-    Python & 3.14 & All pipeline code \\
-    OpenCV (\texttt{opencv-python}) & 5.0.0 & Tag detection, calibration, rectification, SGBM \\
-    NumPy & 2.5.3 & Array maths \\
-    SciPy & 1.18.1 & Optimisation, rotations \\ % CHECK usage
-    Open3D & 0.20.0 & Point clouds, ICP, TSDF fusion \\
-    COLMAP & 4.3 & Pose estimation and multi-view stereo \\
-    FoundationStereo & TODO & Learnt stereo matching \\
-    AquaStereo & TODO & Underwater learnt stereo matching \\
-    Matplotlib & 3.11.1 & Figures \\
-    \bottomrule[2.25pt]
-    \end{tabularx}
-    \label{table:ch4.software}
-\end{table}
-
-% CODE LAYOUT - one paragraph, folder names in \texttt{}, link to Appendix A
-% (A_gitrepo.tex, label it if it has none yet):
-%   src/preproccessing/      frame extraction, blur check, frame selection
-%   src/01_Calibration/      detection + mono/stereo calibration
-%   src/03_Reconstruction/   depth, pose, fusion, cloud post-processing
-%   src/04_Comparison/       scoring clouds against CAD
-%   src/experiments/<name>/  one folder per Ch5/5b experiment, each with a
-%                            config.json; experiments/reproduce.py reruns them
-% Point: every experiment is driven by a JSON config so results can be
-% reproduced exactly - this is worth one sentence.
-
-
-
-%=====================================================================
-\section{Data capture}
-\label{sec:ch4.extraction}
-Explain the custom scripy, what it does and how it does it.
-Explain what can be set. Make this very brief
-%=====================================================================
-\section{Pipeline stages for post processing}
-\label{sec:ch4.stages}
-%=====================================================================
-% One subsection per block in fig:ch4.pipeline. Keep the SAME pattern in each:
-%   Input -> What the stage does (implementation, not theory) -> Output
-%   -> Options compared later ("see Section~\ref{...}").
-% Reconstruction split (moved from 5b sec:ch5.reconstruction_steps -
-% delete it there once happy with this version):
-The reconstruction part of the pipeline follows three core steps \cite{szeliskiComputerVisionAlgorithmsa}:
-\begin{enumerate}
-    \item \textbf{Depth per frame:} each rectified stereo pair is turned into a depth map.
-    \item \textbf{Pose per frame:} the position and orientation of the camera in a common world frame is found for each frame.
-    \item \textbf{Fusion:} the per-frame point clouds are combined into a single surface.
-\end{enumerate}
-% These come after frame extraction, calibration and compensation below.
-
-%---------------------------------------------------------------------
-\subsection{Frame extraction and image conditioning}
-\label{sec:ch4.preprocessing}
-%---------------------------------------------------------------------
-% Label kept as sec:ch4.preprocessing so existing refs still work.
-% Input:  left/right video. Output: synchronised 8-bit grayscale frame pairs.
-% Scripts: extract_stereo_frames.py, blur_check.py, select_scan_frames.py
-% TODO: describe frame rate / subsampling, blur rejection threshold,
-%       how L/R frames are paired.
-% Section in literature review reference
-All chosen filters take and return the 8-bit grayscale image. A parameter sweep was done on all the different filtering options, using the metric of number of detected corners. (What is the concern regarding affecting corner values?)
-% ^ The SWEEP itself is an experiment -> move the results to Ch5 Exp 1;
-%   here just list the filter options and that they share one interface.
-
-% Channel selection: which makes sense to choose (reference lit review),
-% analytical comparison (what metric? tags? corners?)
-% -> channel comparison is TESTED (experiments/channels) -> Ch5.
-% ======================================
-
-
-%=====================================================================
-\section{Software environment}
-\label{sec:ch4.software}
-%=====================================================================
-% Keep short: a table plus one paragraph on code layout and config.
-% Versions taken from src/requirements.txt and src/venv on 2026-10-22.
-% CHECK: Open3D is in requirements.txt but not installed in src/venv -
-%        confirm which environment the TSDF runs used.
-% CHECK: COLMAP version (4.3 mentioned in code comments) and the
-%        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
-
-
-% CHECK THIS VERSION THNIG ON THE ACTUAL COMPUTE
-\begin{table}[H]
-    \centering
-    \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline, with versions.}
-    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{2.4cm}>{\raggedright\arraybackslash}X}
-    \toprule[2.25pt]
-    \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
-    \midrule[1pt]
-    Python & 3.14 & All pipeline code \\
-    OpenCV (\texttt{opencv-python}) & 5.0.0 & Tag detection, calibration, rectification, SGBM \\
-    NumPy & 2.5.3 & Array maths \\
-    SciPy & 1.18.1 & Optimisation, rotations \\ % CHECK usage
-    Open3D & 0.20.0 & Point clouds, ICP, TSDF fusion \\
-    COLMAP & 4.3 & Pose estimation and multi-view stereo \\
-    FoundationStereo & TODO & Learnt stereo matching \\
-    AquaStereo & TODO & Underwater learnt stereo matching \\
-    Matplotlib & 3.11.1 & Figures \\
-    \bottomrule[2.25pt]
-    \end{tabularx}
-    \label{table:ch4.software}
-\end{table}
-
-% CODE LAYOUT - one paragraph, folder names in \texttt{}, link to Appendix A
-% (A_gitrepo.tex, label it if it has none yet):
-%   src/preproccessing/      frame extraction, blur check, frame selection
-%   src/01_Calibration/      detection + mono/stereo calibration
-%   src/03_Reconstruction/   depth, pose, fusion, cloud post-processing
-%   src/04_Comparison/       scoring clouds against CAD
-%   src/experiments/<name>/  one folder per Ch5/5b experiment, each with a
-%                            config.json; experiments/reproduce.py reruns them
-% Point: every experiment is driven by a JSON config so results can be
-% reproduced exactly - this is worth one sentence.
-
-
-%=====================================================================
-\section{Pipeline stages}
-\label{sec:ch4.stages}
-%=====================================================================
-% One subsection per block in fig:ch4.pipeline. Keep the SAME pattern in each:
-%   Input -> What the stage does (implementation, not theory) -> Output
-%   -> Options compared later ("see Section~\ref{...}").
-% Reconstruction split (moved from 5b sec:ch5.reconstruction_steps -
-% delete it there once happy with this version):
-The reconstruction part of the pipeline follows three core steps \cite{szeliskiComputerVisionAlgorithmsa}:
-\begin{enumerate}
-    \item \textbf{Depth per frame:} each rectified stereo pair is turned into a depth map.
-    \item \textbf{Pose per frame:} the position and orientation of the camera in a common world frame is found for each frame.
-    \item \textbf{Fusion:} the per-frame point clouds are combined into a single surface.
-\end{enumerate}
-% These come after frame extraction, calibration and compensation below.
-
-%---------------------------------------------------------------------
-\subsection{Frame extraction and image conditioning}
-\label{sec:ch4.preprocessing}
-%---------------------------------------------------------------------
-% Label kept as sec:ch4.preprocessing so existing refs still work.
-% Input:  left/right video. Output: synchronised 8-bit grayscale frame pairs.
-% Scripts: extract_stereo_frames.py, blur_check.py, select_scan_frames.py
-% TODO: describe frame rate / subsampling, blur rejection threshold,
-%       how L/R frames are paired.
-% Section in literature review reference
-All chosen filters take and return the 8-bit grayscale image. A parameter sweep was done on all the different filtering options, using the metric of number of detected corners. (What is the concern regarding affecting corner values?)
-% ^ The SWEEP itself is an experiment -> move the results to Ch5 Exp 1;
-%   here just list the filter options and that they share one interface.
-
-% Channel selection: which makes sense to choose (reference lit review),
-% analytical comparison (what metric? tags? corners?)
-% -> channel comparison is TESTED (experiments/channels) -> Ch5.se with \cite{} keys.
-
-Design around a turbidity of 3 NTU, choosing AprilTag for the worst case scenario.
-
-The paper expresses detected marker size in pixels. At an FTU of 3.6, the detected marker size is as low as 21 pixels. In order to evaluate the capability of the marker systems to detect small markers in turbid underwater environments, the camera is centred in front of the markers and then moved further away, increasing the distance between the camera and the markers and therefore decreasing the marker size in pixels.
-% TODO: "The paper" - which one? add \cite.
-
-Underwater, the required pixel count rises above the 25-pixel rule: the minimum pixel size required for reliable detection increases significantly. The 25-pixel rule used in air is an absolute lower bound; underwater, aim for 40 to 60+ pixels per tag to maintain sub-pixel corner accuracy. We are going with a minimum of 40 pixels for the maximum turbidity situation.
-
-We want to work with 1-2 metres calibrated, and the minimum focus distance is 25cm.
-% NOTE: requirements table says 0.3-2.0 m; keep these consistent.
-
-\textbf{Pin-hole model pixel calculation.} The pixel width $p$ of a tag in the image plane depends on the tag size $S$ (metres), distance $D$ (metres), and focal length $f_x$ (pixels):
-\begin{equation}
-p = \frac{S \cdot f_x}{D}.
-\end{equation}
-% Could reference the pinhole model in Ch3 (sec Image Formation) here.
-For a standard camera underwater (assuming a $60^\circ$ to $70^\circ$ horizontal field of view in water due to flat-port refraction), the focal length $f_x$ typically ranges between 1200 and 1400 pixels for a 1600-pixel wide sensor. Assuming an average focal length $f_x = 1300$ pixels:
-\begin{itemize}
-	\item Option A, $65\text{ mm}$ tag size ($S = 0.065\text{ m}$): at 1 m, $p \approx 84.5$ pixels (excellent detection); at 3 m, $p \approx 28.1$ pixels (slightly low for underwater contrast).
-	\item Option B, $85\text{ mm}$ tag size ($S = 0.085\text{ m}$): at 1 m, $p \approx 110.5$ pixels (excellent detection); at 3 m, $p \approx 36.8$ pixels (safe margin for underwater blur).
-\end{itemize}
-% TODO: once calibrated, swap the assumed f_x = 1300 for the measured value.
-
-The board finally used was chosen based on the commercially available option and the 50mm tag size indicated by the underwater testing:
-% CHECK: text says 50 mm but the spec below says 0.150 m tag size.
-% TODO: convert verbatim block to a small table for consistency.
-\begin{verbatim}
-family:       tag36h11
-tag size:     0.150 m   (black square, outer edge)
-plate size:   0.190 m   (adds 1-cell white quiet zone each side)
-IDs:          0-3 (or however many targets are needed)
-max_hamming:  0
-resolution:   1600x1200
-range:        0.3 - 2.0 m
-\end{verbatim}
-
-%.....................................................................
-\subsubsection{Board material and manufacture}
-\label{subsec:ch4.boardmaterial}
-%.....................................................................
-% DETERMINING BOARD SIZE AND MATERIAL
-% These read as notes to a supplier - rewrite as "the board was made from
-% ... because ...", past tense, once the final board is confirmed.
-Dibond - give reference for why, comment on shrinkage.
-Type of Dibond offered by Orms - give reference for which.
-Size - give reference for why.
-
-Do not use brushed aluminium: the aluminium shows through all white areas of the image, so the white squares are bare metal with low contrast under lights. This is bad for corner detection at an angle. Use a smooth white powder coat instead, since aluminium reflects differently at different angles.
-
-A2 (420x695) is the sweet spot, being more manageable.
-
-A custom quote is needed to avoid the wood sub-frame, which will swell and delaminate. Ask for a bare panel or drilled mounting holes.
-
-Seal the cut edges. Dibond is two aluminium skins over a polyethylene core, and seawater might cause corrosion in the aluminium/PE crevice. A bead of epoxy will do the trick.
-
-Ask about the gloss levels of the UV inks. Tend towards semi-gloss, and matte if possible. Ask about printer accuracy.
-% TODO: add photo of the finished board.
-
-
-
-%---------------------------------------------------------------------
-\subsection{Test tank and rig}
-\label{subsec:ch4.tank}
-%---------------------------------------------------------------------
-% TODO: pool/tank (location, depth, water type), test rail, how the ROV was
-%       moved (rail vs swimmer-guided), lighting conditions, turbidity
-%       (measured? estimated?), and how ground truth was obtained.
-%       Also: calibration recordings (in air and underwater) - where/how.
-
-
-
-%=====================================================================
-\section{Test environment and datasets}
-\label{sec:ch4.testenv}
-%=====================================================================
-% ONE description of the test setup, used by both Ch5 (calibration) and
-% 5b (reconstruction). Both chapters then just \ref this section.
-%
-% MOVE HERE (then delete from the original file to avoid duplicate labels):
-%   - 5_ch5.tex  sec:ch5.setup  "Experimental setup" (currently empty;
-%     planned: rig, tank, lighting, turbidity control, ground truth)
-%   - 5b_reconstruction.tex  sec:ch5.test_rig_dataset  "Test rig and Dataset"
-%     incl. subsections "3D printed shapes" and "Fake Sea ice" and their
-%     figures (fig:ch5.printed_shapes, fig:ch5.fake_sea_ice).
-%   When moving, either keep the ch5.* labels or rename to ch4.* and
-%   update every \ref / \autoref.
-%
-% Suggested subsections:
-
-%---------------------------------------------------------------------
-\subsection{Datasets}
-\label{subsec:ch4.datasets}
-%---------------------------------------------------------------------
-% TODO: move "3D printed shapes" and "Fake Sea ice" here from 5b.
-%       Lead with WHY two datasets: prints = known CAD geometry -> accuracy;
-%       foam = ice-like texture/colour/upward view -> realism, no CAD.
-%       A summary table helps: recording name | target | air/water |
-%       frames | ground truth available? | used in which experiment.
-%       The held-out recording details in Appendix E (E_heldout.tex)
-%       can be referenced from here.
 
 % LEGACY (COMMENT OUT FROM HERE ONWARDS)
 
