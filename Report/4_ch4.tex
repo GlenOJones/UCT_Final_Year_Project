@@ -18,13 +18,13 @@
 %   Ch3 = theory (why it works). Ch4 = implementation (how it was done here).
 %   Avoid re-deriving equations from Ch3; cite the Ch3 section instead.
 %*********************************************************************
-\chapter{System design and implementation}
+\chapter{Design description}
 \label{ch:design}
 %---------------------------------------------------------------------
 % Chapter intro (2-4 sentences): what this chapter covers and that
 % Chapters 5 and 5b refer back to it for setup and metrics.
 
-
+NB - GET THIS DOEN TO 5 PAGES
 %=====================================================================
 \section{Overview and design requirements}
 \label{sec:ch4.overview}
@@ -96,7 +96,7 @@ Four Lumen subsea lights at the front of the ROV provide controlalble lights
  \begin{figure}[H]
     \centering
     % TODO: replace placeholder with a photo of the stereo cameras on the ROV (e.g. figs/Ch4/rig.jpg)
-    \includegraphics[width=0.8\textwidth]{example-image}
+    \includegraphics[width=0.5\textwidth]{example-image}
     \caption[Stereo camera rig]{\textbf{Stereo camera rig.} The two StellarHD
     cameras mounted on the BlueROV2, with the baseline marked.}
     \label{fig:ch4.rig}
@@ -175,7 +175,7 @@ this compute hardware.
 \subsection{Calibration Board and test Rig Construction}
 
 
-% Calibration tests (in air vs underwater)
+% Calibration board
 As explained in \autoref{subsec:ch3.targets}, an AprilGrid can still be used for
 calibration when only some of its tags are detected. To get a target that is flat and
 waterproof, a custom AprilGrid was generated with Kalibr
@@ -184,10 +184,18 @@ Dibond by Orms Print Room \citep{ormsPrintRoom}. The board was planned at A1 wit
 tags, to match standard Kalibr targets \citep{calibioKalibrTargets}. Because of a
 miscommunication, it was printed at A2 instead, which reduced the tag size to 36.65\,mm.
 
-A sliding rig was designed using 2020 aluminium extrusions and custom 3D-printed sliding mounts for the ROV. The rig allows
-one-degree-of-freedom sliding towards and away from a calibration board mounted at its end. The board is attatched with a variable angle
-mount, allowing it to be set at angles rangeing from horizontal to vertical in intervals of 10 degrees. The board's mount can be mounted
-to the center, right or left of the end of the end rail. This allows for repeatable position, distance and relative angle between the board and the cameras
+% Test rig
+A customsliding rig was designed and manufactured 
+using 2020 aluminium extrusions and 3D-printed sliding mounts for the ROV. The rig allows
+one-degree-of-freedom sliding towards 
+and away from the calibration board mounted at its end.
+The board is attatched with a variable angle
+mount, allowing it to be set at angles rangeing
+ from horizontal to vertical in intervals of 10 degrees.
+  The board's mount can be mounted
+to the center, right or left of the end of the end rail.
+ This allows for repeatable position, distance and
+  relative angle between the board and the cameras
 across different tests.
 
 
@@ -196,19 +204,98 @@ across different tests.
     \begin{subfigure}[b]{0.33\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
-        \caption{Description. Sliding image}
+        \caption{36h11 calibration board (further settings)}
         \label{fig:ch5.rail_in_air}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.66\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
-        \caption{Description. Showing set angles}
+        \caption{ROV mounted to sliding test rig underwater. Note: warping
+		due to gopro lens, not bent calibration board.}
         \label{fig:ch5.rig_in_water}
     \end{subfigure}
     \caption[short caption]{\textbf{Lead-in.} Description.}
     \label{fig:ch5.test_rig}
 \end{figure}
+
+
+
+
+%=====================================================================
+% SECTION: Test rig and Dataset
+%=====================================================================
+\section{Test rig and Dataset}
+\label{sec:ch5.test_rig_dataset}
+% Explain both the ice and the shapes, both serve different purposes.
+% Intro, why two
+Two datasets were collected. First, a side on of four 3D printed shapes with known geometry, and a set of foam trgets designed to approcimate
+the appearance and structure of sea ice.
+
+\subsection{3D printed shapes}
+\label{subsec:ch5.3d_printed_shapes}
+The 3D-printed targets were designed by Aggi as part of her undergraduate
+thesis~\cite{aggi_thesis}. The set used consists of four objects, two
+pyramids and two with curved surfaces. Custom adapters were printed so that
+the ROV could be mounted on the test rail rotated by 90\textdegree{},
+allowing it to complete a side-on scan of the targets. AprilTags were placed on the board between the targets to
+provide ground truth for both the camera pose and the location of each
+object.
+
+% TODO: Replace left image with CAD of the shapes maybe
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.3DPrint_In_Air}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/G_side.JPG}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.G_side}
+    \end{subfigure}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.printed_shapes}
+\end{figure}
+
+\subsection{Fake Sea ice}
+\label{subsec:ch5.fake_sea_ice}
+While the 3D prints are useful for measuring accuracy, they do not
+represent sea ice well. The black surfaces differ from ice in both texture and contrast. 
+Furthermore, under-ice scanning looks upwards towards the
+surface, where incoming sunlight affects the images. To better approximate real ice, four foam structures were
+cut with a hot wire and painted light blue. The set includes a grid of
+2\,$\times$\,2\,cm cubes to emulate ice spikes, an overhang to emulate large
+occlusions, a stepped pyramid to emulate layered ice, and a wave pattern to
+emulate curved ice features. The blocks were placed in a fixed position, and a swimmer guided
+the ROV in passes beneath them. \autoref{fig:ch5.foam_blocks} shows the four
+blocks and \autoref{fig:ch5.foam_test} shows the test in progress. AprilTags were attached 
+to cubes placed alongside the blocks to provide ground-truth camera poses.
+% TODO: Switch to FOAM 2x2 grid for left image
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.foam_blocks}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.49\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch5/G_up.JPG}
+        \caption{Description. Left: air. Right: water.}
+        \label{fig:ch5.foam_test}
+    \end{subfigure}
+    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \label{fig:ch5.fake_sea_ice}
+\end{figure}
+
+
 
 
 
@@ -256,8 +343,14 @@ across different tests.
 % reproduced exactly - this is worth one sentence.
 
 
+
 %=====================================================================
-\section{Pipeline stages}
+\section{Data capture}
+\label{sec:ch4.extraction}
+Explain the custom scripy, what it does and how it does it.
+Explain what can be set. Make this very brief
+%=====================================================================
+\section{Pipeline stages for post processing}
 \label{sec:ch4.stages}
 %=====================================================================
 % One subsection per block in fig:ch4.pipeline. Keep the SAME pattern in each:
@@ -304,6 +397,8 @@ All chosen filters take and return the 8-bit grayscale image. A parameter sweep 
 % CHECK: COLMAP version (4.3 mentioned in code comments) and the
 %        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
 
+
+% CHECK THIS VERSION THNIG ON THE ACTUAL COMPUTE
 \begin{table}[H]
     \centering
     \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline, with versions.}

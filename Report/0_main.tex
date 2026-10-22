@@ -23,15 +23,11 @@
 %---------------------------------------------------------------------
 %	Paper size:			A4
 %	Margins:			1.5 cm (top,bottom,left,right)
-%	Printing:			Single sided
-%	Base font size:		11pt, Times (newtx), single line spacing
+%	Printing:			Double sided
+%	Base font size:		10pt
 %	Paragraph spacing:	10pt
 %	Paragraph indent:	0pt
 %=====================================================================
-% xcolor is loaded by another package before line ~79, so options given
-% there are ignored ("already been loaded" warning). Passing them here,
-% before anything loads it, makes dvipsnames/table/xcdraw actually apply.
-\PassOptionsToPackage{dvipsnames,table,xcdraw}{xcolor}
 \documentclass[a4paper,11pt,oneside]{book}
 %---------------------------------------------------------------------
 %	PACKAGES
@@ -46,7 +42,7 @@
 %---------------------------------------------------------------------
 % PAGE LAYOUT AND STRUCTURE
 %---------------------------------------------------------------------
-\usepackage[margin=1.5cm]{geometry}   % Page margins
+\usepackage[margin=2cm]{geometry}   % Page margins
 \usepackage{scrextend}                % Extended layout tools
 \usepackage{titlesec}                 % Section title formatting
 \usepackage{fancyhdr}                 % Headers and footers
@@ -80,29 +76,17 @@
 %---------------------------------------------------------------------
 \usepackage{fix-cm}                  % Enable scalable font sizes
 \usepackage{color}                   % Basic colour support
-\usepackage{xcolor}                  % Extended colours (options set by \PassOptionsToPackage above \documentclass)
+\usepackage[dvipsnames,table,xcdraw]{xcolor} % Extended colours
 \usepackage{gensymb}                 % Generic symbols (e.g. °)
-\usepackage{newtxtext}               % Times text font (maths: newtxmath, after amsmath below)
-
-% Unicode symbols pasted straight into the text (e.g. from notes or PDFs).
-% pdfLaTeX stops with "Unicode character ... not set up" on these, so map
-% each one to its maths equivalent. Add a line here for any new one.
-\DeclareUnicodeCharacter{03B1}{\ensuremath{\alpha}}
-\DeclareUnicodeCharacter{03B2}{\ensuremath{\beta}}
-\DeclareUnicodeCharacter{03B3}{\ensuremath{\gamma}}
-\DeclareUnicodeCharacter{03B8}{\ensuremath{\theta}}
-\DeclareUnicodeCharacter{03BB}{\ensuremath{\lambda}}
-\DeclareUnicodeCharacter{03C0}{\ensuremath{\pi}}
-\DeclareUnicodeCharacter{03C3}{\ensuremath{\sigma}}
-\DeclareUnicodeCharacter{03A0}{\ensuremath{\Pi}}
-\DeclareUnicodeCharacter{03A3}{\ensuremath{\Sigma}}
-\DeclareUnicodeCharacter{0394}{\ensuremath{\Delta}}
-\DeclareUnicodeCharacter{2032}{\ensuremath{'}}         % prime
-\DeclareUnicodeCharacter{1D40}{\ensuremath{^{\mathsf{T}}}} % superscript T (transpose)
-\DeclareUnicodeCharacter{2248}{\ensuremath{\approx}}
-\DeclareUnicodeCharacter{2264}{\ensuremath{\leq}}
-\DeclareUnicodeCharacter{2265}{\ensuremath{\geq}}
-\DeclareUnicodeCharacter{2192}{\ensuremath{\rightarrow}}
+% Times New Roman. pdfLaTeX: newtxtext (newtxmath is in MATHS below, as it
+% must load after amsmath). XeLaTeX/LuaLaTeX: fontspec.
+\usepackage{iftex}
+\ifpdftex
+    \usepackage{newtxtext}
+\else
+    \usepackage{fontspec}
+    \setmainfont{Times New Roman}
+\fi
 
 %---------------------------------------------------------------------
 % GRAPHICS AND VISUALS
@@ -173,7 +157,8 @@
 %   The two are configured separately and will not agree on their own.
 %=====================================================================
 \newif\ifIEEEcite
-\IEEEcitefalse
+\IEEEcitetrue
+% was \IEEEcitefalse by default
 
 \ifIEEEcite
     % IEEE: numeric, square brackets, sorted and compressed ([1]-[3], not [1],[2],[3])
@@ -183,9 +168,8 @@
     \PassOptionsToPackage{authoryear,round,semicolon}{natbib}
 \fi
 \usepackage{natbib}
-% \citeurl{key}{url}: author (year) as a single link to url instead of to
-% the bibliography entry. booktabs, tabularx, array and hyperref are loaded
-% above; the Y column type is in 0_documentproperties.tex.
+% \citeurl{key}{url}: author [n] as a single link to url instead of to
+% the bibliography entry. Used in the Chapter 2 study comparison table.
 \newcommand{\citeurl}[2]{\href{#2}{\begin{NoHyper}\citet{#1}\end{NoHyper}}}
 %=====================================================================
 \usepackage{refcount}                % Arithmetic on \pageref values, for the
@@ -196,14 +180,14 @@
 %---------------------------------------------------------------------
 \usepackage{fancyvrb}                % Code-style text environments
 \usepackage{listings}                % Code listings (lstlisting)
-\lstset{basicstyle=\ttfamily\footnotesize, breaklines=true, frame=single,
-        numbers=left, numberstyle=\tiny, columns=fullflexible, keepspaces=true}
 
 %---------------------------------------------------------------------
 % MATHS
 %---------------------------------------------------------------------
-\usepackage{amsmath, amsthm}         % Core maths packages
-\usepackage{newtxmath}               % Times maths; after amsmath, and replaces amssymb (loading both clashes)
+\usepackage{amsmath, amsthm, amssymb} % Core maths packages
+\ifpdftex
+    \usepackage{newtxmath}            % Times maths (pdfLaTeX); must follow amsmath
+\fi
 \usepackage{bm}                       % Bold maths symbols
 
 %---------------------------------------------------------------------
@@ -276,11 +260,6 @@
 %   v_glossary.tex only prints the list; it defines nothing.
 %---------------------------------------------------------------------
 \input{0_glossaryentries}
-
-% Fast preview: uncomment to typeset only the listed chapters.
-% Other chapters keep their numbering/refs from their .aux files.
-% 0_documentproperties must stay listed: it defines \titl, \auth, etc.
-\includeonly{0_documentproperties,4_ch4,5_ch5,5b_reconstruction,6_results,7_discussion,8_conclusions,A_gitrepo,B_ethics,C_topicdescription,D_ECSA,9_appendix}
 %---------------------------------------------------------------------
 %	DOCUMENT
 %---------------------------------------------------------------------
@@ -369,29 +348,33 @@
 %---------------------------------------------------------------------
 \include{3_ch3}
 %---------------------------------------------------------------------
-% Chapter 4: Pipeline design
+% Chapter 4: Design description
 %---------------------------------------------------------------------
 \include{4_ch4}
 %---------------------------------------------------------------------
-% Chapter 5: Experimental procedure
+% Chapter 5: Experimental design
 %---------------------------------------------------------------------
 \include{5_ch5}
 %---------------------------------------------------------------------
-% Chapter 6: 3D Reconstruction
+% 3D Reconstruction
 %---------------------------------------------------------------------
 \include{5b_reconstruction}
 %---------------------------------------------------------------------
-% Chapter 7: Results and observations
+% Chapter 6: Results
 %---------------------------------------------------------------------
 \include{6_results}
 %---------------------------------------------------------------------
-% Chapter 8: Discussion and analysis of pipeline performance
+% Chapter 7: Discussion
 %---------------------------------------------------------------------
 \include{7_discussion}
 %---------------------------------------------------------------------
-% Chapter 9: Conclusions and recommendations
+% Chapter 8: Conclusions
 %---------------------------------------------------------------------
 \include{8_conclusions}
+%---------------------------------------------------------------------
+% Chapter 9: Recommendations
+%---------------------------------------------------------------------
+\include{9_furtherwork}
 %   Marks the last page of the body. Everything after this (appendices,
 %   bibliography) is excluded from the page count.
 \label{body:end}
@@ -435,11 +418,9 @@
 %---------------------------------------------------------------------
 %   Driven by \ifIEEEcite, set once at the top of this file.
 %
-%   agsm      Harvard author-year style (AGSM, Australian Government
-%             Style Manual). Ships with TeX Live in the harvard bundle and
-%             is on Overleaf. natbib reads its \harvarditem output, so
-%             \citet and \citep keep working. Matches the Harvard convention
-%             the declaration page commits you to.
+%   plainnat  natbib's author-year style. Part of natbib itself, so always
+%             available, and it matches the Harvard convention the
+%             declaration page commits you to.
 %
 %   IEEEtran  the IEEE numeric style. Ships with the IEEEtran package.
 %
@@ -454,7 +435,7 @@
 \ifIEEEcite
     \bibliographystyle{IEEEtran}
 \else
-    \bibliographystyle{agsm}
+    \bibliographystyle{plainnat}
 \fi
 {\small \bibliography{thesis,FIXED}}
 \addcontentsline{toc}{chapter}{Bibliography}
@@ -463,5 +444,3 @@
 %---------------------------------------------------------------------
 %	End of the document
 %=====================================================================
-
-

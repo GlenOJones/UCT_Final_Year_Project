@@ -33,83 +33,6 @@ used within this report can be broken into three core steps \cite{szeliskiComput
     \item  \textbf{Fusion:} Combining the sperate point clouds into a single object.
 \end{enumerate}
 
-
-%=====================================================================
-% SECTION: Test rig and Dataset
-%=====================================================================
-\section{Test rig and Dataset}
-\label{sec:ch5.test_rig_dataset}
-% Explain both the ice and the shapes, both serve different purposes.
-% Intro, why two
-Two datasets were collected. First, a side on of four 3D printed shapes with known geometry, and a set of foam trgets designed to approcimate
-the appearance and structure of sea ice.
-
-\subsection{3D printed shapes}
-\label{subsec:ch5.3d_printed_shapes}
-The 3D-printed targets were designed by Aggi as part of her undergraduate
-thesis~\cite{aggi_thesis}. The set used consists of four objects, two
-pyramids and two with curved surfaces. Custom adapters were printed so that
-the ROV could be mounted on the test rail rotated by 90\textdegree{},
-allowing it to complete a side-on scan of the targets. AprilTags were placed on the board between the targets to
-provide ground truth for both the camera pose and the location of each
-object.
-
-% TODO: Replace left image with CAD of the shapes maybe
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[b]{0.49\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.3DPrint_In_Air}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.49\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/G_side.JPG}
-        \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.G_side}
-    \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.printed_shapes}
-\end{figure}
-
-\subsection{Fake Sea ice}
-\label{subsec:ch5.fake_sea_ice}
-While the 3D prints are useful for measuring accuracy, they do not
-represent sea ice well. The black surfaces differ from ice in both texture and contrast. 
-Furthermore, under-ice scanning looks upwards towards the
-surface, where incoming sunlight affects the images. To better approximate real ice, four foam structures were
-cut with a hot wire and painted light blue. The set includes a grid of
-2\,$\times$\,2\,cm cubes to emulate ice spikes, an overhang to emulate large
-occlusions, a stepped pyramid to emulate layered ice, and a wave pattern to
-emulate curved ice features. The blocks were placed in a fixed position, and a swimmer guided
-the ROV in passes beneath them. \autoref{fig:ch5.foam_blocks} shows the four
-blocks and \autoref{fig:ch5.foam_test} shows the test in progress. AprilTags were attached 
-to cubes placed alongside the blocks to provide ground-truth camera poses.
-% TODO: Switch to FOAM 2x2 grid for left image
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[b]{0.49\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.foam_blocks}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.49\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/G_up.JPG}
-        \caption{Description. Left: air. Right: water.}
-        \label{fig:ch5.foam_test}
-    \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.fake_sea_ice}
-\end{figure}
-
-
-
-
 %---------------------------------------------------------------------
 % Subsection: Seeing Double: Depth from a Stereo Camera
 %---------------------------------------------------------------------
@@ -704,9 +627,7 @@ Object & Method & Coverage (\%) & Median $|d|$ (mm) & RMS (mm) & p95 $|d|$ (mm) 
 \end{table}
 
 
-
 Insert figure comparing the three accuracy for the Pyramid (|Top Down , Profiles through|) + 2pck egg box same. Fair comparison, both inline.
-
 
 
 figure 1

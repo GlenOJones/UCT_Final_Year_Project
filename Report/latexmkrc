@@ -7,7 +7,9 @@
 #
 #   Overleaf reads this file too, so the word count works there as well.
 # =====================================================================
-$pdf_mode = 1;
+# Engine: XeLaTeX (pdf_mode 5), so fontspec can set Times New Roman.
+# To go back to pdfLaTeX, set $pdf_mode = 1; the preamble handles both.
+$pdf_mode = 5;
 
 # ---------------------------------------------------------------------
 #   Run pdfLaTeX TWICE per latexmk pass.
@@ -33,6 +35,11 @@ $pdflatex = 'internal pdflatex_twice %O %S';
 sub pdflatex_twice {
     system('pdflatex', @_);
     return system('pdflatex', @_);
+}
+$xelatex = 'internal xelatex_twice %O %S';
+sub xelatex_twice {
+    system('xelatex', @_);
+    return system('xelatex', @_);
 }
 $clean_ext = 'synctex.gz run.xml bbl fdb_latexmk fls glo gls glg ist acn acr alg thesis-wordcount.tex';
 
