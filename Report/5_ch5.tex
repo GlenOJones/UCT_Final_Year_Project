@@ -40,10 +40,7 @@ INTRO SENTENCE explaining what the test is, where the extra theory is
 
 
 % CURRENTLY THINKING OF DOING 3 SEPERATE EXPERIMENT, RESULT SETUPS
-%=====================================================================
-\section{Stereo calibration in air and underwater}
 \label{sec:ch5.exp1_calibration}
-%=====================================================================
 % Intro / Setup for experiment
 This experiment determines the intrinsic and extrinsic parameters of the StellarHD stereo camera pair, both in air and in water,
 and tests the AprilGrid detection pipeline as well as three different underwater compensation techniques. Calibration images were
@@ -51,29 +48,24 @@ taken both in air and underwater. The in-air calibration provides a baseline for
 has on the camera calibration.
 
 
-\section{Expanding on theory}
-
-\subsection{Theory: Calibration techniques}
+%=====================================================================
+\section{Calibration models}
 \label{subsec:ch5.theory_calibration_techniques}
+%=====================================================================
+
 % NB its clear how detection is seperate from calibration
 
 % Refraction and distortion
 % Training split thing for held out error, what, why usefaul
+A calibration model describes how the normalised image coordinates are distorted by the lens,
+so that detected pixel positions can be mapped back to undistorted normalised coordinates
+(\autoref{fig:ch3.projection_chain}).
 
-
-\subsubsection{In-air calibration, not fitted to water}
-This technique uses the standard Brown-Conrady calibration completed in air (using the same rig, same detector), including the stereo intrinsics, applied to the underwater
-test data set. Due to the glass water refraction, T1 is expected to fail badly. It is the used as a reference point to test the effectiveness of the Pinax model.
-
-\subsubsection{Pinax model (in-air calibration with refraction compensation)}
-Implementing the (REF AUTHOR OF PINAX MODEL), a pixel can be .... (brief summary of pinac)....
-
-
-\subsubsection{Brown-Conrady}
+\subsection{Brown-Conrady}
 % Refernce doces: https://docs.opencv.org/4.13.0/d9/d0c/group__calib3d.html
 % Explain the baseic maths
 The Brown-Conrady is a camera model capable of correcting lens induced geometric 
-distortions \citet{xuComprehensiveOverviewFishEye2024}.The model handles radial distortion (barrel and pincushion) through
+distortions \cite{xuComprehensiveOverviewFishEye2024}. The model handles radial distortion (barrel and pincushion) through
  multiplying each point by $(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)$, where $r$ is the distance from the
 image centre and $k_i$ are the radial coefficients. Tangential distortion, caused
 by the lens not being perfectly lined up with the sensor, is handled by adding an
@@ -85,13 +77,14 @@ y_d &= y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1\,(r^2 + 2y^2) + 2p_2 x y
 where $(x, y)$ are the undistorted coordinates, $r = \sqrt{x^2 + y^2}$, and
 $(x_d, y_d)$ are the distorted coordinates.
 
-OpenCV implements this through \texttt{cv2.calibrateCamera}, using \citet{zhangFlexibleNewTechnique2000}'s method for an initial estimate followed by
- Levenberg-Marquart optimisation to refine all parameters.  \cite{CvCalibrateCameraAuroraVision}.
+OpenCV implements this through \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga3207604e4b1a1758aa66acb6ed5aa65d}{\textcolor{blue}{\texttt{cv2.calibrateCamera}}}
+, using Zhang's method \cite{zhangFlexibleNewTechnique2000} for an
+initial estimate, followed by Levenberg--Marquardt optimisation to refine all parameters \cite{CvCalibrateCameraAuroraVision}.
 
  % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html
 
 
-\subsubsection{Kannala-Brandt}
+\subsection{Kannala-Brandt}
 % https://docs.opencv.org/4.13.0/db/d58/group__calib3d__fisheye.html
 % Explan the maths basic with references
 The Kannala-Brandt distortion model is an extension of the standard Brown-Crandy model, providing a more accurate distortion
@@ -103,7 +96,8 @@ r(\theta) = k_1\theta + k_2\theta^3 + k_3\theta^5 + k_4\theta^7 + k_5\theta^9
 Linking the radial distortion into the $\theta$ instead of the distance $r$, allows the model to work for wider fields of view 
 $(r=\tan\theta)$ grows towards infinity as $\theta$ approaches $90^\circ$.
 
-OpenCV uses the simpler version in \texttt{cv2.fisheye.calibrate}:
+OpenCV uses the simpler version in \href{https://docs.opencv.org/4.x/db/d58/group__calib3d__fisheye.html#gad626a78de2b1dae7489e152a5a5a89e1}{\textcolor{blue}{\texttt{cv2.fisheye.calibrate}}}:
+:
 \begin{align}
 \theta_d &= \theta\,(1 + k_1\theta^2 + k_2\theta^4 + k_3\theta^6 + k_4\theta^8) \\
 (x_d,\, y_d) &= \frac{\theta_d}{r}\,(x,\, y)
@@ -113,6 +107,67 @@ It generates vector distortion coefficients, $(k1,k2,k3,k4)$ \cite{OpenCVFisheye
 % Okay but this is now the distorted corridinates?
 % Stereo is fitted differentl
 
+\subsection{In-air calibration, not fitted to water}
+This technique uses the standard Brown-Conrady calibration completed in air (using the same rig, same detector), including the stereo intrinsics, applied to the underwater
+test data set. Due to the glass water refraction, T1 is expected to fail badly. It is the used as a reference point to test the effectiveness of the Pinax model.
+
+\subsection{Pinax model (in-air calibration with refraction compensation)}
+MUST BE CHECKED:
+The Pinax model \cite{luczynskiPinaxmodelAccurateEfficient2017} corrects for refraction at a flat port using only an
+in-air calibration. Behind a flat port, rays no longer pass through a single point, so the camera is strictly an
+axial rather than a pinhole camera \cite{agrawalTheoryMultilayerFlat2012}. Pinax exploits the fact that this axial
+camera is well approximated by a virtual pinhole camera.
+
+In the standard implementation, the camera sits a distance $d_0$ behind a glass port of thickness $d_1$. A virtual
+pinhole centre is placed on the optical axis at the position that best approximates the axial camera. Each pixel of
+the virtual pinhole image is then traced back through the water, glass and air interfaces with Snell's law, using the
+in-air intrinsics, $d_0$, $d_1$ and the refractive indices of the glass and water. This mapping is computed once and
+stored as a lookup table. Each underwater image is corrected by a single remapping step, after which the standard
+pinhole pipeline can be used unchanged.
+
+In this work, the mapping is applied directly to the detected corners instead of to whole images. Each corner is
+undistorted with the in-air Brown-Conrady model to recover its ray in air, and the ray is refracted into water with
+Snell's law, $\sin\theta_\text{air} = n_w \sin\theta_\text{water}$ with $n_w = 1.333$. Projection runs the same
+steps in reverse. Because the Aquagon is a water-contact lens, $d_0$ and $d_1$ have no physical value. They would
+only shift the virtual centre along the optical axis, which the fitted board pose absorbs, and the glass index
+cancels out of the ray direction, so only the ray directions are modelled. Nothing is fitted to the underwater data.
+
+
+
+
+%========================================================
+%==================== Theory for this section =======
+
+\subsection{Brown-Conrady with axial shift (no single-viewpoint assumption)}
+% DONE BY 5:30
+% Assumptions made by the pinhole (and Brown-Conrady) models regarding incoming light and center - single viewpoint
+% Refraction bends the rays
+% Different angles, cross at different points , edge futher forward or back
+% 
+To test whether the Aquagon lenses act as a single-viewpoint camera, the Brown-Conrady model is extended so that
+each ray can start from a point further along the optical axis. This is a simplified form of Gennery's model
+\cite{genneryGeneralizedCameraCalibration2006}, in which the starting point moves along the axis as rays come in
+further from the centre. Here the shift depends on the
+normalised radius:
+\begin{equation}
+\Delta z(r) = a_1 r^2 + a_2 r^4, \qquad r = \sqrt{x^2 + y^2}.
+\end{equation}
+If $a_1=a_2=0$, every ray starts at the origin and it is a standard Brown-Conrady. If $a_1$ and $a_2$ parameters do not
+reduce error on held-out images, the extra shift isnt helping and the camera behaves as a single viewpoint camera.
+
+The model is fitted by starting from the standard \texttt{cv2.calibrateCamera} solution ($a_1 = a_2 = 0$)
+and refining all parameters, including $a_1$ and $a_2$, with a bundle adjustment that minimises reprojection
+error, where each point's ray is found iteratively because its starting point depends on $r$.
+
+
+% TODO: Explaining how to choose parameters
+
+
+
+%=====================================================================
+\section{Data and calibration procedure}
+%=====================================================================
+\subsection{Dataset}
 
 % \subsubsection{Data collection}
 % % TODO: COnfirm angles set
@@ -136,7 +191,7 @@ It generates vector distortion coefficients, $(k1,k2,k3,k4)$ \cite{OpenCVFisheye
 These tests use the calibration images data set (\hyperref[sec:ch4.ds1]{\textcolor{blue}{DS1}}). \autoref{fig:ch5.air_vs_water} compares the in-air and
 underwater sets. Refraction at the glass--water interface narrows the field of view underwater, so the
 board appears smaller in air at the same distance. Because the Aquagon lenses are designed for use
-underwater, the in-air images show clear pincushion distortion along the straight edges of the board.
+underwater, the in-air images show  pincushion distortion along the straight edges of the board.
 Underwater, haze reduces contrast, and some frames show floating particles and bubbles on the board.
 
 % TODO: Get rid of annotative text, also make sure you're actually using teh correct images.....
@@ -178,12 +233,14 @@ or selecting frames at set steps (e.g. every 10th frame)
 \subsection{Calibration}
 \label{subsec:ch5.calibration}
 % NB: APPARENTLY THE IN AIR WERE MORE COMPRESSED DUE TO HIGHER DETAIL - CPMPRESSION LEVELS DEPEND detail
-Calibration is done with \texttt{calibration.py}. The code reads in the full set of calibration images aswell as a JSON file containing the openCV
-detector settings. The board geometries for the Aprilgrid board are hardcoded into the file. The code reads in the dector settings, builds a board object to match the physical board,
-loads each image and selecets either greyscale, luma or a single colour channel, detects tags, does sub pixel corner refinement, regects images with less than 10 tags. It then uses
-these tags and tag positions to calculate camera intrinsics using \texttt{calibrateCameraExtended} and stereo extrinsics using \texttt{calibrateStereoExtended}. The camera's intrinsics
-and extrinsics are outputted to a .YAML file for comparison and use further in the pipeline. The error metrics used in Section X are generated and stored in the same YAML file. An example 
-image with annotaed detections is given in \autoref{fig:ch5.detectedtags} below.
+Calibration is performed by \texttt{calibration.py}, which takes the full set of calibration images and a JSON file of OpenCV detector settings as input.
+The geometry of the AprilGrid board is hard-coded in the script, and is used to build a board object that matches the physical target.
+Each image is first converted to a single channel (greyscale, luma or one colour channel, as selected), after which the tags are detected and their corners refined to sub-pixel accuracy.
+Images with fewer than 10 detected tags are rejected.
+The remaining detections, together with the known tag positions on the board, are used to estimate the intrinsics of each camera with \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gae7f5b1b89ac2d6b1c4bd6a8ad0e5e8c1}{\textcolor{blue}{\texttt{cv2.calibrateCameraExtended}}}
+, and the stereo extrinsics with \texttt{stereoCalibrateExtended}.
+The resulting parameters are written to a YAML file, along with the error metrics used in \autoref{sec:X}, so that calibrations can be compared and passed on to the rest of the pipeline.
+An example image with annotated detections is shown in \autoref{fig:ch5.detections}.
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.5\textwidth]{figs/Ch5/DetectedTags.png}
@@ -195,7 +252,21 @@ image with annotaed detections is given in \autoref{fig:ch5.detectedtags} below.
 \end{figure}
 
 
-\subsection{Optimising for Detection}
+\subsection{Evaluation metrics}
+Optimising for calibration requires careful consideration to avoid degrading the accuracy of the calibration. Selectivly choosing frames to reduce RMS error results in losing calibration
+coverage. Harder to detect tags may increase RMS errors due to higher noise with their detections, resulting in worse RMS error. This may punish algortithms for a more accurate output.
+To avoid this, six metrics are used to evaluate the calibration's algorithm's effectiveness:
+\begin{enumerate}
+    \item \textbf{Tag detection rate:} number of AprilTags detected, as a fraction of the total board tags.
+    \item \textbf{Mean per-image RMS:} reprojection error computed separately for each image, then averaged over all images.
+    \item \textbf{Overall RMS:} reprojection error over all detected corners, as returned by \texttt{calibrateCameraExtended}.
+    \item \textbf{Parameter uncertainty:} standard deviations of the intrinsic parameters, as returned by \texttt{calibrateCameraExtended}.
+    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a different AprilTag target at distances of 50--250\,cm.
+    \item \textbf{Matched-tag RMS:} reprojection error computed only over tags detected in all of the compared calibrations.
+\end{enumerate}
+
+%=====================================================================
+\section{Experiment 1: Image channel for tag detection}
 \label{subsec:ch5.optimising_detection}
 % Mention how to optimise through varying openCV parameters
 % Mention metrics for what is good, explained in the theoretical development
@@ -239,26 +310,10 @@ image with annotaed detections is given in \autoref{fig:ch5.detectedtags} below.
 %Second: Comparing the Gray, RGB colours 
 %Third: 
 
-
-\subsubsection{Calibraion analysis metrics}
-Optimising for calibration requires careful consideration to avoid degrading the accuracy of the calibration. Selectivly choosing frames to reduce RMS error results in losing calibration
-coverage. Harder to detect tags may increase RMS errors due to higher noise with their detections, resulting in worse RMS error therefore punishing the algortithms for a more accurate output.
-To avoid this, four metrics are used to evaluate the calibration's algorithm's effectiveness:
-\begin{enumerate}
-    \item \textbf{Tag detection rate:} number of AprilTags detected, as a fraction of the total board tags.
-    \item \textbf{Mean per-image RMS:} reprojection error computed separately for each image, then averaged over all images.
-    \item \textbf{Overall RMS:} reprojection error over all detected corners, as returned by \texttt{calibrateCameraExtended}.
-    \item \textbf{Parameter uncertainty:} standard deviations of the intrinsic parameters, as returned by \texttt{calibrateCameraExtended}.
-    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a different AprilTag target at distances of 50--250\,cm.
-    \item \textbf{Matched-tag RMS:} reprojection error computed only over tags detected in all of the compared calibrations.
-\end{enumerate}
-
-\subsubsection{Results}
-\subsubsection{Comparing channels for tag detection}
-
 % Intro to the colour comparison
 The first comparison examines how AprilgGrid detection works for the different channels. OpenCV's ArUco  detector
-detection takes single-channel image. Five inputs were compared: greyscale (converted using OpenCV's \texttt{cvtColor}), 
+ takes single-channel images. Five inputs were compared: greyscale 
+ (converted using OpenCV's \href{https://docs.opencv.org/4.x/d8/d01/group__imgproc__color__conversions.html#ga397ae87e1288a81d2363b61574eb8cab}{\textcolor{blue}{\texttt{cvtColor}}}), 
 the camera's JPEG luma (Y), and the red, green and blue channels. Each run used OpenCV's defualt detector and calibration settings on the same set of calibration frames. Runs were compared on 
 tag detection rate, false detection rate and matched-tag RMS error.
 
@@ -275,14 +330,6 @@ tag detection rate, false detection rate and matched-tag RMS error.
     \label{fig:ch5.recall_mean}
 \end{figure}
 
-\textbf{Greyscale and luma.} The converted greyscale and camera's Y channel gave identicle detection counts and near identical 
-error in both air and water.
-
-% This makes sense as \texttt{cvtColor} and the camera's YUYV encoding both use the same weights, $Y=0.299R+0.587G+0.114$ (ref).
-
-\textbf{Individual channels.} Green slightly outperformed the other channels and matched or slightly outperformed greyscale in air anfd water ($0.170$ vs $0.162$), with blue
-weakest across both media.
-
 
 %This is likely due to how the colour channels are reconstructed from YUYV data? is it  or is it just how its encoded? Eac hcolour is recovered from the lima plus zthe half-resolution chorma. .
 
@@ -293,75 +340,64 @@ weakest across both media.
 \small
 \caption{Colour channel comparison. Detection rate: distinct board tags per image $\div$ 70, mean over all images. Matched-tag RMS and median: corner reprojection error over only the tags every input detected.}
 \label{tab:channel_summary}
-\begin{tabular}{llrrrr}
+\begin{tabular}{llcccccc}
 \toprule
-Medium & Input & Detection rate & False det. (\%) & Matched-tag RMS L/R (px) & Matched-tag median L/R (px) \\
+ & & Detection & False & \multicolumn{2}{c}{Matched-tag RMS (px)} & \multicolumn{2}{c}{Matched-tag median (px)} \\
+\cmidrule(lr){5-6} \cmidrule(lr){7-8}
+Medium & Input & rate & det.\ (\%) & L & R & L & R \\
 \midrule
-Air & Gray (computed) & 0.168 & 0.08 & 0.213 / 0.244 & 0.174 / 0.186 \\
- & Y (JPEG luma) & 0.168 & 0.08 & 0.215 / 0.242 & 0.176 / 0.186 \\
- & Red & 0.134 & 0.05 & 0.365 / 0.321 & 0.207 / 0.199 \\
- & Green & 0.177 & 0.07 & 0.236 / 0.238 & 0.176 / 0.185 \\
- & Blue & 0.151 & 0.04 & 1.440 / 0.360 & 0.213 / 0.267 \\
- & Merged (gray+R+G+B) & 0.246 & 0.08 & 0.506 / 0.246 & 0.178 / 0.186 \\
+Air   & Gray (computed)     & 0.168 & 0.08 & 0.213 & 0.244 & 0.174 & 0.186 \\
+      & Y (JPEG luma)       & 0.168 & 0.08 & 0.215 & 0.242 & 0.176 & 0.186 \\
+      & Red                 & 0.134 & 0.05 & 0.365 & 0.321 & 0.207 & 0.199 \\
+      & Green               & 0.177 & 0.07 & 0.236 & 0.238 & 0.176 & 0.185 \\
+      & Blue                & 0.151 & 0.04 & 1.440 & 0.360 & 0.213 & 0.267 \\
+      & Merged (gray+R+G+B) & 0.246 & 0.08 & 0.506 & 0.246 & 0.178 & 0.186 \\
 \midrule
-Water & Gray (computed) & 0.354 & 0.00 & 0.490 / 0.856 & 0.207 / 0.221 \\
- & Y (JPEG luma) & 0.354 & 0.00 & 0.512 / 0.856 & 0.208 / 0.221 \\
- & Red & 0.340 & 0.00 & 0.563 / 0.954 & 0.228 / 0.238 \\
- & Green & 0.346 & 0.02 & 0.524 / 0.900 & 0.214 / 0.224 \\
- & Blue & 0.299 & 0.02 & 0.590 / 0.879 & 0.220 / 0.257 \\
- & Merged (gray+R+G+B) & 0.432 & 0.03 & 0.551 / 0.933 & 0.212 / 0.219 \\
+Water & Gray (computed)     & 0.354 & 0.00 & 0.490 & 0.856 & 0.207 & 0.221 \\
+      & Y (JPEG luma)       & 0.354 & 0.00 & 0.512 & 0.856 & 0.208 & 0.221 \\
+      & Red                 & 0.340 & 0.00 & 0.563 & 0.954 & 0.228 & 0.238 \\
+      & Green               & 0.346 & 0.02 & 0.524 & 0.900 & 0.214 & 0.224 \\
+      & Blue                & 0.299 & 0.02 & 0.590 & 0.879 & 0.220 & 0.257 \\
+      & Merged (gray+R+G+B) & 0.432 & 0.03 & 0.551 & 0.933 & 0.212 & 0.219 \\
 \bottomrule
 \end{tabular}
 \end{table}
-%========================
-\textbf{Analysis} \\
+
+
+
+\subsection{Analysis}
 % == IMPROVED WITH MERGING
+
+The detection rate was noticeably lower in air than in water. This is
+counterintuitive, since water introduces haze and reduces contrast. 
+The likely cause is that the Aquagon lenses are design specifically for underwater use. 
+As shown in \autoref{ig:ch5.air_water_comp}, the in air images produce a wider field of view with distortion.
+Another possible reason could be how the camera is handling the MJPG compression.
+If the camera caps the size of each compressed frame, the more textured lab background would force heavier compression and blur fine detail on the target.
+
 When looking at which detections were made for each channel, an intersting observation was made. Although they had a similar detection rate,
-not all the detections were of the same tags. \autoref{fig:ch5.channel_overlap} below shows which tags were detected by each channel. The calibration.py script was subsequently adapted to also take a mergerd configutation, running the tag detection on
+not all the detections were of the same tags. \autoref{fig:ch5.channel_overlap} below shows which tags were detected by each channel. The \texttt{calibration.py} script was subsequently adapted 
+to also take a mergerd configuration, running the tag detection on
 the RGB channels seprately and merging the detected tags. This improved detection count to 0.437.
 
 
-% Get rid of text in image.
+NB: WHY IS BLUE NOT IN THIS PLOT.....
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.8 \textwidth]{figs/Ch5/fig_channel_overlap_L3.png}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \caption[Tag detections per colour channel.]{\textbf{Tag detections per colour channel.}
+    Dots show which of gray, green and red found each tag (hollow means missed); black outlines mark tags found by all channels, purple by some, dashed by none.}
+
     \label{fig:ch5.channel_overlap}
 \end{figure}
 
 
 
-%ADD EQUATION HERE WITH REFERENCE TO HOW IT HAPPEND.
 
-% Blue has the largest chroma coefficient and gets the most chroma blur and compression noise This can soften the black white tag edges that the detector relies on. Green has the smallest
-%dependence and is closest to the luma iamge (MIGHT BE A BS ARGUMENT BECAUSE ITS MJEPF. DO TEST TO CONFIMR THIS)
-
-
-
-% analysing the coloour comparioson'5
-
-%Matching greyscale and luma resuls is expected as the JPEG luma uses the same RBG weigths as grayscale. 
-% TODO: Research MJPEG encoding aswell as a hypothesis for this result
-
-%Red and green ach found X less, with Blue the clear worse with X and Y error. Likely blue half resoluition (research).
-% Joining the different detections for maximum number of detections
-
-
-% == IN AIR VS WATER COMPARISONN
-An interesting note was that the air detection rate was worse across all detections. While this appears counterintuitive, it is 
-likely due to the refraction and snells law. % TOOD: Explicit snells law explanation in angle getting smaller for secionts theory dev
-This is substantiated by the intrinsics (FACTOR THAT REPRESENTS THE 1.33 CALCULATOIN). This means X, and an actually FOV of. This FOV change
-can be seen in \autoref{fig:ch5.air_vs_water}. Another factor possible cause is the MJPG compression. %TODO RESEARCH IF VALID REASON)
-Due to the higher detail in the air frames versus the hazy water frames, the MJPG compression dulls out the sharper details to maintain the
-maximum file size. This was confirmed by running a (what kind of test with what metrics), which resulted in (TODO).
-
-
-% == COMPARING RMS METRICS AND FALSE DETECTIONTS
-% TODO
-% HOW ARE THEY DIFFERENT...
-% TODO: ADD MEASURED ACCURACY ON EMILYS TAGS TO 4 DECIMAL PLACES
-
-\subsubsection{Tuning OpenCV detector parameters}
+%=====================================================================
+\section{Experiment 2: Tuning the detector parameters}
+%=====================================================================
+\subsection{Method}
 
 % OpenCV parameter adjustments, what, why, ,how (educated guess, followed by paramtere sweep), improved detection results
 % CLAUDE ADAPTED TO THIS:
@@ -374,7 +410,7 @@ An image is dropped if its tags corner RMS exceeds 3x the median or if it has fe
 
 % COULD MENTION WHAT WENT WRONG WITH "INITIAL TESTING... OR JUST KINDA LIE"
 
-\subsubsection{OpenCV Parameter sweep results}
+\subsection{Results}
 % === HIGH LEVEL RESULTS, HOW LONG IT TOOK TO RUN, WHAT THE BIGGEST WINNERS WERE, HOW MUCH IMPROVEMENT
 The sweep took X seconds to run, settling to a final configuration with the following setup:
 TODO: \texttt{INSER CONFIG LINE FOR OPENCV DETECTOR OBJECT}.
@@ -391,7 +427,8 @@ is important for charturisation across the full frame.
 
 
 
-\subsection{Underwater Compensation analysis}
+%=====================================================================
+\section{Experiment 3: Underwater compensation}
 \label{subsec:ch5.underwater_compensation_analysis}
 % EXPLANATIONS OF THE THREE METHODS GIVEN IN THE THEORETICAL DEVELOPMENT SECTION
 % === PINAX (is it even possible in this context)
@@ -400,91 +437,8 @@ is important for charturisation across the full frame.
 % == ADDED CHOICE OF DISTANCE ERROR (EMily's 250cm is useful here)
 
 
-%========================================================
-%==================== Theory for this section =======
-
-\subsubsection{Brown-Crady + axial shift (non single viewpoint assumption)}
-% DONE BY 5:30
-% Assumptions made by the pinhole (and Brown-Conrady) models regarding incoming light and center - single viewpoint
-% Refraction bends the rays
-% Different angles, cross at different points , edge futher forward or back
-% 
-
-The pinhole model assumes all incoming light refracts through the principle point at the center of the virtual image plane, making
-a single viewpoint assumption. Refraction however can cause incident rays to bend, meaning rays further towards the edge
-crossing either further forward or backwards. This can cause what( ref) literature, you said it can cause distance dependent error).
-To test this, a similar approach to X( Ref) is tested
-
-To test whether the aquagon lenses produce a single viewpoint, Brown-Conrady can be adapted to include an axial shift. A ray needs
-a direction and a starting point. The direction is still the normal Brown-Conrady direction $(x,y,1)$. The
-starting point, however, can be shifted from the origin along the optical axis: $\mathbf{o}(r)=(0,0,\Delta z(r))$. The shift depends on how
-far the ray is from the centre:
-\begin{equation}
-\Delta z(r) = a_1 r^2 + a_2 r^4, \qquad r = \sqrt{x^2 + y^2}.
-\end{equation}
-If $a_1=a_2=0$, every ray starts at the origin and it is a standard Brown-Conrady. If $a_1$ and $a_2$ parameters do not
-reduce error on held-out images, the extra shift isnt helping and the camera behaves as a single viewpoint camera.
-
-The implemtation of this can be seen in the appendix (here for now)
-% TODO: Switch code snippet gor algorithmic chart
-
-\begin{lstlisting}[language=Python, caption={Brown-Conrady with axial ray shift: projection and fit (condensed from \texttt{models.py}).}, label={lst:axial}]
-def dz(r, a1, a2):
-    return a1 * r**2 + a2 * r**4            # axial shift (mm), zero on the axis
-
-def normalised(X, a1, a2):
-    """Ray direction (x, y) of camera-frame points X (N, 3)."""
-    rho, Z = np.hypot(X[:, 0], X[:, 1]), X[:, 2]
-    r = rho / Z                              # pinhole start
-    for _ in range(8):                       # Newton: r (Z - dz(r)) = rho
-        f  = r * (Z - dz(r, a1, a2)) - rho
-        df = Z - dz(r, a1, a2) - r * (2*a1*r + 4*a2*r**3)
-        r  = r - f / df
-    return X[:, :2] / (Z - dz(r, a1, a2))[:, None]
-
-def project(X, K, D, a1, a2):
-    xy = normalised(X, a1, a2)
-    rays = np.hstack([xy, np.ones((len(xy), 1))])
-    return cv2.projectPoints(rays, np.zeros(3), np.zeros(3), K, D)[0]   # OpenCV distortion
-
-# Fit: start from cv2.calibrateCamera (a1 = a2 = 0), then bundle-adjust
-# [fx, fy, cx, cy, k1, k2, p1, p2, k3, a1, a2] + one pose per view
-fit = least_squares(residuals, p0, jac_sparsity=sparsity, method="trf", x_scale="jac")
-\end{lstlisting}
-
-% TODO: Explaining how to choose parameters
-
-
-
-\subsection{Testing procedure}
-\label{subsec:ch5.testing_procedure}
-% Technicall goes into Theory section:
-Five different compensation techniques were tested (T1-T5). All techniques are scored on the same held-out board detections. 
-Trained with 8 split underwater sets were used, with every recording pair held out once. This gave 28 splits. Each split trains on the 
-remaining six recording and tests on all frames in the 2 held-out ones. The exact recordings and splits are given in the appendix. Each
-metric is computed once per split, with a mean over the full range. 
-Both in air and under water datasets are used.
-
-Common detection points are generated using \texttt{OPENCVWHAT?} for both media and are then passed to the calibration code. This 
-so the differences between the techniques come from the different camera models, not the detections. Two of the techniques are
-trained on only the closer range date (insert range) to test how well they generalise to uncalibrated distances.
-
-% Which exact sets of detections for the camera models and which exact for the held out. Which ones for in air calibration technique?
-% TODO: Adjust accuracy to 35.35533905932738mm.
-
-
-% AI thinks that Pinax is mainly useful for distance errors, but the lens should be useful for removing distance dependence
-% We dont have d0 value , so d0 free parameter so its more of a 'curve fit'
-
-\subsubsection{Close range training and extrapolating}
-%TODO
-For reasonable underwater calibration, it is likely the board will be closer to the cameras. Ice being scanned may well be beyond these
-calibrated distances. Two of the five methods are therefore tested again, using only distances from X to Y for their camera 
-calibration. 
-% For this and further, water final was used. Defualt for the Calibration. At this time, was from the frame shots and param sweep
-
-
-\subsection{Compensation techniques tested}
+\subsection{Method}
+\subsubsection{Compensation techniques tested}
 \label{subsec:ch5.compensation_techniques_tested}
 \begin{enumerate}
     \item \textbf{T1:} In air calibration tested in water: Baseline comparison
@@ -506,7 +460,35 @@ calibration.
 % How it is fitted  - scipy, curve fitted, what and why.
 
 % CLAUDE
-\subsubsection{Held out error and split training}
+\subsubsection{Testing procedure}
+\label{subsec:ch5.testing_procedure}
+% Technicall goes into Theory section:
+Five different compensation techniques were tested (T1-T5). All techniques are scored on the same held-out board detections. 
+Trained with 8 split underwater sets were used, with every recording pair held out once. This gave 28 splits. Each split trains on the 
+remaining six recording and tests on all frames in the 2 held-out ones. The exact recordings and splits are given in the appendix. Each
+metric is computed once per split, with a mean over the full range. 
+Both in air and under water datasets are used.
+
+Common detection points are generated using \texttt{OPENCVWHAT?} for both media and are then passed to the calibration code. This 
+so the differences between the techniques come from the different camera models, not the detections. Two of the techniques are
+trained on only the closer range date (insert range) to test how well they generalise to uncalibrated distances.
+
+% Which exact sets of detections for the camera models and which exact for the held out. Which ones for in air calibration technique?
+% TODO: Adjust accuracy to 35.35533905932738mm.
+
+
+% AI thinks that Pinax is mainly useful for distance errors, but the lens should be useful for removing distance dependence
+% We dont have d0 value , so d0 free parameter so its more of a 'curve fit'
+
+\subsubsection{Close-range training and extrapolation}
+%TODO
+For reasonable underwater calibration, it is likely the board will be closer to the cameras. Ice being scanned may well be beyond these
+calibrated distances. Two of the five methods are therefore tested again, using only distances from X to Y for their camera 
+calibration. 
+% For this and further, water final was used. Defualt for the Calibration. At this time, was from the frame shots and param sweep
+
+
+\subsubsection{Held-out error and split training}
 \label{sec:heldout}
 Each method was scored on recordings it was not trained on. For every combination of two of the eight underwater
 recordings (28 splits), the method was fitted on the other six and tested on the two held out, so every test
@@ -516,7 +498,7 @@ reprojected corners. Results are the mean over the 28 splits, and two methods ar
 a difference being within noise when the range of their 28 paired differences contains zero.
 
 
-\subsubsection{Reprojection Error on the held-out recordings}
+\subsubsection{Reprojection error on the held-out recordings}
 \textbf{Cross-validation}. Each method is scored on recordings it was not trained on. The held-out error is the RMS reprojection error
 of the calibration measured on images that were withheld from its training. The data is split into training and
 test sets to test how well the calibration predicts unseen data. For the calibration data set, there are 28 splits
@@ -572,12 +554,19 @@ $(50,100,150,200,250)$ which some are above the calibration test set. An example
 
 
 
-\subsection{Results and analysis} 
+\subsubsection{Compensation testing}
+% What set is used to generate each camera matrix
+% Where the matrices are all stored
+% How they are read in for the comparison
+% What is compared (which held out frames)
+% How it is outputted
+
+\subsection{Results}
 \label{subsec:ch5.results_analysis}
 A test program \texttt{name.py} was written to complete the sweep of tests described. The tests completed
 within 20 minutes, providing the following results
 
-\subsubsection{RMS Reprojection error}
+\subsubsection{Reprojection error}
 \autoref{tab:heldout_left} below gives the result of the heldout RMS Reprojetction error mean 
 and $[2.5, 97.5]$ percentile range over the 28 splits.
 
@@ -625,7 +614,7 @@ Kannala-Brandt slightly outperforms across all compared metrics.
 % TODO - Switch acial shift to kannala brandt, same with close range training.
 % TODO - WHY ARE THESE RMS VALUES DIFFERENT FROM THE TAG DETECTION TESTS
 
-\subsubsection{Where the error is in the image}
+\subsubsection{Error across the image}
 % Options: Just looking at T1-T7 (technically), 
 % Mean held out residual is kinda useful but only the scaled ones are actually useful. Draw in air at different scale 
 % and make exceeding clear scaling differenece due to dwarfing. Lets have both left and right cameras
@@ -657,7 +646,7 @@ None of the plots show a cinsistent
 
 
 
-\subsubsection{Stereo scale - held-out pairs}
+\subsubsection{Stereo scale on held-out pairs}
 \begin{table}[H]
 \centering
 \caption{Triangulated scale bars (250--450~mm) on held-out stereo pairs, in mm: mean over the 28 splits, with the
@@ -691,7 +680,7 @@ BC + axial, close-range training & 0.01 {\scriptsize[$-0.94$, 0.87]} & 1.25 {\sc
 \end{figure}
 
 
-\subsubsection{Separate WaterComparison target}
+\subsubsection{Independent comparison target}
 
 
 \begin{table}[H]
@@ -728,14 +717,8 @@ BC + axial, close-range training    & $-0.5$ (4) & $-1.6$ (6) & $-3.8$ (6) & $-3
     \label{fig:ch5.target}
 \end{figure}
 
-\subsubsection{Compensation testing}
-% What set is used to generate each camera matrix
-% Where the matrices are all stored
-% How they are read in for the comparison
-% What is compared (which held out frames)
-% How it is outputted
-
-\subsection{Calibration and Compensation conclusion}
+%=====================================================================
+\section{Conclusions}
 \label{subsec:ch5.calibration_compensation_conclusion}
 % Conclude that the standard is the best option, within noise looking acrcoss left and right cameras.
 
