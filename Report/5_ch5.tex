@@ -6,48 +6,42 @@
 % CAMERA CALIBRATION Zhang
 % OPENCV TOOLBOX tools to apply Zhang (Explain how opencv does its detection and reference Uwaruco's findings)
 
-\subsubsection{OpenCV}
+%\subsubsection{OpenCV}
 
-\begin{table}[H]
-    \centering
-    \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
-    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
-    \toprule[2.25pt]
-    \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
-    \midrule[1pt]
-    \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
-    \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
-    \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
-    \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
-    \midrule
-    \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
-    \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
-    \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
-    \bottomrule[2.25pt]
-    \end{tabularx}
-    \label{table:ch5.detectorparams}
-\end{table}
+%\begin{table}[H]
+%    \centering
+%    \caption[ArUco detector parameters.]{\textbf{ArUco detector parameters.} The detector settings exposed through \texttt{detector\_presets.json}, their defaults, and the conditions under which each is adjusted.}
+%    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}m{3.6cm}>{\raggedright\arraybackslash}m{1.2cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X}
+%    \toprule[2.25pt]
+%    \textbf{Setting} & \textbf{Default} & \textbf{What it does} & \textbf{When to set it} \\
+%    \midrule[1pt]
+%    \texttt{adaptiveThreshWinSizeMin} & 3 & Smallest neighbourhood (px) for computing the local threshold. & Increase for noisy images. \\
+%    \texttt{adaptiveThreshWinSizeMax} & 23 & Largest neighbourhood. & Raise for large lighting area variations, or close to the camera. \\
+%    \texttt{adaptiveThreshWinSizeStep} & 10 & Step between window sizes; each size is a separate thresholding pass. & Lower for more passes, at the cost of speed. \\
+%   \texttt{adaptiveThreshConstant} & 7 & Offset subtracted from the local mean before comparing. & Lower for low-contrast, hazy images. \\
+%    \midrule
+%    \texttt{minMarkerPerimeterRate} & 0.03 & Minimum tag perimeter as a fraction of the larger image dimension. & Lower to detect small or distant tags. \\
+%    \texttt{maxMarkerPerimeterRate} & 4.0 & Maximum tag perimeter. & Rarely needs changing. \\
+%    \texttt{polygonalApproxAccuracyRate} & 0.003 & How far a contour may deviate from a perfect square. & Raise for distortion. \\
+%    \bottomrule[2.25pt]
+%    \end{tabularx}
+%    \label{table:ch5.detectorparams}
+%\end{table}
 
 % COULD BE COOL TO LOOK AT THE OPENCV DETECTION ALGORITHM WITH COOL IMAGE 
 % YUYV and MJPG compression - colours, file size compression for MJPG
 % Underwater compensation stuff.
 % Water attenuation on light (Maybe add to main literature review)
 
-\chapter{Experimental design}
-\label{ch:experiments}
+\chapter{Underwater stereo calibration}
+\label{ch:calibration}
 %---------------------------------------------------------------------
-
-%=====================================================================
-\section{Experimental setup}
-\label{sec:ch5.setup}
-%=====================================================================
-% Rig, tank, lighting, turbidity control, ground truth measurement
-
+INTRO SENTENCE explaining what the test is, where the extra theory is
 
 
 % CURRENTLY THINKING OF DOING 3 SEPERATE EXPERIMENT, RESULT SETUPS
 %=====================================================================
-\section{Experiment 1: Stereo calibration in air and underwater}
+\section{Stereo calibration in air and underwater}
 \label{sec:ch5.exp1_calibration}
 %=====================================================================
 % Intro / Setup for experiment
@@ -57,50 +51,114 @@ taken both in air and underwater. The in-air calibration provides a baseline for
 has on the camera calibration.
 
 
-\subsubsection{Data collection}
-% TODO: COnfirm angles set
-Images were captured in 10,cm increments at distances from 40 to 160\,cm from the board side of the rail, read from the calibrated markers on 
-the side of the guide rail. At each distance, the board angle was set to  $(90, 100, 110, 130, 150)$. The board was first placed in the centre and then on the left of the frame mount. % TODO: Adjust where distances were measured from
-In total, 212 stereo pairs were used in air and 230 matching pairs underwater. % TODO: redo without blurred frames
+\section{Expanding on theory}
 
-% MJPEG at 1600×1200, full-range YUV 4:2:2, ~30fps, in MKV containers
-Initial testing found that the uncompressed YUYV format was too causing warped blurry images underwater. It was assumed that the shutterspeed
-was filling up the fixed 5fps configuration for the cameras. The cameras have a maximum 5fps frame rate for the raw footage, raising concerns over
-the number of images produced per ice drive by pass. It was decided that MJPG's compression was admissable for the tests due to smaller file sizes
-(x vs 1GB for a 30 second clip) and improved image quality. This decision had effects on the data processing regarding detection ability (see section X 
-, regarding colour channels)) and reconstruction (see X). These were only discovered after testing the MJPG footage,
-and repeated testing was done for experiments 2 and 3, comparing the MJPG and YUYV results.
+\subsection{Theory: Calibration techniques}
+\label{subsec:ch5.theory_calibration_techniques}
+% NB its clear how detection is seperate from calibration
 
-% Maybe I fix
+% Refraction and distortion
+% Training split thing for held out error, what, why usefaul
 
-For these sets of tests, the cameras were set to auto exposure and to record 30fps in MJPG at maximum resolution, $1600$x$1200$
-The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
 
-\autoref{fig:ch5.air_vs_water} illustrates the key differences between the in-air and underwater data sets. Refraction at the
-glass-water interface narrows the field of view underwater. The in-air images appear wider-angle, with the board appearing smaller
-at a given distance.The aquagon lenses have specifically been calibrated for underwater conditions, which is clearly visible in the comparison.
-The in air image has noticable pincusion distortion, noticable along the straith edges of the board
-The water introduces haze and reduces contrast. Some frames include floating particles and bubbles on the surface of the calibration board.
+\subsubsection{In-air calibration, not fitted to water}
+This technique uses the standard Brown-Conrady calibration completed in air (using the same rig, same detector), including the stereo intrinsics, applied to the underwater
+test data set. Due to the glass water refraction, T1 is expected to fail badly. It is the used as a reference point to test the effectiveness of the Pinax model.
+
+\subsubsection{Pinax model (in-air calibration with refraction compensation)}
+Implementing the (REF AUTHOR OF PINAX MODEL), a pixel can be .... (brief summary of pinac)....
+
+
+\subsubsection{Brown-Conrady}
+% Refernce doces: https://docs.opencv.org/4.13.0/d9/d0c/group__calib3d.html
+% Explain the baseic maths
+The Brown-Conrady is a camera model capable of correcting lens induced geometric 
+distortions \citet{xuComprehensiveOverviewFishEye2024}.The model handles radial distortion (barrel and pincushion) through
+ multiplying each point by $(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)$, where $r$ is the distance from the
+image centre and $k_i$ are the radial coefficients. Tangential distortion, caused
+by the lens not being perfectly lined up with the sensor, is handled by adding an
+offset controlled by $p_1$ and $p_2$. Joining together, this gives: 
+\begin{align}
+x_d &= x\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2p_1 x y + p_2\,(r^2 + 2x^2) \\
+y_d &= y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1\,(r^2 + 2y^2) + 2p_2 x y
+\end{align}
+where $(x, y)$ are the undistorted coordinates, $r = \sqrt{x^2 + y^2}$, and
+$(x_d, y_d)$ are the distorted coordinates.
+
+OpenCV implements this through \texttt{cv2.calibrateCamera}, using \citet{zhangFlexibleNewTechnique2000}'s method for an initial estimate followed by
+ Levenberg-Marquart optimisation to refine all parameters.  \cite{CvCalibrateCameraAuroraVision}.
+
+ % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html
+
+
+\subsubsection{Kannala-Brandt}
+% https://docs.opencv.org/4.13.0/db/d58/group__calib3d__fisheye.html
+% Explan the maths basic with references
+The Kannala-Brandt distortion model is an extension of the standard Brown-Crandy model, providing a more accurate distortion
+representation for wide-angle lenses. Instead of a single pinhole projection model ($x=f\tan\theta$),
+ it approximates four different projection models with a polynomial in the angle $\theta$ of the incoming light ray:
+\begin{equation}
+r(\theta) = k_1\theta + k_2\theta^3 + k_3\theta^5 + k_4\theta^7 + k_5\theta^9
+\end{equation}
+Linking the radial distortion into the $\theta$ instead of the distance $r$, allows the model to work for wider fields of view 
+$(r=\tan\theta)$ grows towards infinity as $\theta$ approaches $90^\circ$.
+
+OpenCV uses the simpler version in \texttt{cv2.fisheye.calibrate}:
+\begin{align}
+\theta_d &= \theta\,(1 + k_1\theta^2 + k_2\theta^4 + k_3\theta^6 + k_4\theta^8) \\
+(x_d,\, y_d) &= \frac{\theta_d}{r}\,(x,\, y)
+\end{align}
+It generates vector distortion coefficients, $(k1,k2,k3,k4)$ \cite{OpenCVFisheyeCamera}.
+
+% Okay but this is now the distorted corridinates?
+% Stereo is fitted differentl
+
+
+% \subsubsection{Data collection}
+% % TODO: COnfirm angles set
+% Images were captured in 10,cm increments at distances from 40 to 160\,cm from the board side of the rail, read from the calibrated markers on 
+% the side of the guide rail. At each distance, the board angle was set to  $(90, 100, 110, 130, 150)$. The board was first placed in the centre and then on the left of the frame mount. % TODO: Adjust where distances were measured from
+% In total, 212 stereo pairs were used in air and 230 matching pairs underwater. % TODO: redo without blurred frames
+
+% % MJPEG at 1600×1200, full-range YUV 4:2:2, ~30fps, in MKV containers
+% Initial testing found that the uncompressed YUYV format was too causing warped blurry images underwater. It was assumed that the shutterspeed
+% was filling up the fixed 5fps configuration for the cameras. The cameras have a maximum 5fps frame rate for the raw footage, raising concerns over
+% the number of images produced per ice drive by pass. It was decided that MJPG's compression was admissable for the tests due to smaller file sizes
+% (x vs 1GB for a 30 second clip) and improved image quality. This decision had effects on the data processing regarding detection ability (see section X 
+% , regarding colour channels)) and reconstruction (see X). These were only discovered after testing the MJPG footage,
+% and repeated testing was done for experiments 2 and 3, comparing the MJPG and YUYV results.
+
+% % Maybe I fix
+
+% For these sets of tests, the cameras were set to auto exposure and to record 30fps in MJPG at maximum resolution, $1600$x$1200$
+% The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
+
+These tests use the calibration images data set (\hyperref[sec:ch4.ds1]{\textcolor{blue}{DS1}}). \autoref{fig:ch5.air_vs_water} compares the in-air and
+underwater sets. Refraction at the glass--water interface narrows the field of view underwater, so the
+board appears smaller in air at the same distance. Because the Aquagon lenses are designed for use
+underwater, the in-air images show clear pincushion distortion along the straight edges of the board.
+Underwater, haze reduces contrast, and some frames show floating particles and bubbles on the board.
 
 % TODO: Get rid of annotative text, also make sure you're actually using teh correct images.....
 \begin{figure}[htbp]
     \centering
-    \begin{subfigure}[b]{0.665\textwidth}
+    \begin{subfigure}[t]{0.716\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/fig_air_vs_water_C1_right_60.pdf}
-        \caption{Description. Left: air. Right: water.}
+        \caption{The board straight-on at the same rail position, seen by the right camera. Triangulated distance: 41.5\,cm in air and 39.3\,cm in water. Green outlines mark the tags found by the OpenCV default detector.}
         \label{fig:ch5.air_water_comp}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.315\textwidth}
+    \begin{subfigure}[t]{0.264\textwidth}
         \centering
         \includegraphics[width=\linewidth]{../results/experiments/channels/air_vs_water_crops/fig_single_tag_close_far.png}
-        \caption{Description. Left: air. Right: water.}
+        \caption{One tag at about 20\,cm (top) and 120\,cm (bottom).}
         \label{fig:ch5.dist_comp}
     \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \caption[Calibration images in air and underwater.]{\textbf{Calibration images in air and underwater.} In each pair, air is on the left and water on the right. At the same distance the board fills more of the frame underwater, because refraction narrows the field of view. Underwater, caustics and haze lower the contrast, and bubbles on the board break up the close tag.}
     \label{fig:ch5.air_vs_water}
 \end{figure}
+
 
 \subsection{Frame selection}
 \label{subsec:ch5.frame_selection}
@@ -116,7 +174,7 @@ or selecting frames at set steps (e.g. every 10th frame)
 %There were concerns regarding the YUYV blur and shutter time.This allows for good comparison 
 %between the two. Briefly explain what makes one blurry %DOI 10.1109/SYSMART.2016.7894491
 
-
+% Equidistant, confirmed with triangluatin to 41.5cm and 39.3cm
 \subsection{Calibration}
 \label{subsec:ch5.calibration}
 % NB: APPARENTLY THE IN AIR WERE MORE COMPRESSED DUE TO HIGHER DETAIL - CPMPRESSION LEVELS DEPEND detail
@@ -130,8 +188,9 @@ image with annotaed detections is given in \autoref{fig:ch5.detectedtags} below.
     \centering
     \includegraphics[width=0.5\textwidth]{figs/Ch5/DetectedTags.png}
     % CLAUDE: caption below is still the template placeholder; \cite{key} prints [?]. Replace with your own caption.
-    \caption[Short caption for the List of Figures.]{\textbf{Bold lead-in sentence.}
-        Longer explanation of what the reader is looking at. Taken from \cite{key}.}
+   \caption[Tags detected in an underwater calibration frame.]{\textbf{Tags detected in an underwater calibration frame.}
+    Board at about 91\,cm, tilted about 49\textdegree{} (angle C6); 56 of 70 tags found.}
+
     \label{fig:ch5.detectedtags}
 \end{figure}
 
@@ -343,65 +402,6 @@ is important for charturisation across the full frame.
 
 %========================================================
 %==================== Theory for this section =======
-\subsection{Theory: Calibration techniques}
-\label{subsec:ch5.theory_calibration_techniques}
-% NB its clear how detection is seperate from calibration
-
-% Refraction and distortion
-% Training split thing for held out error, what, why usefaul
-
-
-\subsubsection{In-air calibration, not fitted to water}
-This technique uses the standard Brown-Conrady calibration completed in air (using the same rig, same detector), including the stereo intrinsics, applied to the underwater
-test data set. Due to the glass water refraction, T1 is expected to fail badly. It is the used as a reference point to test the effectiveness of the Pinax model.
-
-\subsubsection{Pinax model (in-air calibration with refraction compensation)}
-Implementing the (REF AUTHOR OF PINAX MODEL), a pixel can be .... (brief summary of pinac)....
-
-
-\subsubsection{Brown-Conrady}
-% Refernce doces: https://docs.opencv.org/4.13.0/d9/d0c/group__calib3d.html
-% Explain the baseic maths
-The Brown-Conrady is a camera model capable of correcting lens induced geometric 
-distortions \citet{xuComprehensiveOverviewFishEye2024}.The model handles radial distortion (barrel and pincushion) through
- multiplying each point by $(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)$, where $r$ is the distance from the
-image centre and $k_i$ are the radial coefficients. Tangential distortion, caused
-by the lens not being perfectly lined up with the sensor, is handled by adding an
-offset controlled by $p_1$ and $p_2$. Joining together, this gives: 
-\begin{align}
-x_d &= x\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + 2p_1 x y + p_2\,(r^2 + 2x^2) \\
-y_d &= y\,(1 + k_1 r^2 + k_2 r^4 + k_3 r^6) + p_1\,(r^2 + 2y^2) + 2p_2 x y
-\end{align}
-where $(x, y)$ are the undistorted coordinates, $r = \sqrt{x^2 + y^2}$, and
-$(x_d, y_d)$ are the distorted coordinates.
-
-OpenCV implements this through \texttt{cv2.calibrateCamera}, using \citet{zhangFlexibleNewTechnique2000}'s method for an initial estimate followed by
- Levenberg-Marquart optimisation to refine all parameters.  \cite{CvCalibrateCameraAuroraVision}.
-
- % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html
-
-
-\subsubsection{Kannala-Brandt}
-% https://docs.opencv.org/4.13.0/db/d58/group__calib3d__fisheye.html
-% Explan the maths basic with references
-The Kannala-Brandt distortion model is an extension of the standard Brown-Crandy model, providing a more accurate distortion
-representation for wide-angle lenses. Instead of a single pinhole projection model ($x=f\tan\theta$),
- it approximates four different projection models with a polynomial in the angle $\theta$ of the incoming light ray:
-\begin{equation}
-r(\theta) = k_1\theta + k_2\theta^3 + k_3\theta^5 + k_4\theta^7 + k_5\theta^9
-\end{equation}
-Linking the radial distortion into the $\theta$ instead of the distance $r$, allows the model to work for wider fields of view 
-$(r=\tan\theta)$ grows towards infinity as $\theta$ approaches $90^\circ$.
-
-OpenCV uses the simpler version in \texttt{cv2.fisheye.calibrate}:
-\begin{align}
-\theta_d &= \theta\,(1 + k_1\theta^2 + k_2\theta^4 + k_3\theta^6 + k_4\theta^8) \\
-(x_d,\, y_d) &= \frac{\theta_d}{r}\,(x,\, y)
-\end{align}
-It generates vector distortion coefficients, $(k1,k2,k3,k4)$ \cite{OpenCVFisheyeCamera}.
-
-% Okay but this is now the distorted corridinates?
-% Stereo is fitted differentl
 
 \subsubsection{Brown-Crady + axial shift (non single viewpoint assumption)}
 % DONE BY 5:30
@@ -728,19 +728,6 @@ BC + axial, close-range training    & $-0.5$ (4) & $-1.6$ (6) & $-3.8$ (6) & $-3
     \label{fig:ch5.target}
 \end{figure}
 
-
-\subsubsection{Parameter deviation}
-
-\subsubsection{Brown-Crady} - maybe move to theory 
-This is the baseline technique. This uses the standard OpenCV \texttt{cv2.calibrateCamera}. This is the standard value test that was used in (SECTION X)'s
-openCV parameter sweep. 
-
-
-
-\subsubsection{Kannala-Brandt}
-This is run via the OpenCV \texttt{cv2fisheye.calibrate} with \texttt{RECOMPUTE\_EXTRINSIC, FIX\_SKEW} flags. 
-%θd = θ(1 + k1θ2 + k2θ4 + k3θ6 + k4θ8)
-
 \subsubsection{Compensation testing}
 % What set is used to generate each camera matrix
 % Where the matrices are all stored
@@ -753,6 +740,7 @@ This is run via the OpenCV \texttt{cv2fisheye.calibrate} with \texttt{RECOMPUTE\
 % Conclude that the standard is the best option, within noise looking acrcoss left and right cameras.
 
 % Continue on with
+Show matrix
 
 
 
