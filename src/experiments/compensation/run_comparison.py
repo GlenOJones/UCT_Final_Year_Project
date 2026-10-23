@@ -166,7 +166,9 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
         # linear scale the fitted ones are all one colour: they also get a figure of their own.
         figures["heatmap_fitted"] = plots.heatmaps(points, techs, params_all, cfg, run.image_size,
                                                    os.path.join(out_dir, "fig_heatmap_fitted"), subset=fitted)
-    plots.radial(points, techs, cfg, os.path.join(out_dir, "fig_radial"))
+    left_out = set(cfg.get("radial_plot_exclude", []))          # e.g. close-range checks that overlap T3/T5
+    plots.radial(points, techs, cfg, os.path.join(out_dir, "fig_radial"),
+                 subset=[i for i, t in enumerate(techs) if t.key not in left_out])
     plots.distance(points, techs, cfg, os.path.join(out_dir, "fig_distance"))
     left_out = set(cfg.get("scale_plot_exclude", []))           # e.g. T1, whose bars are ~30 mm short
     plots.scale(bars, techs, cfg, os.path.join(out_dir, "fig_scale"),
@@ -190,13 +192,23 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
                           ref_tech.label, "Pinax", observed)
 
     if cfg.get("quiver_cells"):
-        # One figure for every technique: the in-air ones (errors of pixels) and those fitted in water (tenths of
-        # a pixel) each get the arrow gain the config sets for them, so neither saturates nor vanishes.
+        # The in-air techniques (errors of pixels) and those fitted in water (tenths of a pixel) each get the
+        # arrow gain the config sets for them, in a figure of their own, so arrows at different gains are
+        # never side by side; without gains, one figure at one gain.
         g = cfg.get("quiver_gains", {})
-        gains = ({i: g["in_air"] if t.model in IN_AIR_MODELS else g["fitted"] for i, t in enumerate(techs)}
-                 if g else None)
-        figures["quiver"] = plots.quiver(points, techs, cfg, run.image_size, params_all,
-                                         os.path.join(out_dir, "fig_quiver"), gains=gains)
+        left_out = set(cfg.get("quiver_plot_exclude", []))      # e.g. close-range checks that look like T3/T5
+        kept = [i for i, t in enumerate(techs) if t.key not in left_out]
+        if g:
+            figures["quiver"] = {}
+            for name, gain, group in (("in_air", g["in_air"], [i for i in kept if techs[i].model in IN_AIR_MODELS]),
+                                      ("fitted", g["fitted"], [i for i in kept if techs[i].model not in IN_AIR_MODELS])):
+                if group:
+                    figures["quiver"][name] = plots.quiver(points, techs, cfg, run.image_size, params_all,
+                                                           os.path.join(out_dir, f"fig_quiver_{name}"),
+                                                           subset=group, gains=dict.fromkeys(group, gain))
+        else:
+            figures["quiver"] = plots.quiver(points, techs, cfg, run.image_size, params_all,
+                                             os.path.join(out_dir, "fig_quiver"), subset=kept)
     if cfg.get("target"):
         doc = load_json(os.path.join(out_dir, "target.json"))
         size, calib_range = doc["target"]["tag_size_mm"], doc["calibration_range_mm"]

@@ -309,10 +309,13 @@ def section_results(out_dir, summary, comparisons, info, params, target, cov, te
 
     s.append(r"\subsection{Where the error is in the image}")
     s.append(figure(out_dir, "fig_quiver", "Quiver plot: mean held-out residual vector (observed $-$ reprojected) per "
-                    "image cell. The techniques using the in-air calibration (T1 and Pinax) are drawn at $\\times20$, "
-                    "those fitted in water at $\\times100$ (gain in each panel title, a key for each gain), so an arrow "
-                    "of the same drawn length is five times smaller in the second group. A coherent pattern is a "
-                    "systematic model error; random noise averages out."))
+                    "image cell, all techniques at one arrow gain. A coherent pattern is a systematic model error; "
+                    "random noise averages out."))
+    s.append(figure(out_dir, "fig_quiver_in_air", "Quiver plot, techniques using the in-air calibration (T1 and "
+                    "Pinax): mean held-out residual vector (observed $-$ reprojected) per image cell, arrows "
+                    "$\\times20$. A coherent pattern is a systematic model error; random noise averages out."))
+    s.append(figure(out_dir, "fig_quiver_fitted", "Quiver plot, techniques fitted in water, as above but with arrows "
+                    "$\\times100$: an arrow of the same drawn length is five times smaller than in the in-air plot."))
     s.append(figure(out_dir, "fig_heatmap_fitted", "Mean residual length per image cell (colour) with the mean "
                     "residual vector, techniques fitted in water; grey cells have too few points; dashed circles are "
                     "the zone boundaries. (fig\\_heatmap.pdf has all the techniques on a log scale.)"))

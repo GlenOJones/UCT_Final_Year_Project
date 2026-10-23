@@ -160,7 +160,8 @@ def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=
 
 
 # ====== PROFILES ======
-def _profile_figure(points, techniques, column, edges, cfg, xlabel, path_stem, title, decorate=None):
+def _profile_figure(points, techniques, column, edges, cfg, xlabel, path_stem, title, decorate=None, shown=None):
+    shown = list(range(len(techniques))) if shown is None else list(shown)
     fig, axes = plt.subplots(1, len(SHOWN), figsize=(3.6 * len(SHOWN) + (1.2 if len(SHOWN) == 1 else 0), 3.0),
                              sharey=True, squeeze=False, constrained_layout=True)
     axes = axes[0]
@@ -168,12 +169,13 @@ def _profile_figure(points, techniques, column, edges, cfg, xlabel, path_stem, t
     for c, ax in zip(SHOWN, axes):
         if decorate:
             decorate(ax)
-        for t in range(len(techniques)):
+        for t in shown:
             x, y, lo, hi = _profile(points, t, c, column, edges, cfg["min_points_per_bin"])
             ax.fill_between(x, lo, hi, color=SERIES[t], alpha=0.15, lw=0)
             ax.plot(x, y, color=SERIES[t], marker=MARKERS[t], ms=3.5)
             values += list(y[np.isfinite(y)])
-        ax.set_title(f"{data.CAMERAS[c]} camera")
+        if len(SHOWN) > 1:
+            ax.set_title(f"{data.CAMERAS[c]} camera")
         ax.set_xlabel(xlabel)
     log = max(values) / min(values) > 10        # one shared scale either way; log when one model is far off
     for ax in axes:
@@ -183,21 +185,17 @@ def _profile_figure(points, techniques, column, edges, cfg, xlabel, path_stem, t
         else:
             ax.set_ylim(bottom=0)
     axes[0].set_ylabel("held-out RMS residual (px)" + (", log scale" if log else ""))
-    _legend(fig, techniques, bbox_to_anchor=(0.5, -0.12))
-    fig.suptitle(title, fontsize=8, color=INK_2)
+    _legend(fig, techniques, shown, bbox_to_anchor=(0.5, -0.12))
+    if title:
+        fig.suptitle(title, fontsize=8, color=INK_2)
     save(fig, path_stem)
 
 
-def radial(points, techniques, cfg, path_stem):
+def radial(points, techniques, cfg, path_stem, subset=None):
+    """Binned held-out RMS against normalised radius; all techniques, or only those at the indices in `subset`."""
     edges = np.arange(0, 1 + 1e-9, cfg["radial_bin_width"])
-
-    def zones(ax):
-        for r in cfg["zone_radii"]:
-            ax.axvline(r, color=INK_2, ls="--", lw=0.8)
-
-    _profile_figure(points, techniques, 8, edges, cfg, "normalised radius r", path_stem,
-                    "Error vs radius from the principal point (r = 1 at the farthest image corner); "
-                    "dashed: zone boundaries; band: range over splits", zones)
+    # No title or zone lines: the report caption says what r is and what the bands are.
+    _profile_figure(points, techniques, 8, edges, cfg, "normalised radius r", path_stem, None, shown=subset)
 
 
 def distance(points, techniques, cfg, path_stem):
@@ -349,9 +347,10 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
     point); noise averages out. Each panel is titled with its RMS and arrow gain. Cells with fewer than
     min_points_per_cell points are empty.
 
-    gains: {technique index: arrow gain}, so techniques whose errors differ by orders of magnitude (the
-    in-air ones against those fitted in water) can share one figure; each distinct gain gets its own key, in
-    the first panel that uses it. Without it, ONE gain is chosen for the whole figure, set by the
+    gains: {technique index: arrow gain}, for techniques whose errors differ by orders of magnitude (the
+    in-air ones against those fitted in water). There is no arrow key: the caption must state the gain.
+    Better still, draw each gain's techniques as a figure of their own (`subset`), so arrows at
+    different gains are never side by side. Without it, ONE gain is chosen for the whole figure, set by the
     90th-percentile cell so a few large cells do not shrink every other arrow to a dot."""
     w, h = image_size
     nx, ny = cfg.get("quiver_cells", cfg["grid_cells"])
@@ -364,13 +363,12 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
     if gains is None:
         lengths = np.concatenate([np.hypot(g["mean_du"], g["mean_dv"])[g["valid"]] for g in grids.values()])
         gains = dict.fromkeys(shown, _nice(0.9 * (w / nx) / float(np.percentile(lengths, 90))))
-    keyed = set()
     X, Y = np.meshgrid((np.arange(nx) + 0.5) * w / nx, (np.arange(ny) + 0.5) * h / ny)
     # At most 4 techniques across; each technique is a column with its cameras stacked (left above right).
     ncol = min(4, len(shown))
     per = len(SHOWN)
     nrow = per * int(np.ceil(len(shown) / ncol))
-    fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 2.45 * nrow + 0.4), squeeze=False, constrained_layout=True)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(3.4 * ncol, 2.45 * nrow), squeeze=False, constrained_layout=True)
     for ax in axes.ravel():
         ax.axis("off")
     for (col, c), g in grids.items():
@@ -381,16 +379,11 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
         sel = _select(points, t, c)
         v = g["valid"]
         gain = gains[t]
-        q = ax.quiver(X[v], Y[v], g["mean_du"][v] * gain, g["mean_dv"][v] * gain, angles="xy", scale_units="xy",
-                      scale=1, color=SERIES[t], width=0.011, headwidth=3, headlength=3.5, headaxislength=3,
-                      minlength=0.5)
+        ax.quiver(X[v], Y[v], g["mean_du"][v] * gain, g["mean_dv"][v] * gain, angles="xy", scale_units="xy",
+                  scale=1, color=SERIES[t], width=0.011, headwidth=3, headlength=3.5, headaxislength=3,
+                  minlength=0.5)
         K = np.array(params_all[techniques[t].key][data.CAMERAS[c]]["camera_matrix"])
         ax.plot(K[0, 2], K[1, 2], "+", color=INK, ms=7)
-        if gain not in keyed:                # a key drawn at most about one cell long
-            keyed.add(gain)
-            ref = _nice(0.9 * (w / nx) / gain)
-            ax.quiverkey(q, 0.45, 0.06, ref * gain, f"{ref:g} px (x {gain:g})", labelpos="E", coordinates="axes",
-                         color=INK, labelcolor=INK, fontproperties={"size": 7})
         ax.set_xlim(0, w)
         ax.set_ylim(h, 0)
         ax.set_aspect("equal")
@@ -398,10 +391,7 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
         ax.set_yticks([0, h // 2, h])
         ax.grid(False)
         ax.set_title((techniques[t].label + "\n" if row == 0 else "")
-                     + f"{data.CAMERAS[c]}: RMS {metrics.rms(sel[:, 6], sel[:, 7]):.2f} px, arrows x {gain:g}",
-                     fontsize=7.5)
-    fig.suptitle(f"Mean held-out residual vector per cell ({nx} x {ny} grid); arrow gain in each panel title; "
-                 f"+ = principal point; no board was seen below v ~ 850 px", fontsize=8, color=INK_2)
+                     + f"{data.CAMERAS[c]}: RMS {metrics.rms(sel[:, 6], sel[:, 7]):.2f} px", fontsize=7.5)
     save(fig, path_stem)
     return {"arrow_gains": {techniques[t].key: float(gains[t]) for t in shown}, "cells": [nx, ny]}
 
