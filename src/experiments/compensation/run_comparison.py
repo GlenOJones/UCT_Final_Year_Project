@@ -198,9 +198,12 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
         g = cfg.get("quiver_gains", {})
         left_out = set(cfg.get("quiver_plot_exclude", []))      # e.g. close-range checks that look like T3/T5
         kept = [i for i, t in enumerate(techs) if t.key not in left_out]
+        # Fitted techniques also drawn in the in-air figure at its gain, as a reference on the same scale.
+        reference = set(cfg.get("quiver_in_air_reference", []))
         if g:
             figures["quiver"] = {}
-            for name, gain, group in (("in_air", g["in_air"], [i for i in kept if techs[i].model in IN_AIR_MODELS]),
+            for name, gain, group in (("in_air", g["in_air"], [i for i in kept if techs[i].model in IN_AIR_MODELS
+                                                               or techs[i].key in reference]),
                                       ("fitted", g["fitted"], [i for i in kept if techs[i].model not in IN_AIR_MODELS])):
                 if group:
                     figures["quiver"][name] = plots.quiver(points, techs, cfg, run.image_size, params_all,

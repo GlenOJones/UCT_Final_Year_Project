@@ -116,6 +116,10 @@
     "bc_close",
     "bc_axial_close"
   ],
+  "_quiver_in_air_reference_why": "Also drawn in fig_quiver_in_air, at the in-air gain: T3 on the same arrow scale as T1 and Pinax shows how small the fitted model's residuals are by comparison.",
+  "quiver_in_air_reference": [
+    "bc"
+  ],
   "_scale_plot_exclude_why": "Left out of fig_scale only: T1's bars are about 30 mm short, which flattens every other curve. Its numbers stay in every table.",
   "scale_plot_exclude": [
     "air"
