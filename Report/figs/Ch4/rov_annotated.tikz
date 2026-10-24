@@ -1,0 +1,43 @@
+\begin{tikzpicture}[
+    callout/.style={draw=black!80, fill=black!4, font=\footnotesize, align=center,
+                    minimum width=3cm, minimum height=0.6cm, inner sep=2pt, anchor=west},
+    pointer/.style={draw=rovblue, line width=1pt, -{Latex[length=2.2mm]}},
+    trunk/.style={draw=rovblue, line width=1pt}]
+  \definecolor{rovblue}{HTML}{1A73E8}
+  \definecolor{rovred}{HTML}{E53935}
+  \node[anchor=south west, inner sep=0] (img) at (0,0)
+    {\includegraphics[width=0.40\textwidth]{figs/Ch4/Rovyn.jpeg}};
+  \begin{scope}[x={(img.south east)}, y={(img.north west)}]
+    % Positions as fractions of the photo (0,0 bottom left; 1,1 top right)
+    \coordinate (camL) at (0.547, 0.240);
+    \coordinate (camR) at (0.764, 0.318);
+    \coordinate (lt1)  at (0.320, 0.836);
+    \coordinate (lt2)  at (0.906, 0.843);
+    \coordinate (lt3)  at (0.855, 0.550);
+    \coordinate (lt4)  at (0.432, 0.457);
+    \def\tx{1.03}
+    % Labels
+    \node[callout, minimum height=0.9cm] (lights) at (1.07, 0.62)
+      {4\,$\times$ \href{https://bluerobotics.com/store/thrusters/lights/lumen-r2-rp/}{\textcolor{blue}{Blue Robotics Lumen}}\\
+       lights, 1500\,lm, 135$^\circ$ beam};
+    \node[callout, draw=rovred, fill=white, text=rovred] (base) at (1.07, 0.44) {Baseline 150\,mm};
+    \node[callout, minimum height=0.9cm] (cams) at (1.07, 0.27)
+      {2\,$\times$ \href{https://dwe.ai/products/stellarhd}{\textcolor{blue}{DWE StellarHD}}\\
+       stereo cameras};
+    % Lights: one trunk, four branches
+    \draw[trunk] (lights.west) -- (\tx, 0.62);
+    \draw[trunk] (\tx, 0.93) -- (\tx, 0.457);
+    \draw[pointer] (\tx, 0.843) -- ($(lt2)+(0.035,0)$);
+    \draw[pointer] (\tx, 0.550) -- ($(lt3)+(0.035,0)$);
+    \draw[pointer] (\tx, 0.457) -- ($(lt4)+(0.035,0)$);
+    \draw[pointer] (\tx, 0.93) -- (0.320, 0.93) -- ($(lt1)+(0,0.035)$);
+    % Cameras
+    \draw[pointer] (cams.west |- camR) -- ($(camR)+(0.045,0)$);
+    \draw[pointer] (cams.west |- camL) -- ($(camL)+(0.03,0)$);
+    % Baseline
+    \draw[rovred, line width=1.2pt, {Latex[length=2.2mm]}-{Latex[length=2.2mm]}] (camL) -- (camR);
+    \coordinate (mid) at ($(camL)!0.5!(camR)$);
+    \draw[rovred, line width=1pt] (base.west) -| (mid);
+    \fill[rovred] (mid) circle (1.6pt);
+  \end{scope}
+\end{tikzpicture}

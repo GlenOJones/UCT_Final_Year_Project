@@ -37,24 +37,26 @@ left, centre or right of the end rail. This gives a repeatable distance, positio
 and angle between the board and the cameras across tests. The CAD files
 for the sliding rail and calibration board image can be found within the project's github.
 
-TODO: PUT NEW LEFT PHOTO AND MAKE SMALLER
 \begin{figure}[htbp]
     \centering
-    \begin{subfigure}[b]{0.2\textwidth}
+    % Both photos are 4:3, so equal widths give identical sizes
+    \begin{subfigure}[t]{0.48\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
-        \caption{AprilGrid calibration board: 10\,$\times$\,7 AprilTag 36h11 tags, 35.36\,mm with a 10.61\,mm gap.}
-        \label{fig:ch5.rail_in_air}
+        \includegraphics[width=\linewidth]{figs/Ch4/Board.jpeg}
+        \caption{AprilGrid of 10\,$\times$\,7 AprilTag 36h11 tags (35.36\,mm tags, 10.61\,mm gaps) on aluminium Dibond.}
+        \label{fig:ch5.board}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.3\textwidth}
+    \begin{subfigure}[t]{0.48\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
-        \caption{ROV mounted to sliding test rig underwater. Note: warping
-		due to gopro lens, not bent calibration board.}
+        \caption{ROV on the sliding rig underwater, facing the board on its angle mount. The board looks
+        curved because of the GoPro's wide-angle lens; it is flat.}
         \label{fig:ch5.rig_in_water}
     \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \caption[Calibration board and sliding test rig]{\textbf{Calibration board and sliding test rig.} (a) The custom
+    AprilGrid calibration board. (b) The rig underwater: the ROV slides along the rail towards the board, which
+    can be tilted in 10\,$^\circ$ steps.}
     \label{fig:ch5.test_rig}
 \end{figure}
 
@@ -67,7 +69,7 @@ undergraduate thesis \cite{aggi_thesis}. The set used here contains two pyramid
 tiles and two sinusoidal ``egg carton'' tiles. Images of each shape are given in
 \autoref{app:printed_shapes}, and the STL files are available in this project's
 \href{https://github.com/GlenOJones/UCT_Final_Year_Project/tree/main/CAD/3D_prints}{\textcolor{blue}{GitHub repository}}.
-\autoref{fig:ch5.G_side} shows the four shapes during data collection
+\autoref{fig:ch5.printed_shapes} shows the four shapes, and \autoref{fig:ch4.data_side} shows them during data collection
 (\autoref{subsec:ch5.recordings_tested}). Because their exact geometry is
 known from the CAD files, the prints serve as ground truth. The reconstructed
 point clouds are compared against them to measure accuracy.
@@ -75,23 +77,37 @@ point clouds are compared against them to measure accuracy.
 
 % TODO: create the appendix with the shape images and add \label{app:printed_shapes}
 
-% TODO: Replace both with the test files
 \begin{figure}[htbp]
     \centering
-    \begin{subfigure}[b]{0.49\textwidth}
+    \begin{subfigure}[b]{0.24\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Foam Ice shapes.}
-        \label{fig:ch5.3DPrint_In_Air}
+        \includegraphics[width=\linewidth]{figs/Ch4/1_pyr.jpeg}
+        \caption{Pyramid}
+        \label{fig:ch5.print_pyramid}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[b]{0.49\textwidth}
+    \begin{subfigure}[b]{0.24\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Side on data collection showing 3D prints}
-        \label{fig:ch5.G_side}
+        \includegraphics[width=\linewidth]{figs/Ch4/2_pyr.jpeg}
+        \caption{Pyramid 2\,$\times$\,2}
+        \label{fig:ch5.print_pyramid_2x2}
     \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
+    \hfill
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch4/1_egg.jpeg}
+        \caption{Egg carton 1}
+        \label{fig:ch5.print_egg}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/Ch4/2_eg.jpeg}
+        \caption{Egg carton 2}
+        \label{fig:ch5.print_egg_2}
+    \end{subfigure}
+    \caption[3D-printed targets]{\textbf{3D-printed targets.} The four printed tiles used as
+    ground truth: two pyramid tiles and two sinusoidal egg-carton tiles.}
     \label{fig:ch5.printed_shapes}
 \end{figure}
 
@@ -109,28 +125,29 @@ emulate curved ice features.
     \centering
     \begin{subfigure}[b]{0.2\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \includegraphics[width=\linewidth]{figs/Ch4/Pyr.jpeg}
         \caption{Stepped pyramid}
         \label{fig:ch5.foam_pyramid}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.2\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \includegraphics[width=\linewidth]{figs/Ch4/Hang.jpeg}
         \caption{Overhang}
         \label{fig:ch5.foam_overhang}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.2\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \includegraphics[width=\linewidth]{figs/Ch4/Waves.jpeg}
         \caption{Wave}
         \label{fig:ch5.foam_wave}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.2\textwidth}
         \centering
-        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        % TODO: no photo of the foam cubes yet; 2x2 pyramid print used as a stand-in
+        \includegraphics[width=\linewidth]{figs/Ch4/Pyr.jpeg}
         \caption{2\,$\times$\,2\,cm cubes}
         \label{fig:ch5.foam_cubes}
     \end{subfigure}
