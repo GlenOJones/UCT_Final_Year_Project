@@ -422,23 +422,33 @@ def draw_signed_top(ax, reference, xyz_board, signed, T_board_ref, cmap, norm):
     ax.set_ylabel("y (mm)")
 
 
+def cad_apex(reference):
+    vertices = np.asarray(reference.full.vertices)
+    return vertices[np.argmax(vertices[:, 2])]
+
+
+def cad_section(reference, apex, axis, other):
+    """The CAD model's cross-section through the apex along its own `axis` (0 = x, 1 = y): (distance from the
+    apex, height), as the top of a dense surface sample per 0.5 mm bin, so it is right for any shape (not only a
+    single pyramid)."""
+    cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
+    line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
+    bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
+    order = np.lexsort((-line[:, 2], bins))
+    first = order[np.r_[True, np.diff(bins[order]) != 0]]
+    return bins[first] * 0.5, line[first, 2]
+
+
 def draw_profiles(ax, reference, xyz_board, T_board_ref):
     """Scan points in slabs of +-3 mm through the CAD apex, along the CAD model's own x and y axes, with the
     model's cross-section on the same lines."""
     local = transform(np.linalg.inv(T_board_ref), xyz_board)
-    apex = np.asarray(reference.full.vertices)[np.argmax(np.asarray(reference.full.vertices)[:, 2])]
-    # The CAD line is the model's own cross-section on the same line, as the top of a dense surface
-    # sample per 0.5 mm bin, so it is right for any shape (not only a single pyramid).
-    cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
+    apex = cad_apex(reference)
     for axis, other, colour, style, label in ((0, 1, "#184f95", "-", "along CAD x"), (1, 0, "#8e2a1f", "--", "along CAD y")):
         slab = np.abs(local[:, other] - apex[other]) < 3.0
         ax.scatter(local[slab, axis] - apex[axis], local[slab, 2], s=2, color=colour, alpha=0.6,
                    linewidths=0, label=f"scan, {label}")
-        line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
-        bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
-        order = np.lexsort((-line[:, 2], bins))
-        first = order[np.r_[True, np.diff(bins[order]) != 0]]
-        ax.plot(bins[first] * 0.5, line[first, 2], color=INK, lw=1.2, ls=style, label=f"CAD, {label}")
+        ax.plot(*cad_section(reference, apex, axis, other), color=INK, lw=1.2, ls=style, label=f"CAD, {label}")
     ax.set_aspect("equal")
     ax.set_xlabel("distance from apex (mm)")
     ax.set_ylabel("height (mm)")

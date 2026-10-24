@@ -22,6 +22,7 @@ Writes to results/<out_dir>/<recording>/ (recordings with CAD objects):
     summary.md, summary.csv       the same table as Markdown; every object, method and fit as CSV
     accuracy_<object>.png         per report object: one row per method, signed distance to the CAD from above
                                   and profiles through the apex (compare_to_cad.py's own panels)
+    profiles_<object>.png         per report object: every method's profile through the apex on one plot
     comparison/<method>/<object>/ compare_to_cad.py's outputs (metrics.json, error maps, distances.ply)
     objects/<method>/<object>.ply the crops
 """
@@ -54,6 +55,8 @@ from run_fusion import recording_paths  # noqa: E402
 COMPARE_SCRIPT = os.path.join("src", "04_Comparison", "compare_to_cad.py")
 STL_DIR = os.path.join("data", "GroundTruth", "roughness_blocks_STL")
 FITS = ("on_board", "on_local_board", "shape")
+# One colour per method, in config order, for the overlaid profiles.
+PROFILE_COLOURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
 
 
 # ====== CAD SCORES ======
@@ -98,6 +101,22 @@ def score_all(cfg, p):
                          os.path.join(p["out"], "comparison", method["name"]), common.project_path(cfg["python"]), extra))
     with ThreadPoolExecutor(4) as pool:
         return list(pool.map(score, jobs))
+
+
+def saved_scores(cfg, p):
+    """The (job, metrics) pairs of an earlier score_all, read back from the crops and metrics.json it left."""
+    results = []
+    for method in cfg["methods"]:
+        for name, obj in cfg["evaluation"]["objects"].items():
+            out_dir = os.path.join(p["out"], "comparison", method["name"])
+            metrics_path = os.path.join(out_dir, name, "metrics.json")
+            if not os.path.exists(metrics_path):
+                continue
+            with open(metrics_path) as fh:
+                metrics = json.load(fh)
+            crop_path = os.path.join(p["out"], "objects", method["name"], f"{name}.ply")
+            results.append(((method["name"], name, crop_path, obj["stl"], out_dir, None, []), metrics))
+    return results
 
 
 # ====== T1: ACCURACY TABLE ======
@@ -218,6 +237,56 @@ def figures(cfg, p, results):
                            shrink=0.8, aspect=30)
         bar.set_label("signed distance to CAD (mm), positive = outside")
         path = os.path.join(p["out"], f"accuracy_{name}.png")
+        fig.savefig(path, dpi=ev["figure_dpi"])
+        plt.close(fig)
+        print(f"-> {common.rel(path)}")
+
+
+def profile_figures(cfg, p, results):
+    """Per report object, every method's profile through the CAD apex on one plot: one panel along the CAD model's
+    x and one along its y. Each method's points are taken in its own fit's CAD frame, so the CAD line is the same for
+    all; the line per method is the median height per 1 mm bin of the +-3 mm slab, over its points drawn faintly."""
+    ev = cfg["evaluation"]
+    fit = ev["report_fit"]
+    by_key = {(job[0], job[1]): (job, metrics) for job, metrics in results}
+    for name in ev["report_objects"]:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 3.6), constrained_layout=True, facecolor=compare_to_cad.SURFACE)
+        reference = None
+        for k, method in enumerate(cfg["methods"]):
+            job, metrics = by_key.get((method["name"], name), (None, None))
+            if metrics is None:
+                continue
+            points, _, T, reference = signed_distances(metrics, job[2], job[3], fit)
+            local = compare_to_cad.transform(np.linalg.inv(T), points)
+            apex = compare_to_cad.cad_apex(reference)
+            colour = PROFILE_COLOURS[k]
+            for ax, (axis, other) in zip(axes, ((0, 1), (1, 0))):
+                slab = local[np.abs(local[:, other] - apex[other]) < 3.0]
+                s, z = slab[:, axis] - apex[axis], slab[:, 2]
+                ax.scatter(s, z, s=1, color=colour, alpha=0.08, linewidths=0, rasterized=True)
+                bins = np.floor(s).astype(int)
+                edges = np.arange(bins.min(), bins.max() + 1) if len(bins) else np.array([], int)
+                medians = np.array([np.median(z[bins == b]) if np.sum(bins == b) >= 5 else np.nan for b in edges])
+                ax.plot(edges + 0.5, medians, color=colour, lw=2, label=method["label"])
+        if reference is None:
+            plt.close(fig)
+            continue
+        apex = compare_to_cad.cad_apex(reference)
+        for ax, (axis, other) in zip(axes, ((0, 1), (1, 0))):
+            ax.plot(*compare_to_cad.cad_section(reference, apex, axis, other), color=compare_to_cad.INK, lw=1.4,
+                    ls="--", label="CAD")
+            ax.set_facecolor(compare_to_cad.SURFACE)
+            ax.set_aspect("equal")
+            ax.set_ylim(bottom=0)
+            ax.set_xlabel("distance from apex (mm)")
+            ax.set_ylabel("height (mm)")
+            ax.grid(color=compare_to_cad.MUTED, alpha=0.2, lw=0.5)
+            for side in ("top", "right"):
+                ax.spines[side].set_visible(False)
+        # The report caption names the panels (left: along the CAD model's x, right: along its y), so no titles.
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, frameon=False, fontsize=8, loc="outside lower center", ncol=len(labels))
+        path = os.path.join(p["out"], f"profiles_{name}.png")
         fig.savefig(path, dpi=ev["figure_dpi"])
         plt.close(fig)
         print(f"-> {common.rel(path)}")
@@ -364,15 +433,21 @@ def topdown_and_coverage(cfg, p):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=os.path.join(HERE, "config.json"))
+    ap.add_argument("--figures-only", action="store_true",
+                    help="redraw the figures from the saved scores instead of scoring again")
     args = ap.parse_args(argv)
     cfg = common.load_config(args.config)
     p = recording_paths(cfg)
     with open(os.path.join(p["out"], "run_fusion.json"), encoding="utf-8") as fh:
         run_record = json.load(fh)
     if cfg["evaluation"]["objects"]:
-        results = score_all(cfg, p)
-        write_tables(cfg, p, table_rows(cfg, results), run_record)
+        if args.figures_only:
+            results = saved_scores(cfg, p)
+        else:
+            results = score_all(cfg, p)
+            write_tables(cfg, p, table_rows(cfg, results), run_record)
         figures(cfg, p, results)
+        profile_figures(cfg, p, results)
     else:
         topdown_and_coverage(cfg, p)
 

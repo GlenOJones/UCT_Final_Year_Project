@@ -98,6 +98,20 @@ def scan_images(cfg, args):
     return images, (low, high)
 
 
+def vertical_scale(ax, image, pixel_mm, elevation):
+    """A ruler up the panel's left edge, the full height of the image, in mm of height (0 at the bottom): the view is
+    orthographic, so a vertical step of dz shows as dz * cos(elevation) anywhere in the panel, and the ruler reads a
+    vertical edge's true height. Horizontal lengths are foreshortened differently and cannot be read off it. Panels are
+    fitted to their tiles, so each row is drawn at its own scale and the ruler shows it."""
+    h = image.shape[0]
+    mm_per_px = pixel_mm / np.cos(np.radians(elevation))
+    ticks = matplotlib.ticker.MaxNLocator(5, steps=[1, 2, 2.5, 5, 10]).tick_values(0, h * mm_per_px)
+    ticks = ticks[ticks <= h * mm_per_px]
+    ax.set_yticks(h - 0.5 - ticks / mm_per_px, [f"{t:g}" for t in ticks], fontsize=FONT["ticks"])
+    ax.spines["left"].set_visible(True)
+    ax.set_ylabel("height (mm)", fontsize=FONT["label"], labelpad=2)
+
+
 def place_row_labels(fig, axes, labels, fontsize, strip=0.04):
     """Row names on one vertical line, each centred on its row: the layout is kept out of a strip of this width at
     the figure's left, and the names are centred in it. Panels holding narrower images are drawn inset, so axis
@@ -194,6 +208,8 @@ def grid(args):
             ax.set_yticks([])
             for spine in ax.spines.values():
                 spine.set_visible(False)
+            if c == lead and m["name"] in m_images:
+                vertical_scale(ax, m_images[m["name"]], args.pixel_mm, args.elevation)
             if r == 0:
                 ax.set_title(m["label"], fontsize=FONT["heading"], fontweight="bold")
 
@@ -222,7 +238,7 @@ def main(argv=None):
     ap.add_argument("--elevation", type=float, default=30.0, help="deg above the board (default 30)")
     ap.add_argument("--pixel-mm", type=float, default=0.6)
     ap.add_argument("--splat", type=int, default=1, help="pixels each point covers either side (default 1)")
-    args = ap.parse_args(argv)
+    args =ap.parse_args(argv)
     if args.grid:
         import ice_grid
         args.configs = args.configs or [os.path.join(HERE, c) for c in ice_grid.CONFIGS]

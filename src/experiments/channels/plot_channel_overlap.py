@@ -108,8 +108,13 @@ def draw(ax, study, files, channels, key, scale=1.0, title=True):
                              edgecolor="#111111" if every else PARTIAL))
         side = np.mean(np.linalg.norm(quad - np.roll(quad, 1, axis=0), axis=1))
         centre, r = quad.mean(0), max(side * 0.13, 2.5)
+        per_row = min(len(channels), 3)     # rows of at most 3 dots, so they stay inside the tag
+        rows = -(-len(channels) // per_row)
         for k, c in enumerate(channels):
-            ax.add_patch(Circle(centre + [(k - (len(channels) - 1) / 2) * 2.6 * r, 0], r,
+            row, col = divmod(k, per_row)
+            in_row = min(per_row, len(channels) - row * per_row)
+            offset = [(col - (in_row - 1) / 2) * 2.6 * r, (row - (rows - 1) / 2) * 2.6 * r]
+            ax.add_patch(Circle(centre + offset, r,
                                 facecolor=STYLE[c]["color"] if c in found_by else "white",
                                 edgecolor=STYLE[c]["color"], linewidth=1.0 * scale))
     none = len([q for q in missed.values() if x0 <= q[:, 0].mean() <= x1 and y0 <= q[:, 1].mean() <= y1])

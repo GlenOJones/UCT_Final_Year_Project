@@ -390,6 +390,10 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
         ax.set_xticks([0, w // 2, w])
         ax.set_yticks([0, h // 2, h])
         ax.grid(False)
+        if col % ncol == 0:
+            ax.set_ylabel("v (px)")
+        if row == per - 1:
+            ax.set_xlabel("u (px)")
         ax.set_title((techniques[t].label + "\n" if row == 0 else "")
                      + f"{data.CAMERAS[c]}: RMS {metrics.rms(sel[:, 6], sel[:, 7]):.2f} px", fontsize=7.5)
     save(fig, path_stem)
