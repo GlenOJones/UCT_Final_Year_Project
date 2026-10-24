@@ -103,20 +103,57 @@ surface, where incoming sunlight affects the images. To better approximate real 
 cut with a hot wire and painted light blue. The set includes a grid of
 2\,$\times$\,2\,cm cubes to emulate repetitive patterns, an overhang to emulate large
 occlusions, a stepped pyramid to emulate layered ice, and a wave pattern to
-emulate curved ice features. \autoref{fig:ch5.foam_blocks} shows the four
-blocks and \autoref{fig:ch5.foam_test}
+emulate curved ice features.
 
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[b]{0.2\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \caption{Stepped pyramid}
+        \label{fig:ch5.foam_pyramid}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.2\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \caption{Overhang}
+        \label{fig:ch5.foam_overhang}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.2\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \caption{Wave}
+        \label{fig:ch5.foam_wave}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.2\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figs/pyr.jpeg}
+        \caption{2\,$\times$\,2\,cm cubes}
+        \label{fig:ch5.foam_cubes}
+    \end{subfigure}
+    \caption[Foam ice blocks]{\textbf{Foam ice blocks.} The four hot-wire-cut,
+    painted foam blocks used to imitate features on the underside of sea ice.}
+    \label{fig:ch5.foam_blocks}
+\end{figure}
 
 %========================
 \section{Datasets}
 \label{sec:ch4.datasets}
 Data was recorded both in air (ARU laboratory) and in water (swimming pool). The swiming pool recordings
 were completed over three days, in varying lighting conditions. The weather, pool conditions and time 
-of all the data used within this project is given in the appendix. 
+of every recording used in this project are given in
+\hyperref[app:recording_conditions]{Appendix~E}. 
 
 All recordings were completed in 1600\,$\times$\,1200\,px, 30\,fps, MJPEG. The choice of MJPEG was to allow for more than 5 fps for 
 continous capture aswell as due to an issue in setting the YUYV white balance when testing underwater. This is also the format supported by
 the camera synchronisation that will likely be implemented on the system before a deployment.
+
+The recordings used in this report are grouped into three datasets, DS1--DS3,
+shown in \autoref{fig:ch4.datasets} and described below. Further recordings
+were collected beyond these and are included in the full dataset.
 
 \begin{figure}[htbp]
     \centering
@@ -154,9 +191,9 @@ At each angle, recordings were taken every 10\,cm at distances from 40 to 150\,c
 This test was repeated both in air in the ARU experimantal space, and underwater in a students pool.
 
 \subsection{DS2: Side scans of the 3D prints}
-To 3D printed targets were fixed to a flat board with AprilTags placed around them. The tags provide a ground truth
-for pose (\autoref{sec:XXX}) and serve as reference points for separating the objects.
-The ROV was rolled past the board, stopping every 10\,cm. This was repeated with the stereo cameras
+The 3D-printed targets were fixed to a flat board with AprilTags placed around them. The tags provide a
+ground-truth camera pose (\autoref{subsec:ch5.tag_poses}) and serve as reference points for separating the objects.
+The ROV was rolled past the board, stopping every 10\,cm, and this was repeated with the stereo cameras
 20, 30, 40, 50 and 60\,cm from the board.
 
 \subsection{DS3: Upward-looking scans of the foam blocks}
@@ -166,6 +203,6 @@ Each block was scanned separately, next to a flat foam block carrying AprilTags.
 provide a ground-truth pose reference. Each scan consists of a single pass. Because the ROV was not fixed
 in place, the distance to the blocks was found by triangulating the AprilTags.
 
-The scans were repeated in two conditions: in direct sunlight at around 13:00, and in overcast
+The scans were repeated in two conditions. The first set were in direct sunlight at around 13:00, and again in overcast
 late-afternoon light at around 17:00. \autoref{fig:ch4.data_up} shows a scan of the pyramid in the
 darker conditions.

@@ -7,6 +7,34 @@
 \label{app:supplementary}
 
 %---------------------------------------------------------------------
+\section*{Recording conditions}
+\phantomsection
+\addcontentsline{toc}{section}{Recording conditions}
+\label{app:recording_conditions}
+% Referenced from the Dataset chapter (sec:ch4.datasets).
+% TODO: fill in one row per recording day.
+\autoref{tab:app:recording_conditions} lists when and where each dataset was
+recorded, with the weather and pool conditions at the time.
+\begin{table}[H]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\caption[Recording conditions]{\textbf{Recording conditions.} Date, time,
+weather and water conditions for every recording session used in this project.}
+\label{tab:app:recording_conditions}
+\begin{tabularx}{\textwidth}{@{} l l l l X X @{}}
+\toprule
+\textbf{Date} & \textbf{Location} & \textbf{Datasets} & \textbf{Time} & \textbf{Weather / lighting} & \textbf{Pool conditions} \\
+\midrule
+TODO & ARU laboratory (air) & DS1 & TODO & Indoor, TODO & n/a \\
+TODO & Pool & TODO & TODO & TODO & TODO \\
+TODO & Pool & TODO & TODO & TODO & TODO \\
+TODO & Pool & DS3 & 13:00, 17:00 & Direct sun; overcast late afternoon & TODO \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+%---------------------------------------------------------------------
 \section*{Detector parameter configurations}
 \phantomsection
 \addcontentsline{toc}{section}{Detector parameter configurations}
@@ -41,6 +69,16 @@ Bit decoding & \texttt{perspectiveRemovePixelPerCell}         & 4    & 4, 8, 12,
 \multicolumn{5}{l}{\footnotesize $^\dagger$ The sweep selected 0.08; reset to 0.03 by hand (see text).}
 \end{tabular}}
 \end{table}
+
+The final \texttt{water\_final} configuration, including the two board parameters that were set by
+hand and not swept, is:
+
+\begin{verbatim}
+adaptiveThreshWinSizeMin=5, adaptiveThreshWinSizeMax=83, adaptiveThreshWinSizeStep=2,
+adaptiveThreshConstant=12, minMarkerDistanceRate=0.1, perspectiveRemovePixelPerCell=16,
+perspectiveRemoveIgnoredMarginPerCell=0.33, maxErroneousBitsInBorderRate=0.5,
+polygonalApproxAccuracyRate=0.03, markerBorderBits=2, errorCorrectionRate=1.0
+\end{verbatim}
 
 
 %---------------------------------------------------------------------
