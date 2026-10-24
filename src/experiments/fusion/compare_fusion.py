@@ -23,6 +23,7 @@ Writes to results/<out_dir>/<recording>/ (recordings with CAD objects):
     accuracy_<object>.png         per report object: one row per method, signed distance to the CAD from above
                                   and profiles through the apex (compare_to_cad.py's own panels)
     profiles_<object>.png         per report object: every method's profile through the apex on one plot
+    coverage_by_face.png          coverage per face direction, one panel per report object, one bar per method
     comparison/<method>/<object>/ compare_to_cad.py's outputs (metrics.json, error maps, distances.ply)
     objects/<method>/<object>.ply the crops
 """
@@ -57,6 +58,10 @@ STL_DIR = os.path.join("data", "GroundTruth", "roughness_blocks_STL")
 FITS = ("on_board", "on_local_board", "shape")
 # One colour per method, in config order, for the overlaid profiles.
 PROFILE_COLOURS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
+DIRECTIONS = ("+x", "+y", "-x", "-y", "up")
+DIRECTION_LABELS = {"+x": "+x", "+y": "+y", "-x": "\u2212x", "-y": "\u2212y", "up": "top"}
+OBJECT_LABELS = {"PYRAMID_1": "Pyramid", "PYRAMID_2X2": "Pyramid 2\u00d72", "EGG_1PK": "Egg carton",
+                 "EGG_2PKS": "Egg carton (2)"}
 
 
 # ====== CAD SCORES ======
@@ -292,6 +297,66 @@ def profile_figures(cfg, p, results):
         print(f"-> {common.rel(path)}")
 
 
+def coverage_by_direction(reference, points, T, radius):
+    """{board direction: (coverage, share of the visible CAD area)} for one fit. The visible CAD surface is sampled
+    as compare_to_cad.evaluate samples it (seeded, ~1 per mm^2), each sample takes the board direction its triangle
+    faces ('+x', '+y', '-x', '-y' or 'up'), and is covered if a scan point lies within `radius`, so the shares add
+    up to compare_to_cad.py's coverage."""
+    local = compare_to_cad.transform(np.linalg.inv(T), points)
+    o3d.utility.random.seed(0)
+    samples = reference.mesh.sample_points_uniformly(max(int(reference.mesh.get_surface_area()), 1000))
+    sample_xyz = np.asarray(samples.points)
+    _, _, sample_tri = reference.closest(sample_xyz)
+    tree = o3d.geometry.KDTreeFlann(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(local)))
+    covered = np.array([tree.search_radius_vector_3d(q, radius)[0] > 0 for q in sample_xyz])
+    directions = np.array([compare_to_cad.board_direction(T[:3, :3] @ n) for n in reference.normals[sample_tri]])
+    return {d: (float(np.mean(covered[directions == d])), float(np.mean(directions == d)))
+            for d in DIRECTIONS if np.any(directions == d)}
+
+
+def coverage_figure(cfg, p, results):
+    """Coverage per face direction: one panel per report object, one bar per method for each direction the
+    object's faces point on the board (directions under 2% of its visible area left out)."""
+    ev = cfg["evaluation"]
+    fit = ev["report_fit"]
+    by_key = {(job[0], job[1]): (job, metrics) for job, metrics in results}
+    methods = cfg["methods"]
+    names = ev["report_objects"]
+    fig, axes = plt.subplots(1, len(names), figsize=(4.0 * len(names), 3.4), sharey=True, squeeze=False,
+                             constrained_layout=True, facecolor=compare_to_cad.SURFACE)
+    for ax, name in zip(axes[0], names):
+        found = {}
+        for method in methods:
+            job, metrics = by_key.get((method["name"], name), (None, None))
+            if metrics is None:
+                continue
+            points, _, T, reference = signed_distances(metrics, job[2], job[3], fit)
+            found[method["name"]] = coverage_by_direction(reference, points, T, metrics["settings"]["coverage_radius"])
+        shown = [d for d in DIRECTIONS if max((c.get(d, (0, 0))[1] for c in found.values()), default=0) >= 0.02]
+        width = 0.8 / len(methods)
+        for k, method in enumerate(methods):
+            if method["name"] not in found:
+                continue
+            values = [100 * found[method["name"]].get(d, (np.nan, 0))[0] for d in shown]
+            ax.bar(np.arange(len(shown)) + (k - (len(methods) - 1) / 2) * width, values, width * 0.9,
+                   color=PROFILE_COLOURS[k], label=method["label"])
+        ax.set_xticks(np.arange(len(shown)), [DIRECTION_LABELS[d] for d in shown])
+        ax.set_facecolor(compare_to_cad.SURFACE)
+        ax.set_ylim(0, 100)
+        ax.set_xlabel(OBJECT_LABELS.get(name, name))
+        ax.grid(axis="y", color=compare_to_cad.MUTED, alpha=0.2, lw=0.5)
+        ax.set_axisbelow(True)
+        for side in ("top", "right"):
+            ax.spines[side].set_visible(False)
+    axes[0, 0].set_ylabel("coverage (%)")
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, fontsize=8, loc="outside lower center", ncol=len(labels))
+    path = os.path.join(p["out"], "coverage_by_face.png")
+    fig.savefig(path, dpi=ev["figure_dpi"])
+    plt.close(fig)
+    print(f"-> {common.rel(path)}")
+
+
 # ====== TOP-DOWN VIEW AND COVERAGE (scans without CAD: the ice) ======
 def camera_side(p):
     """+1 if the cameras sit on the board frame's +z side (S30: looking down on the board), -1 if on the -z side,
@@ -448,6 +513,7 @@ def main(argv=None):
             write_tables(cfg, p, table_rows(cfg, results), run_record)
         figures(cfg, p, results)
         profile_figures(cfg, p, results)
+        coverage_figure(cfg, p, results)
     else:
         topdown_and_coverage(cfg, p)
 

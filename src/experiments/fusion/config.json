@@ -124,8 +124,7 @@
   "report_objects": [
    "PYRAMID_1",
    "PYRAMID_2X2",
-   "EGG_1PK",
-   "EGG_2PKS"
+   "EGG_1PK"
   ],
   "error_limit_mm": 5,
   "_height_range_mm": "Kept for the run started on 17 Oct with the earlier compare_fusion.py, which reads it; not used now.",
