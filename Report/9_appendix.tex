@@ -12,6 +12,194 @@
 \addcontentsline{toc}{section}{Detector parameter configurations}
 \label{app:detector_configs}
 % Referenced from Chapter 5: the OpenCV DetectorParameters sweep (TABLE X).
+\begin{table}[H]
+\centering
+\caption{ArUco detector parameters varied in the sweep: OpenCV's default, the candidate values, and the
+final \texttt{water\_final} setting (bold where it differs from the default).}
+\label{tab:detector_sweep_params}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{llrlr}
+\toprule
+Stage & Parameter & OpenCV default & Candidates & Final \\
+\midrule
+Thresholding & \texttt{adaptiveThreshWinSizeMin}  & 3    & 3, 5, 7, 9, 13          & \textbf{5} \\
+             & \texttt{adaptiveThreshWinSizeMax}  & 23   & 23, 33, 43, 53, 63, 83  & \textbf{83} \\
+             & \texttt{adaptiveThreshWinSizeStep} & 10   & 2, 4, 5, 8, 10, 14      & \textbf{2} \\
+             & \texttt{adaptiveThreshConstant}    & 7    & 3, 5, 7, 9, 12          & \textbf{12} \\
+             & \texttt{minOtsuStdDev}             & 5.0  & 0, 1, 2, 3, 5           & 5.0 \\
+\midrule
+Contour filtering & \texttt{minMarkerPerimeterRate}      & 0.03  & 0.02, 0.03            & 0.03 \\
+             & \texttt{maxMarkerPerimeterRate}            & 4.0   & 4.0, 8.0              & 4.0 \\
+             & \texttt{polygonalApproxAccuracyRate}       & 0.03  & 0.01, 0.03, 0.05, 0.08 & 0.03$^\dagger$ \\
+             & \texttt{minCornerDistanceRate}             & 0.05  & 0, 0.05, 0.1          & 0.05 \\
+             & \texttt{minMarkerDistanceRate}             & 0.125 & 0, 0.05, 0.1          & \textbf{0.1} \\
+\midrule
+Bit decoding & \texttt{perspectiveRemovePixelPerCell}         & 4    & 4, 8, 12, 16     & \textbf{16} \\
+             & \texttt{perspectiveRemoveIgnoredMarginPerCell} & 0.13 & 0.13, 0.2, 0.33  & \textbf{0.33} \\
+             & \texttt{maxErroneousBitsInBorderRate}          & 0.35 & 0.35, 0.5, 0.75  & \textbf{0.5} \\
+\bottomrule
+\multicolumn{5}{l}{\footnotesize $^\dagger$ The sweep selected 0.08; reset to 0.03 by hand (see text).}
+\end{tabular}}
+\end{table}
+
+
+%---------------------------------------------------------------------
+% Held-out evaluation of the calibration methods
+% Numbers from results/experiments/compensation/full_comparison (run 2026-10-13T09:39:49),
+% calibration run results/experiments/compensation/calibration/Water/Water_water_final_stereo.yaml
+%---------------------------------------------------------------------
+
+\section*{Held-out evaluation: recordings, splits and image zones}
+\phantomsection
+\addcontentsline{toc}{section}{Held-out evaluation: recordings, splits and image zones}
+\label{app:heldout}
+
+This section lists the exact data behind the held-out comparison of the calibration methods: which underwater
+recordings and frames were used, which recordings each split held out, and how every board corner was assigned
+to an image zone and a distance band. The comparison is produced by
+\texttt{src/experiments/compensation/run\_comparison.py} with the configuration \texttt{config\_full.json};
+the list of splits is also saved in \texttt{run\_info.json} beside the results.
+
+\subsection*{Underwater recordings and frames}
+\phantomsection
+\label{app:heldout:recordings}
+
+The underwater calibration data are eight recordings of the Kalibr AprilGrid (AprilTag 36h11, 35.36~mm tags,
+$10\times7$), each a sweep of the board towards and away from the rig at one tilt. One stereo frame was extracted
+per nominal distance; the nominal distance in centimetres is the number in the file name
+(\texttt{c1\_Left\_100.png} is the left image at a nominal 100~cm). The corners were detected once by
+\texttt{Calibration.py} with the \texttt{water\_final} detector preset on the gray channel. Only the images and
+tags that run kept after its outlier rejection are used, so a camera can have fewer frames than its recording.
+The measured distance is from the camera to the board centre, from each image's board pose in that calibration.
+
+\begin{table}[H]
+\centering
+\caption{The eight underwater recordings: frames kept per camera (nominal distances in cm), measured
+camera-to-board distance range of the left camera, and stereo pairs (frames both cameras kept with at least 10
+tags in common).}
+\label{tab:app:recordings}
+\small
+\begin{tabular}{lllcc}
+\toprule
+Recording & Left frames (nominal cm) & Right frames (nominal cm) & Left distance (mm) & Pairs \\
+\midrule
+\texttt{Water\_C1\_frames} & 11 (50--150)          & 11 (50--150)          & 232--1221 & 11 \\
+\texttt{Water\_C3\_frames} & 11 (50--150)          & 11 (50--150)          & 262--1234 & 10 \\
+\texttt{Water\_C4\_frames} & 10 (50--140)          & 10 (50--140)          & 363--1252 & 10 \\
+\texttt{Water\_C5\_frames} & 10 (60--150)          & 11 (50--150)          & 484--1378 & 10 \\
+\texttt{Water\_C6\_frames} &  8 (70--140)          &  8 (70--140)          & 621--1318 &  7 \\
+\texttt{Water\_L1\_Frames} & 12 (40--150)          & 10 (60--150)          & 353--1367 & 10 \\
+\texttt{Water\_L3\_Frames} & 11 (50--150)          & 10 (60--150)          & 441--1377 & 10 \\
+\texttt{Water\_L5\_Frames} & 11 (50--150)          &  9 (70--150)          & 484--1416 &  9 \\
+\midrule
+Total                      & 84                    & 80                    & 232--1416 & 77 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Within each range in Table~\ref{tab:app:recordings} the frames are at every 10~cm. The images of
+\texttt{Water\_L1\_Frames} are named \texttt{c1\_\ldots} on disk; they are a separate recording from
+\texttt{Water\_C1\_frames}. Altogether the left camera contributes 18\,772 board corners and the right camera
+18\,436.
+
+\subsection*{Held-out splits}
+\phantomsection
+\label{app:heldout:splits}
+
+Frames within one recording are near neighbours, so holding out single frames would test a model on almost the
+data it was fitted to. Instead, whole recordings are held out: every combination of two of the eight recordings
+($\binom{8}{2} = 28$ splits). In each split every technique is fitted on the six remaining recordings and scored
+on all the kept frames of the two held-out ones. Every recording is therefore held out in 7 splits and used for
+training in the other 21, and every held-out frame is scored by a model that never saw its recording. All
+techniques are scored on exactly the same held-out corners in every split.
+
+\begin{table}[H]
+\centering
+\caption{The 28 splits: the two held-out (test) recordings, and the held-out left frames, right frames and
+stereo pairs. The training set of each split is the other six recordings.}
+\label{tab:app:splits}
+\small
+\begin{tabular}{rlccc@{\hspace{2.5em}}rlccc}
+\toprule
+Split & Held out & L & R & Pairs & Split & Held out & L & R & Pairs \\
+\midrule
+ 0 & C1, C3 & 22 & 22 & 21 & 14 & C4, C6 & 18 & 18 & 17 \\
+ 1 & C1, C4 & 21 & 21 & 21 & 15 & C4, L1 & 22 & 20 & 20 \\
+ 2 & C1, C5 & 21 & 22 & 21 & 16 & C4, L3 & 21 & 20 & 20 \\
+ 3 & C1, C6 & 19 & 19 & 18 & 17 & C4, L5 & 21 & 19 & 19 \\
+ 4 & C1, L1 & 23 & 21 & 21 & 18 & C5, C6 & 18 & 19 & 17 \\
+ 5 & C1, L3 & 22 & 21 & 21 & 19 & C5, L1 & 22 & 21 & 20 \\
+ 6 & C1, L5 & 22 & 20 & 20 & 20 & C5, L3 & 21 & 21 & 20 \\
+ 7 & C3, C4 & 21 & 21 & 20 & 21 & C5, L5 & 21 & 20 & 19 \\
+ 8 & C3, C5 & 21 & 22 & 20 & 22 & C6, L1 & 20 & 18 & 17 \\
+ 9 & C3, C6 & 19 & 19 & 17 & 23 & C6, L3 & 19 & 18 & 17 \\
+10 & C3, L1 & 23 & 21 & 20 & 24 & C6, L5 & 19 & 17 & 16 \\
+11 & C3, L3 & 22 & 21 & 20 & 25 & L1, L3 & 23 & 20 & 20 \\
+12 & C3, L5 & 22 & 20 & 19 & 26 & L1, L5 & 23 & 19 & 19 \\
+13 & C4, C5 & 20 & 21 & 20 & 27 & L3, L5 & 22 & 19 & 19 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection*{How a held-out frame is scored}
+For a held-out image, the technique's intrinsics are fixed and only the board pose $(R,\mathbf{t})$ is fitted, by
+minimising the pixel distance between the detected corners $\mathbf{u}_i$ and their projections
+$\hat{\mathbf{u}}_i = \pi(R\mathbf{X}_i + \mathbf{t})$, where $\mathbf{X}_i$ are the known board coordinates and
+$\pi$ is the technique's camera model. The residual of corner $i$ is $\mathbf{e}_i = \mathbf{u}_i -
+\hat{\mathbf{u}}_i$, and the held-out error of a split over a set $S$ of its held-out corners is
+\begin{equation}
+  \mathrm{RMS}_S = \sqrt{\frac{1}{|S|}\sum_{i\in S} \lVert \mathbf{e}_i \rVert^2 }.
+\end{equation}
+$S$ is all held-out corners for the overall figure, or only those in one image zone or distance band
+(the zones are defined below; the distance bands are near, 200--800~mm, and far, 1000--1500~mm). Each metric is computed once per split, and the
+tables report the mean over the 28 splits with the 2.5--97.5 percentile range of the 28 values. Because the pose
+is fitted to the corners it is scored on, part of any model error is absorbed into it, so the held-out RMS is a
+lower bound on the error at an unknown pose.
+
+\subsection*{Normalised radius and image zones}
+\phantomsection
+\label{app:heldout:zones}
+
+Lens distortion and refraction errors grow with distance from the optical axis, so the residuals are also
+reported by where the corner lies in the image. The reference point is the principal point $(c_x, c_y)$ of the
+technique being scored, the point where the optical axis meets the image. The pixel distance of a corner at
+$(u, v)$ from it is divided by the distance from the principal point to the farthest of the four image corners:
+\begin{equation}
+  r = \frac{\sqrt{(u - c_x)^2 + (v - c_y)^2}}{R_{\max}}, \qquad
+  R_{\max} = \max_{(x,\,y)\,\in\,\{0,\,W\}\times\{0,\,H\}} \sqrt{(x - c_x)^2 + (y - c_y)^2},
+  \label{eq:app:radius}
+\end{equation}
+with $W \times H = 1600 \times 1200$~px. So $r = 0$ at the principal point and $r = 1$ at the farthest image
+corner. Normalising by the image rather than using pixels makes the zone boundaries mean the same thing for every
+technique, whose principal points differ by a few pixels, and for any image resolution. The image is then split
+into three concentric zones:
+\begin{equation}
+  \text{centre: } r < 0.33, \qquad \text{mid: } 0.33 \le r < 0.66, \qquad \text{outer: } r \ge 0.66 .
+\end{equation}
+
+Table~\ref{tab:app:zones} gives the values for the underwater Brown-Conrady fit on all recordings. The other
+techniques' principal points are within 4~px of these, so their zone boundaries move by less than 4~px.
+
+\begin{table}[H]
+\centering
+\caption{Principal point, $R_{\max}$ and zone boundaries in pixels (underwater Brown-Conrady), and the share of
+held-out corners in each zone and distance band, pooled over all splits.}
+\label{tab:app:zones}
+\small
+\begin{tabular}{lcc}
+\toprule
+ & Left camera & Right camera \\
+\midrule
+Principal point $(c_x, c_y)$ (px)        & (792.7, 642.2) & (769.8, 630.6) \\
+$R_{\max}$ (px), farthest corner          & 1031.6, $(1600, 0)$ & 1042.6, $(1600, 0)$ \\
+Centre / mid boundary, $0.33R_{\max}$ (px) & 340 & 344 \\
+Mid / outer boundary, $0.66R_{\max}$ (px)  & 681 & 688 \\
+\midrule
+Corners in centre / mid / outer (\%)     & 67.0 / 29.9 / 3.1 & 57.7 / 38.2 / 4.1 \\
+Corners near / far / between (\%)        & 42.6 / 35.9 / 21.5 & 34.4 / 41.8 / 23.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 
 %---------------------------------------------------------------------
@@ -22,8 +210,27 @@
 % Referenced from Chapter 5: the 8 underwater recordings and the 28 splits.
 \begin{table}[H]
 \centering
+\small
+\caption{Held-out reprojection error of the left (reference) camera, in pixels, as the mean over the 28 splits.
+Zones and bands are defined in \hyperref[app:heldout]{Appendix~E}; the last column is a ratio.}
+\label{tab:heldout_left}
+\begin{tabular}{lrrrrrrr}
+\toprule
+Technique & Held-out & Centre & Mid & Outer & Near & Far & Far/near (centre) \\
+\midrule
+T1 In-air, unchanged & 8.645 & 4.427 & 11.401 & 29.833 & 12.912 & 1.746 & 0.21 \\
+T2 Pinax (air + refraction) & 1.945 & 0.625 & 1.624 & 9.493 & 2.952 & 0.292 & 0.28 \\
+T3 Brown-Conrady & 0.286 & 0.266 & 0.312 & 0.471 & 0.320 & 0.258 & 0.92 \\
+T4 Kannala-Brandt & 0.275 & 0.259 & 0.296 & 0.433 & 0.300 & 0.256 & 0.96 \\
+T5 Brown-Conrady + axial shift & 0.285 & 0.266 & 0.311 & 0.458 & 0.317 & 0.258 & 0.93 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
 \caption{Held-out reprojection error of the right camera, in pixels: mean over the 28 splits, with the
-2.5--97.5 percentile range in brackets. Zones and bands are defined in Appendix~\ref{app:heldout}; the last
+2.5--97.5 percentile range in brackets. Zones and bands are defined in \hyperref[app:heldout]{Appendix~E}; the last
 column is a ratio.}
 \label{tab:heldout_right}
 \resizebox{\linewidth}{!}{%
@@ -36,9 +243,6 @@ T2 Pinax (air + refraction) & 1.037 {\scriptsize[0.760, 1.295]} & 0.551 {\script
 T3 Brown-Conrady & 0.271 {\scriptsize[0.205, 0.346]} & 0.267 {\scriptsize[0.208, 0.337]} & 0.282 {\scriptsize[0.200, 0.414]} & 0.351 {\scriptsize[0.167, 0.549]} & 0.294 {\scriptsize[0.169, 0.388]} & 0.255 {\scriptsize[0.211, 0.323]} & 0.96 {\scriptsize[0.71, 1.19]} \\
 T4 Kannala-Brandt & 0.274 {\scriptsize[0.205, 0.371]} & 0.271 {\scriptsize[0.208, 0.361]} & 0.283 {\scriptsize[0.200, 0.416]} & 0.332 {\scriptsize[0.158, 0.476]} & 0.296 {\scriptsize[0.162, 0.450]} & 0.257 {\scriptsize[0.210, 0.324]} & 0.98 {\scriptsize[0.71, 1.32]} \\
 T5 Brown-Conrady + axial shift & 0.270 {\scriptsize[0.201, 0.361]} & 0.266 {\scriptsize[0.199, 0.334]} & 0.282 {\scriptsize[0.196, 0.467]} & 0.331 {\scriptsize[0.179, 0.619]} & 0.296 {\scriptsize[0.171, 0.418]} & 0.252 {\scriptsize[0.209, 0.322]} & 0.97 {\scriptsize[0.66, 1.25]} \\
-\midrule
-Brown-Conrady, close-range training & 0.282 {\scriptsize[0.207, 0.419]} & 0.277 {\scriptsize[0.210, 0.365]} & 0.297 {\scriptsize[0.202, 0.559]} & 0.349 {\scriptsize[0.168, 0.661]} & 0.310 {\scriptsize[0.171, 0.502]} & 0.260 {\scriptsize[0.211, 0.333]} & 0.94 {\scriptsize[0.63, 1.21]} \\
-BC + axial, close-range training & 0.275 {\scriptsize[0.204, 0.397]} & 0.269 {\scriptsize[0.200, 0.346]} & 0.288 {\scriptsize[0.200, 0.525]} & 0.331 {\scriptsize[0.187, 0.655]} & 0.300 {\scriptsize[0.175, 0.471]} & 0.254 {\scriptsize[0.210, 0.326]} & 0.96 {\scriptsize[0.63, 1.28]} \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -103,3 +307,143 @@ Recording & Matcher & Time & Coverage & Points \\
 \label{app:right_camera}
 % Referenced from Chapter 5: right-camera counterpart of the left-camera table.
 
+
+%---------------------------------------------------------------------
+\section*{Tag detection rate by board distance}
+\phantomsection
+\addcontentsline{toc}{section}{Tag detection rate by board distance}
+\label{app:recall_distance}
+% Referenced from Chapter 5: colour channel comparison.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figs/Ch5/fig_recall_mean_by_medium.png}
+    \caption[Tag detection rate by board distance per colour channel.]{\textbf{Tag detection rate by board distance per colour channel.} Mean fraction of the 70 board tags detected at each board distance. Left: air (216 images). Right: water (234 images).}
+    \label{fig:app.recall_mean}
+\end{figure}
+
+
+%---------------------------------------------------------------------
+\section*{Stereo scale on held-out pairs}
+\phantomsection
+\addcontentsline{toc}{section}{Stereo scale on held-out pairs}
+\label{app:stereo_scale}
+% Referenced from Chapter 5: triangulated scale bars on the held-out stereo pairs.
+\begin{table}[H]
+\centering
+\caption{Triangulated scale bars (250--450~mm) on held-out stereo pairs, in mm: mean over the 28 splits, with the
+2.5--97.5 percentile range in brackets. Bias is the mean signed length error, RMS the root-mean-square length
+error; \emph{far} restricts both to boards at 1000--1500~mm. Baseline is the length of the fitted stereo
+translation.}
+\label{tab:scalebars}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+Technique & Bias & RMS & Far bias & Far RMS & Baseline \\
+\midrule
+T1 In-air calibration, unchanged & $-29.51$ {\scriptsize[$-41.25$, $-20.81$]} & 35.01 {\scriptsize[23.98, 49.38]} & $-25.62$ {\scriptsize[$-37.32$, $-15.75$]} & 29.33 {\scriptsize[16.49, 43.81]} & 150.36 {\scriptsize[150.36, 150.36]} \\
+T2 Pinax (air + refraction) & 1.83 {\scriptsize[0.58, 4.22]} & 4.40 {\scriptsize[2.08, 8.37]} & 0.04 {\scriptsize[$-0.44$, 0.92]} & 2.72 {\scriptsize[1.57, 4.08]} & 150.37 {\scriptsize[150.00, 150.54]} \\
+T3 Brown-Conrady & 0.15 {\scriptsize[$-0.84$, 0.82]} & 1.28 {\scriptsize[0.67, 2.55]} & 0.12 {\scriptsize[$-1.45$, 1.32]} & 1.68 {\scriptsize[0.99, 3.20]} & 150.12 {\scriptsize[149.65, 150.43]} \\
+T4 Kannala-Brandt & 0.15 {\scriptsize[$-1.02$, 1.02]} & 1.44 {\scriptsize[0.80, 2.64]} & 0.21 {\scriptsize[$-1.66$, 1.95]} & 1.94 {\scriptsize[1.12, 3.73]} & 150.09 {\scriptsize[149.54, 150.49]} \\
+T5 Brown-Conrady + axial shift & 0.02 {\scriptsize[$-0.79$, 0.64]} & 1.11 {\scriptsize[0.64, 2.08]} & 0.03 {\scriptsize[$-1.31$, 1.15]} & 1.50 {\scriptsize[0.95, 2.81]} & 150.10 {\scriptsize[149.66, 150.38]} \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/fig_scale.pdf}
+    \caption[short caption]{\textbf{Quiver plot of X.} Description.}
+    \label{fig:ch5.scale}
+\end{figure}
+
+
+%---------------------------------------------------------------------
+\section*{Comparison target error by distance}
+\phantomsection
+\addcontentsline{toc}{section}{Comparison target error by distance}
+\label{app:target}
+% Referenced from Chapter 5: WaterComparison tag error per distance label.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1 \textwidth]{figs/Ch5/fig_target.pdf}
+    \caption[short caption]{\textbf{Quiver plot of X.} Description.}
+    \label{fig:ch5.target}
+\end{figure}
+
+
+%---------------------------------------------------------------------
+\section*{Main underwater calibration}
+\phantomsection
+\addcontentsline{toc}{section}{Main underwater calibration}
+\label{app:main_calibration}
+% Referenced from Chapter 5: the calibration used for all later reconstructions.
+\begin{table}[H]
+\centering
+\caption{Camera parameters from the handheld underwater calibration used for all later reconstructions
+(89 stereo pairs, $1600\times1200$~px, OpenCV Brown-Conrady model). Uncertainties are one standard
+deviation from the fit. The camera matrix is
+$K = \left[\begin{smallmatrix} f_x & 0 & c_x \\ 0 & f_y & c_y \\ 0 & 0 & 1 \end{smallmatrix}\right]$, and $R$, $T$
+map a point from the left camera frame to the right.}
+\label{tab:main_calibration}
+\begin{tabular}{lrr}
+\toprule
+Parameter & Left camera & Right camera \\
+\midrule
+$f_x$ (px) & $962.13 \pm 0.27$ & $966.52 \pm 0.29$ \\
+$f_y$ (px) & $961.55 \pm 0.27$ & $965.84 \pm 0.28$ \\
+$c_x$ (px) & $790.07 \pm 0.11$ & $772.58 \pm 0.11$ \\
+$c_y$ (px) & $648.29 \pm 0.11$ & $635.52 \pm 0.12$ \\
+\midrule
+$k_1$ & $0.06679$ & $0.06526$ \\
+$k_2$ & $-0.10433$ & $-0.09526$ \\
+$k_3$ & $0.03460$ & $0.02578$ \\
+$p_1$ & $0.00082$ & $-0.00034$ \\
+$p_2$ & $0.00010$ & $0.00014$ \\
+\midrule
+RMS reprojection error (px) & 0.278 & 0.272 \\
+Images used & 89 & 89 \\
+\midrule
+\multicolumn{3}{l}{\textit{Stereo extrinsics}} \\
+Translation $T$ (mm) & \multicolumn{2}{r}{$(-150.60,\ 0.69,\ -0.74)$} \\
+Baseline $|T|$ (mm) & \multicolumn{2}{r}{150.60} \\
+Rotation about $x, y, z$ (deg) & \multicolumn{2}{r}{$(-0.097,\ -1.034,\ 0.099)$} \\
+Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+%---------------------------------------------------------------------
+\section*{Fusion accuracy by object}
+\phantomsection
+\addcontentsline{toc}{section}{Fusion accuracy by object}
+\label{app:fusion_accuracy}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_1.png}
+    \caption[Fusion accuracy on the pyramid]{\textbf{Fusion accuracy on the pyramid.} One row per fusion method.
+    Left: the object's scan points from above, coloured by signed distance to the fitted CAD model (positive
+    outside), with the CAD faces outlined. Right: scan points within $\pm$3~mm of sections through the apex along
+    the CAD model's $x$ and $y$ axes, with the CAD cross-sections.}
+    \label{fig:app.fusion_accuracy_pyramid}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_2X2.png}
+    \caption[Fusion accuracy on the $2\times2$ pyramid]{\textbf{Fusion accuracy on the $2\times2$ pyramid.} Panels as
+    in Figure~\ref{fig:app.fusion_accuracy_pyramid}. COLMAP reconstructs mainly the ridges and edges, leaving
+    the plain faces empty. TSDF with FoundationStereo covers almost the whole surface, sitting slightly outside
+    it, and SGBM leaves scattered points in the valleys.}
+    \label{fig:app.fusion_accuracy_pyramid2x2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_EGG_1PK.png}
+    \caption[Fusion accuracy on the egg carton]{\textbf{Fusion accuracy on the egg carton.} Panels as in
+    Figure~\ref{fig:app.fusion_accuracy_pyramid}. COLMAP follows the designed surface most closely; the TSDF
+    reconstructions sit below it over the bumps.}
+    \label{fig:app.fusion_accuracy_egg}
+\end{figure}

@@ -137,6 +137,10 @@
     "in_air": 20,
     "fitted": 100
   },
+  "_quiver_in_air_reference_why": "Also drawn in the in-air quiver figure, at the in-air gain: T3 beside T1 and Pinax shows how small the fitted residuals are at x20. It stays in the fitted figure too.",
+  "quiver_in_air_reference": [
+    "bc"
+  ],
   "_report_cameras_why": "Figures and report tables show the left (reference) camera only, because the stereo results are in its frame. Both cameras are still fitted and scored, and the stereo results (scale bars, WaterComparison tags) use both.",
   "report_cameras": [
     "left"

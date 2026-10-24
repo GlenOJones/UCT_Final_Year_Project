@@ -91,7 +91,7 @@ and repetitive envirnoments. Learnt models instead compare learnt feature descri
 allowing them to use wider semantic context. \cite{kendallEndtoEndLearningGeometry2017}.
 The weakness however is that they depend heavily on training data \cite{wenFoundationStereoZeroShotStereo2025}.
 For this reason, two different learnt models are tested, one leading general purpose model trained on a very large dataset, and a model designed specifically for underwater use. 
-\autoref{fig:gcnet-architecture} shows the forward pass of GC-Net \citep{kendallEndtoEndLearningGeometry2017}, 
+\autoref{fig:gcnet-architecture} shows the forward pass of GC-Net \cite{kendallEndtoEndLearningGeometry2017}, 
 an early end-to-end learnt stereo model whose cost volume and soft argmin regression later models build on.
 
 
@@ -99,7 +99,7 @@ an early end-to-end learnt stereo model whose cost volume and soft argmin regres
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=\textwidth]{figs/Ch5/gcnet-architecture.drawio.pdf}
-  \caption[GC-Net forward pass]{Forward pass of GC-Net. A rectified stereo pair passes through shared-weight 2D convolutions; the resulting features form a 4D cost volume, which 3D convolutions and deconvolutions regularise before a soft argmin regresses the disparity map. Adapted from \citet{kendallEndtoEndLearningGeometry2017}.}
+  \caption[GC-Net forward pass]{Forward pass of GC-Net. A rectified stereo pair passes through shared-weight 2D convolutions; the resulting features form a 4D cost volume, which 3D convolutions and deconvolutions regularise before a soft argmin regresses the disparity map. Adapted from Kendall et al.~\cite{kendallEndtoEndLearningGeometry2017}.}
   \label{fig:gcnet-architecture}
 \end{figure}
 % MAKE own diagram to explain how they work.
@@ -110,7 +110,7 @@ It is designed to generalise to new scenes without any fine-tuning, making it ze
 to build a cost volume. This volume is filtered with $3D$ conviltions and a mechanism that wieghs each pixel's candidate disparity against the others
 The resulting disparity map is iteratively refined . Further details on the model architecture, training and benchamrk results are given
 in the original paper \cite{wenFoundationStereoZeroShotStereo2025} and the official
-implementation\footnote{\url{https://github.com/NVlabs/FoundationStereo}}.
+implementation.\footnote{\url{https://github.com/NVlabs/FoundationStereo}}
 
 \textbf{AquaStereo} \\
 AquaStereo is a learnt model designed specifically for underwater reconstruction. Due to minimal underwater training data, it uses synthetic underwater stereo pairs, 
@@ -311,7 +311,7 @@ inherits any calibration and distortion error.
 \subsection{ICP (Iterative Closest Point)}
 \label{subsec:ch5.icp}
 % EXPLAIN
-ICP (Iterative Closest Point), as explained in the \autoref{subsec:ch3.icp}, is a standard technique for aligning 3D point clouds \citep{besl1992}.
+ICP (Iterative Closest Point), as explained in the \autoref{subsec:ch3.icp}, is a standard technique for aligning 3D point clouds \cite{besl1992}.
 Here it is used to estimate camera motion from the shape of each frame's 3D point cloud. Each new frame's point 
 cloud is shifted and rotated until it matches a reference cloud.
 The amount of movement between clouds is the amount the camera has moved. 
@@ -611,93 +611,123 @@ Further testing on using less input frames is done.
 Interactive point clouds of the reconstructiosn can bef ound at (give link to interactgiv egitrhub). 
 
 
+
+
+
+% ====================
+\subsubsection{ACCURACY}
+To measure accuracy, the 3D-printed objects are used, as their CAD models give a ground truth.
+ The camera trajectory is aligned to the AprilTag poses so that every point cloud lies in the board frame. 
+ Each object is cropped to a ±85 mm box around its known position, keeping only the points above the board 
+ that belong to the object. The CAD model is fitted to these points by robust point-to-plane ICP. The fit is 
+ restricted to in-plane position and yaw, because the object rests flat on the board, so height and tilt errors
+  cannot be fitted away. The board is first levelled in a ring 10–40 mm around each object, so that small errors in
+   the tag-defined board plane are not counted against the object. Accuracy is then measured as the signed distance
+    from each point to the CAD surface. The median absolute distance is the main measure, because it is robust to outliers.
+     The 95th percentile and the RMS show the tails,m and coverage (the share of the visible CAD surface with a point within 2 mm) 
+     shows how complete the reconstruction is.
+
 \begin{table}[H]
 \centering
-\caption{Accuracy of each fusion method against the CAD model, S30 (lab), 344 frames, COLMAP poses. Fit: on local board. Coverage is the share of the visible CAD surface with a scan point within 2~mm; distances are from every object point to the CAD surface.}
+\caption{Accuracy of each fusion method against the CAD models on S30 (344 frames, COLMAP poses, tags masked).
+Coverage is the share of the visible CAD surface with a scan point within 2~mm; distances are signed point-to-surface
+distances after the on-local-board fit. Best value per object in bold.}
 \label{tab:fusion_accuracy}
-\begin{tabular}{llrrrrrrr}
+\begin{tabular}{llrrr}
 \toprule
-Object & Method & Coverage (\%) & Median $|d|$ (mm) & RMS (mm) & p95 $|d|$ (mm) & $\leq$1~mm (\%) & $\leq$2~mm (\%) & $\leq$5~mm (\%) \\
+Object & Method & Coverage (\%) & Median $|d|$ (mm) & RMS (mm) \\
 \midrule
-\multirow{3}{*}{PYRAMID\_1} & COLMAP (full pipeline) & -- & -- & -- & -- & -- & -- & -- \\
- & TSDF, FoundationStereo & 40 & 2.21 & 2.53 & 4.22 & 13 & 43 & 99 \\
- & TSDF, SGBM (tuned) & 17 & 2.05 & 3.35 & 6.97 & 26 & 49 & 88 \\
+\multirow{3}{*}{Pyramid}            & COLMAP    & 36          & 3.23          & 3.91          \\
+                                    & TSDF-FS   & \textbf{40} & 2.21          & \textbf{2.53} \\
+                                    & TSDF-SGBM & 17          & \textbf{2.05} & 3.35          \\
+\midrule
+\multirow{3}{*}{Pyramid 2$\times$2} & COLMAP    & 43          & 1.93          & 2.59          \\
+                                    & TSDF-FS   & \textbf{44} & \textbf{1.72} & \textbf{2.27} \\
+                                    & TSDF-SGBM & 35          & 2.51          & 5.03          \\
+\midrule
+\multirow{3}{*}{Egg carton}         & COLMAP    & 35          & \textbf{1.83} & \textbf{2.90} \\
+                                    & TSDF-FS   & 21          & 3.83          & 5.81          \\
+                                    & TSDF-SGBM & \textbf{36} & 2.37          & 5.02          \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 
-Insert figure comparing the three accuracy for the Pyramid (|Top Down , Profiles through|) + 2pck egg box same. Fair comparison, both inline.
-
-
-figure 1
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_1.png}
-    \caption{...}
-    \label{fig:ch5.fusion_accuracy_pyramid}
+    \includegraphics[width=\textwidth]{figs/Ch5/fusion_profiles_pyramid.png}
+    \caption[Profiles through the pyramid apex]{\textbf{Profiles through the pyramid apex.} Each fusion method
+    against the CAD model (dashed). Left: along the CAD model's $x$ axis; right: along its $y$ axis. Each line is
+    the median height of the scan points within $\pm$3~mm of the section, in 1~mm bins, with the points themselves
+    shown faintly. TSDF with FoundationStereo gives the only continuous profile, while COLMAP leaves gaps and SGBM
+    covers only the region around the apex. All three methods sit 2--4~mm above the CAD surface on the flanks.}
+    \label{fig:ch5.fusion_profiles_pyramid}
 \end{figure}
-
-figure 2
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_1.png}
-    \caption{...}
-    \label{fig:ch5.fusion_accuracy_eggg}
+    \includegraphics[width=\textwidth]{figs/Ch5/fusion_profiles_egg.png}
+    \caption[Profiles through the egg carton apex]{\textbf{Profiles through the egg carton apex.} Each fusion method
+    against the CAD model (dashed). Left: along the CAD model's $x$ axis; right: along its $y$ axis. Each line is
+    the median height of the scan points within $\pm$3~mm of the section, in 1~mm bins, with the points themselves
+    shown faintly. COLMAP and SGBM follow the designed curve along $x$, while TSDF with FoundationStereo sits
+    15--20~mm low over the bump. Along $y$, all three methods are noisy, and COLMAP picks up the neighbouring part
+    beyond 80~mm.}
+    \label{fig:ch5.fusion_profiles_egg}
 \end{figure}
 
 
-\subsection{Accuracy Results}
-(Explain how accuracy tests are done, and cropped)
-
-(Image for the pyramid cross section to look at edge accuracy. Pyramid because only are for comparison, try get the others to work)
 
 
 
+%=======================================================
+\subsubsection{Looking up reconstructions}
 
+% Explain what was done
 
-Look at ice reconstruction across the wave1 and pyramid shade (top down grid to show all of them)
+% Explain that its largely qualittave comparison, no ground truth. I would like to compare %coverage tho
+Largely quantaative, looking at how well it performs not neccesariy metric accuracy.
 
-
-One image for the S30 reconstruction, compare the accuracy for the pyramid 1x. The rest in the appendix.
-
-
-Looking towards how well they scale with overlapping frames (Poitn cloud coverage, mayeb accuracy on the Pyramid)
-
-
-Mention scaling tests results, link to appendix.
-
-
-It was found COLMAP scaled better when using less frames.
-
-
-%Curless & Levoy (1996) – A Volumetric Method for Building Complex Models from Range Images. The original TSDF fusion method.
-
-%Newcombe et al. (2011) – KinectFusion: Real-Time Dense Surface Mapping and Tracking. ICP tracking plus TSDF fusion; the same pipeline as your ICP methods. Most cited and most relevant.
-
-%Nießner et al. (2013) – Real-Time 3D Reconstruction at Scale Using Voxel Hashing. Makes TSDF memory-efficient; the basis of Open3D's TSDF.
-
-%Schönberger et al. (2016) – Pixelwise View Selection for Unstructured Multi-View Stereo. COLMAP's dense stereo and its consistency-voting fusion.
-
-%Seitz et al. (2006) – A Comparison and Evaluation of Multi-View Stereo Reconstruction Algorithms. Defines the accuracy and completeness metrics.
-
-%Jordt-Sedlazeck & Koch (2013) – Refractive Structure-from-Motion on Underwater Images. Flat-port refraction error underwater.
-
-%Fankhauser et al. (2018) – Probabilistic Terrain Mapping for Mobile Robots with Uncertain Localization. 2.5D height-map fusion; background for the median height field.
-
-
-
-% I now want to test the 3D Reconstruction. What next algorithmic steps are there? Is it just vocel voting or what not
-%to go from posed depth frames to 3D reconstruction?
-
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/fusion_oblique_grid_with_image.png}
+    \caption[Oblique views of the fused ice reconstructions]{\textbf{Oblique views of the fused ice
+    reconstructions.} Left: a camera frame of each ice target. Right: each fusion method's point cloud over the
+    ice, viewed from 30$^\circ$ above the board with an orthographic projection; points are coloured by height
+    above the board and shaded by their surface normal. Each row has its own colour scale and is scaled to fill
+    its row, so rows are not drawn at a common scale. The ruler on each row reads true height only for
+    vertical features: horizontal distances are foreshortened, and its values are not heights above the board
+    (those are given by the colour scale).}
+    \label{fig:ch5.fusion_oblique}
+\end{figure}
 
 % Add github link with cloud viewer
 
+All three methods recover the overall shape of each ice target, but \autoref{fig:ch5.fusion_oblique} 
+shows clear differences in how cleanly they do so. COLMAP produces the most stray points. Scattered points float above every target, and 
+on the overhang, streaks of points hang down from the edges of the top block.
+ Its surfaces are also rougher, with the pyramid steps and the cubes blurred by noise.
+  TSDF with SGBM depth maps is cleaner but less complete. It captures surfaces facing the camera, 
+  such as the tops of the pyramid steps and the overhang, but loses the steep faces between them, 
+  leaving holes in the base and gaps between the steps. It also merges the cubes into a single patch, a
+  nd adds a false sheet of points over part of the wave. TSDF with FoundationStereo gives the cleanest result on every target.
+   The pyramid steps are sharp and flat, each cube is separated from its neighbours, the waves form smooth continuous ridges, 
+   and the overhang is recovered with its side walls. This comparison is qualitative, since there is no CAD model for the ice targets.
 
-Write a repeateable test script and on S30 and:
+
+No fusion method performed best on every object. TSDF with FoundationStereo depth maps gave the 
+most complete and most accurate reconstructions of both pyramids, and the cleanest results on all four 
+ice targets. However, it was the least accurate on the egg carton, where it sits 15--20\,mm below the designed curve, 
+so it can misjudge smooth, low-texture surfaces. SGBM achieved a low median error on the pyramid only by reconstructing
+ the easiest 17\,\% of it, which shows that accuracy must be read together with coverage. Coverage was low for every method, 
+ at most 44\,\%, because a single pass sees steep and hidden faces poorly. All three methods had median errors of 2--4\,mm and sat 2--4\,mm 
+ above the CAD surface on the pyramid flanks. As they share the same COLMAP poses (2.4\,mm position error) and calibration, this common error 
+ most likely comes from those inputs rather than from the fusion itself. TSDF with FoundationStereo is therefore recommended as the default fusion
+  method, with the caveat that smooth curved ice should be checked. A benefit of having all this done in post, is that for real ice deployments,
+  both methods can be retested on the same data.
+
 % /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/3DPrintFinal/30_frames_range (S30)
-THe pyramid we were testing on exp
+
 % /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/Ice/Cubes/Shade/cub2_frames_horiz_pass_v_close_580mm/ (CUBES)
 % /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/Ice/Overhang/Shade/hang1_frames_pass2_830mm/ (Overhang Shade)
 % /home/remote/Desktop/GlenRemote/UCT_Final_Year_Project/data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm/ (wave)
@@ -705,62 +735,31 @@ THe pyramid we were testing on exp
 \section{Testing Full pipeline}
 \label{sec:ch5.testing_full_pipeline}
 % TIME for frame
-% FRAMES TO RECONSTRUCTION FALLOFF - COMPARE TO ESTIMATED SPEEDS
-w
+The final pipeline configuration was FoundationStereo for depth estimation, COLMAP for pose estimation and TSDF
+for fusion. In a real deployment the ROV passes the ice quickly, so each surface is seen in only a limited number
+of frames. It is therefore important to know how many frames a reconstruction needs. Reconstruction runs in
+post-processing, so speed is less critical than in a real-time system, but the time per run is still not
+negligible. The hardware requirements also need to be understood: FoundationStereo runs on the GPU, while
+COLMAP and TSDF fusion are limited by memory, so the peak GPU memory and RAM of each stage determine what
+computer the pipeline needs and how large a scan it can process. To quantify all three, a sweep was run over the
+number of frames given to the pipeline, recording the time and peak compute use (GPU memory, RAM and CPU) of
+each stage and the resulting coverage of the ice.
+
+Each frame count was run through the whole pipeline: COLMAP structure-from-motion was repeated on every subset,
+because pose estimation is the stage most likely to fail when frames are sparse. The sweep was run on
+[recording] (151 frames) over:
+\begin{itemize}
+    \item \textbf{Frame count:} every $N$\textsuperscript{th} frame for $N = 1, 2, 3, 4, 6, 8, 12, 16$, giving
+    151 down to 10 frames.
+    \item \textbf{Depth source:} FoundationStereo, with tuned SGBM as a lower-cost alternative, both fused with
+    TSDF at the poses COLMAP produced for that subset.
+\end{itemize}
+For each subset, the following were measured: the number of frames COLMAP registered, the pose error against
+the AprilGrid reference, the coverage of the ice region, the cloud-to-cloud distance to the all-frames
+reconstruction, and the wall time, peak RAM and peak GPU memory of each stage. All runs were made on a laptop
+with an NVIDIA RTX 5060 Laptop GPU (8~GB) and 30~GB of RAM.
 
 
 \subsection{Discussion and analysis}
 \label{subsec:ch5.discussion_analysis}
 % NB
-
-
-% https://en.wikisource.org/wiki/Page:The_Botany_of_the_Antarctic_Voyage.djvu/539
-% https://archive.org/details/botanyofantarcti01hook
-
-"Pancake-Ice a pale ochreous colour."
-"uniformly stained brown"
-
-Ito et al. (2025), JGR: Oceans. https://doi.org/10.1029/2024JC021689
-"ice turned clearly ochre during a phytoplankton bloom"
-
-\url{https://doi.pangaea.de/10.1594/PANGAEA.870704?format=html#download}
-"Lighting conditions"
-
-
-%*********************************************************************
-% END
-%*********************************************************************
-%#####################################################################
-% SCRATCH NOTES (pasted results - NOT commented out, will compile!)
-%#####################################################################
-he sweep is finished. COLMAP gives the most accurate overall trajectory, and ICP on FoundationStereo depth with a local map comes close behind. This is one 850 mm pass on s30, every 5th frame (344 frames), with the tags masked from the markerless methods and the tag poses as the reference.
-
-Estimator	Posed	Position error RMSE (ATE)	Worst error	Orientation RMSE	Motion error over 50 mm (RPE), median	Scale	Time
-COLMAP	344/344	2.43 mm	5.4 mm	0.49°	4.1%	0.999	12 min
-ICP, FoundationStereo, local map	340/344	2.89 mm	7.1 mm	0.38°	2.5%	0.990	1.5 min + 26 min depth
-ICP, FoundationStereo, local map, coloured	340/344	2.88 mm	7.2 mm	0.38°	2.5%	0.990	4 min + depth
-ICP, FoundationStereo, frame-to-frame	340/344	4.36 mm	14.4 mm	0.48°	4.0%	0.997	46 s + depth
-ICP, SGBM, local map	344/344	5.22 mm	17.9 mm	0.57°	3.3%	0.981	72 s + 18 min depth
-ICP, SGBM, local map, coloured	344/344	5.34 mm	19.0 mm	0.58°	3.3%	0.980	4.5 min + depth
-ICP, SGBM, frame-to-frame	338/344	10.10 mm	26.2 mm	1.26°	5.6%	1.041	33 s + depth
-What the numbers say:
-
-COLMAP has the smallest overall error and the right scale. The fixed 150 mm baseline gives it metric scale, and solving every frame together keeps drift down.
-ICP is better over short stretches but drifts. With FoundationStereo depth and a local map it has the best motion error (2.5% over 50 mm) and orientation. Its overall error is still slightly higher, and its scale is 1% off, because small errors add up along the pass.
-The depth source decides ICP. FoundationStereo roughly halves ICP's error compared with SGBM.
-A local map beats frame-to-frame by about 2×.
-Coloured ICP adds nothing: the grey levels change the result by less than 0.02 mm.
-The scene only weakly pins down sliding. The translation constraint is 0.05–0.13. That's where ICP's drift comes from, and it will be worse on flat ice.
-Things you should know before using this in the thesis:
-
-I fixed two ICP problems after seeing this data. The first version let one wild step run away; it now rejects steps over 20 mm or 5° instead of repeating them. Its motion guess also repeated rotation, which grew about 1.5× per frame on the flat scene; it now extrapolates translation only. Both are documented in \texttt{icp\_poses.py}. Because they were found on s30, the ICP rows are tuned on the same data they're scored on. A second recording would make the comparison fairer.
-The surroundings help both methods. Only about 14% of depth points lie on the board; the rest are bricks, the tray and sand. Ice will give both methods far less texture and shape, so treat these numbers as a best case.
-The reference has its own noise (layout fit residual about 0.3 mm), so differences below that mean nothing. 17 of the 344 frames had no tag found, so their tags may still be visible to the estimators.
-
--------------------------------------------------
-
-
-%*********************************************************************
-% END
-%*********************************************************************
-

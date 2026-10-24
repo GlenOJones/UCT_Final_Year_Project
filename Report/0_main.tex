@@ -280,6 +280,8 @@
 %---------------------------------------------------------------------
 %	DOCUMENT
 %---------------------------------------------------------------------
+% Fast preview: only these files are compiled. Delete this line for the full thesis.
+\includeonly{0_documentproperties,2_review,3_ch3}
 \begin{document}
 %---------------------------------------------------------------------
 \include{0_documentproperties}
@@ -369,6 +371,10 @@
 %---------------------------------------------------------------------
 \include{4_ch4}
 %---------------------------------------------------------------------
+% Dataset
+%---------------------------------------------------------------------
+\include{4b_dataset}
+%---------------------------------------------------------------------
 % Chapter 5: Experimental design
 %---------------------------------------------------------------------
 \include{5_ch5}
@@ -450,7 +456,7 @@
 %   kluwer.bst, commit it alongside 0_main.tex and use it here.
 %---------------------------------------------------------------------
 \ifIEEEcite
-    \bibliographystyle{IEEEtran}
+    \bibliographystyle{IEEEtranDOI}
 \else
     \bibliographystyle{plainnat}
 \fi

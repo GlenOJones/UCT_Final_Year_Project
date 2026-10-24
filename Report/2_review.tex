@@ -4,70 +4,68 @@
 \chapter{Literature review}
 \label{ch:review}
 
-%=====================================================================
+%---------------------------------------------------------------------
 \section{Introduction}
 \label{sec:ch2.introduction}
-%---------------------------------------------------------------------
-% Introduce literature review and summarise whats in it
-% Roadmap for the chaptor
-sentence 1 \\
-sentence 2 \\
-sentence 3 \\
-sentence 4 \\
-sentence 5 \\
-
-
+This chapter explains why the underside of Antarctic pancake ice matters, what observations have been
+done in the region, and the challenges that any camera-based method must overcome.
+It begins with the role of the Southern Ocean and the Marginal Ice Zone (MIZ) in the global climate,
+and how pancake ice forms there. It then explains why satellite data falls short, and
+reviews the acoustic and optical methods used beneath the ice. The difficulties of
+imaging under water and under ice are discussed next, followed by existing
+underwater stereo reconstruction systems. The mathematical background is covered separately in \autoref{ch:theory}.
+ The chapter closes with a critique of the literature and the
+gap this project looks to address.
 %=====================================================================
 \section{Importance of the MIZ and Southern Ocean}
 \label{sec:ch2.region}
 
 
-
 % Intro sentence as to what the MIZ is, basic importance
-Despite making up only $20-30\%$ of Earth's oceans, the Southern Ocean absorbs approximately $75\%$ of all anthropogenic heat and 
-$40\%$ of all anthropogenic CO\textsubscript{2} taken up by the world's oceans \citep{kennicuttSustainedAntarcticResearch2019}. 
-
+Although the Southern Ocean covers only 20--30\% of Earth's oceans, 
+it absorbs approximately $75\%$ of all anthropogenic heat\footnote{Anthropogenic: caused or produced by human activity, rather than occurring naturally.} and $40\%$ of the anthropogenic CO\textsubscript{2} 
+taken up by the world's oceans \cite{kennicuttSustainedAntarcticResearch2019}.
 % Wind taking up heat
+
 This heat absorption is driven by unique wind patterns and deep ocean vertical mixing.
-Persistent westerly winds over the Southern Ocean transport surface water north via Ekman drift \citep{Circulation}. This draws deep water masses (Circumpolar Deep Water) to the surface.
-The upwelled water is substantially colder than the overlying air, pulling heat out of the atmosphere \citep{armourSouthernOceanWarming2016}.
-The cold  water moves towards the equator and continues to absorb atmospheric heat. It then sinks beneath the warmer subtropical waters, burying the
+Persistent westerly winds over the Southern Ocean transport surface water north via Ekman drift \cite{Circulation}. This draws deep water masses (Circumpolar Deep Water) 
+to the surface, where the cold water pulls heat out of the atmosphere \cite{armourSouthernOceanWarming2016}.
+The cold  water moves towards the equator and sinks beneath the warmer subtropical waters, burying the
 absorbed atmospheric thermal energy.
 
 
 % C02 Absorbtion - mechanical pump
 There are two main engines driving the absorption of CO\textsubscript{2} in the Southern and Antarctic oceans. The first is a physical pump. CO\textsubscript{2}'s solubility improves at low temperatures, 
 meaning it is absorbed more effectively into the cold waters of the Antarctic. The upwelled cold water absorbs CO\textsubscript{2}, and its density increases through atmospheric cooling and 
-seasonal ice formation. This carbon-rich water then sinks to form Antarctic Bottom Water, taking its absorbed carbon down with it \citep{gruberOceanicSinkAnthropogenic2019}.
+seasonal ice formation. This carbon-rich water then sinks, taking its absorbed carbon down with it \cite{gruberOceanicSinkAnthropogenic2019}.
 
 % Biological process
-There is also a biological carbon pump that pulls CO\textsubscript{2} out of the atmosphere. The cold upwelled water contains nutrients, inducing massive phytoplankton blooms during
-the polar spring and summer. The phytoplankton absorb CO\textsubscript{2} during photosynthesis. This absorbed carbon then sinks deep into the ocean in the form of dead biomass and faecal matter, known
-as marine snow. This process effectively transfers atmospheric CO\textsubscript{2} to carbon sediments deep in the ocean \citep{kennicuttSustainedAntarcticResearch2019}.
+There is also a biological carbon pump. The cold upwelled water contains nutrients, inducing massive phytoplankton blooms during
+the polar spring and summer. The phytoplankton absorb carbon during photosynthesis which then sinks deep into the ocean in the form of dead biomass and faecal matter, known
+as marine snow. This process effectively transfers atmospheric CO\textsubscript{2} to carbon sediments deep in the ocean \cite{kennicuttSustainedAntarcticResearch2019}.
 
 
 % Ice importatns
-The ice surrounding the Antarctic continent plays a critical role in these processes aswell
-as key surving key ecological purposes. 
-It provides a habitat for sea-ice algae, which act as primary producers during low-productivity periods \citep{lizotteContributionsSeaIce2001},
+The ice surrounding the Antarctic continent plays a critical role in these processes as well
+as serving key ecological purposes. 
+It provides a habitat for sea-ice algae, which act as primary producers during low-productivity periods \cite{lizotteContributionsSeaIce2001},
 and contributes to the carbon pump that increases
- net CO\textsubscript{2} uptake through brine rejection and further processes \citep{rysgaardSeaIceContribution2011}.
+ net CO\textsubscript{2} uptake through brine rejection and further processes \cite{rysgaardSeaIceContribution2011}.
 
 
-The Marginal Ice Zone (MIZ) is typically defined as the region with a sea ice concentration (SIC) of $15-80\%$ , 
-spanning the region between the main ice pack and the open sea,
- and \citep{dumontMarginalIceZone}. 
- In the MIZ, ice forms rapidly as pancake ice—circular disks that are continually buffered by ocean swells. 
+The region between the main ice pack and the open sea, where sea ice concentration (SIC) ranges from 15--80\%, is
+ typically defined as the Marginal Ice Zone (MIZ) \cite{dumontMarginalIceZone}.
+ In the MIZ, ice forms rapidly as pancake ice—circular disks that are continually buffeted by ocean swells. 
  This accelerated freezing causes intense brine rejection, where the excluded salt increases surface water density. 
- This high-density water sinks, directly powering the physical carbon pump.
- \citep{gruberOceanicSinkAnthropogenic2019}. 
+ This high-density water sinks, directly powering the physical carbon pump
+ \cite{gruberOceanicSinkAnthropogenic2019}. 
 
 
 % What it is, maybe a picture
 
 
-The sea ice of the Southern Ocean, especially the MIZ, plays a central role in regulating the global climate 
-system through its influence on heat absorption, carbon uptake, and primary production. 
+The sea ice of the Southern Ocean and the MIZ plays a central role in regulating the global climate.
+It influences heat absorption, carbon uptake, and primary production in the region. 
 Much of this exchange occurs beneath the ice, making the ice-ocean interface critical to understanding these processes.
 
 %  What about ecological factors? habitat for what? why important?
@@ -75,42 +73,44 @@ Much of this exchange occurs beneath the ice, making the ice-ocean interface cri
 
 
 %===============================================================================
-\section{Antarctic pancake ice and their formation}
+\section{Antarctic pancake ice and its formation}
 \label{sec:ch2.pancake_ice}
 % DIscuss seasonal Ice
  Antarctic sea ice is predominantly seasonal, fluctuating from a summer minimum of approximately 
-3 million km$^2$ to a winter maximum of about 18 million km$^2$ \citep{parkinson40yearRecord2019}. 
+3 million km$^2$ to a winter maximum of about 18 million km$^2$ \cite{parkinson40yearRecord2019}. 
 Because the ice is relatively young, its formation processes largely determine its structure. In the central Weddell Sea,
  most ice grows through repeated pancake ice formation at the advancing ice edge, 
-rather than by the slow freezing onto the ice base that is typical of the Arctic \citep{langeDevelopmentSeaIce1989}.
+rather than by the slow freezing onto the ice base that is typical of the Arctic \cite{langeDevelopmentSeaIce1989}.
 % Discuss briefly pancake ice
 
-Pancake ice forms where new ice grows in the presence of ocean waves. Frazil crystals clumps into small cakes that collide due to wave action,
-forming raised edges \citep{dobleWeddellPancake2003}. Further towards the solid ice edge, weaker waves allow the pancakes to grow to up to 5\,m across before freezing into
-consolidated pancakes. Unlike the pack ice, the pancakes move with the waves rather than forming a thick sheet \citep{dobleDynamicalContrastsPancake}.
+Pancake ice forms where new ice grows in the presence of ocean waves. Frazil crystals clump into small cakes that collide due to wave action,
+forming raised edges \cite{dobleWeddellPancake2003}. Further towards the solid ice edge, weaker waves allow the pancakes to grow to up to 5\,m across before freezing into
+consolidated pancakes. Unlike the pack ice, the pancakes move with the waves rather than forming a thick sheet \cite{dobleDynamicalContrastsPancake}.
 
 
 % Discuss the underside of Ice in the region and intersting parts
-This paper focuses on the underside of pancake ice, which forms the ice--ocean interface that controls both drag and heat exchange. While \citet{spirakis3DReconstructionPancake2023}
-reconstructed the upper surface of the ice at centimetre resolution, the underside remains largely understudied, with models simplifying pancake geometry.
-
+This thesis focuses on the underside of pancake ice, which forms the ice--ocean interface that controls both drag and heat exchange.
+While Spirakis et al.~\cite{spirakis3DReconstructionPancake2023} reconstructed the upper surface of the 
+ice at centimetre resolution, the underside remains largely understudied, with models simplifying pancake geometry.
 
 
 %=======
 \section{Observing sea ice: from above vs from below}
 \label{sec:ch2.observing_sea_ice}
-Satellite remote sensing provides most of the existing data as it offers near continous coverage over a 
-large area throughout the year.
-It is however largely limited to the upper surface. Ice thickness can be inferred from freeboard, the height of the ice and snow
-above the waterline, measured by laser and radar altimetry
-\citep{kacimiAntarcticSeaIce2020}. The accuracy however, is lmited by 
-uncertain snow depth. 
-The bottom surface and morphology of the underside of the sea
-ice is effectively invisible looking from the satellite data.
+Satellites estimate sea ice thickness from the measured freeboard,\footnote{Freeboard: the height of the 
+ sea ice and snow above the local sea level} converting it to thickness using
+assumed snow depth and ice density \cite{zygmuntowskaUncertaintiesArcticSea2014}.
+Brine-wetted snow further complicates radar altimetry, causing significant 
+overestimates of thickness \cite{nandanSnowPropertyControls2020}. Snow depth 
+and ice density also remain major sources of uncertainty \cite{zygmuntowskaUncertaintiesArcticSea2014}.
+The underside of the ice and its morphology are effectively invisible from satellites.
 
-Observing the underside therefore requires in-situ mesurements from below the ice, using either instruments moored to the sea floor or underwater vehicles.
-The measurement instruments used can alrgely be broken into acoustic and optical methods.
 
+
+
+Observing the underside therefore requires in situ measurements from below the ice, using instruments
+ moored to the seafloor or underwater vehicles. These instruments can largely be divided into acoustic 
+ and optical methods.
 
 %=================================================
 
@@ -128,15 +128,15 @@ The measurement instruments used can alrgely be broken into acoustic and optical
 
 % First was moored: 1990	Moored upward-looking sonar, Weddell Sea
 
-Long term measurements of the ice underside were completed in November
-of 1990, with the Alfred Wegener Institute mooring upwards-looking sonars (ULS)
-at six locations across the Weddell Sea \citep{behrendtSeaIceDraft2013}. 
+The first long-term measurements of the ice underside were completed in November
+of 1990, with the Alfred Wegener Institute mooring upward-looking sonars (ULS)
+at six locations across the Weddell Sea \cite{behrendtSeaIceDraft2013}. 
 Each sonar measured the time it took an acoustic pulse to be reflected off
 the ice underside, inferring distance from the instrument and ice draft.
-Data was collected over up to a two year period, showing strong
+Data was collected over up to a two-year period, showing strong
 variation in ice draft. Each sonar was only able to observe a single 
 point as the ice drifted overhead, observing a footprint of 6--8\,m in 
-diameter \citep{behrendtSeaIceDraft2013}.
+diameter \cite{behrendtSeaIceDraft2013}.
 
 
 
@@ -144,18 +144,18 @@ diameter \citep{behrendtSeaIceDraft2013}.
 %2001	Autosub-2 AUV, single-beam sonar, Weddell Sea	First continuous under-ice draft transect (line profile)	Brierley et al. (2002): doi:10.1126/science.1068574
 In 2001, a British team deployed the autonomous underwater vehicle (AUV)
 Autosub-2 beneath Antarctic sea ice for the first time, studying Antarctic
-krill under the ice edge of the Weddell Sea \citep{brierleyAntarcticKrillSea2002}.
+krill under the ice edge of the Weddell Sea \cite{brierleyAntarcticKrillSea2002}.
 The vehicle also carried an upward-looking single-beam sonar, which recorded
 continuous measurements of ice draft along its track
-\citep{fanUnderwaterIceAdaptive2023}. A single-beam sonar can only produce a
+\cite{fanUnderwaterIceAdaptive2023}. A single-beam sonar can only produce a
 line profile, measuring the draft directly above the AUV. In March 2003,
 Autosub returned to focus on mapping the sea ice north of Thurston Island in
-the Amundsen Sea \citep{banksMeasurementSeaiceDraft2006}. Ice draft was
+the Amundsen Sea \cite{banksMeasurementSeaiceDraft2006}. Ice draft was
 derived from an upward-looking acoustic Doppler current profiler (ADCP)
 operating at a depth of around 100\,m. The ADCP's four beams, each inclined
 at 30$^\circ$, sampled four separate points on the ice
 underside, allowing four parallel draft profiles to be recorded along each
-transect \citep{banksMeasurementSeaiceDraft2006}.
+transect \cite{banksMeasurementSeaiceDraft2006}.
 
 % Over the subsequent years multi range sonar was used to generate fuller maps, find example of first multu sonar...
 % Autosub tested the multipath, same approahc used by so and so
@@ -165,18 +165,18 @@ Both single-beam sonars and ADCPs produce profiles along the AUV's track, but
 cannot capture the full shape of the ice underside. The first swath mapping of
 the underside of sea ice was completed in 2004 by Autosub-II off northeast
 Greenland, using a multibeam sonar to generate three-dimensional maps of the
-ice \citep{wadhamsNewViewUnderside2006}. In the Antarctic, the same approach
+ice \cite{wadhamsNewViewUnderside2006}. In the Antarctic, the same approach
 was applied using the SeaBED AUV in 2010 and 2012, which completed lawnmower
 patterns 20--30\,m beneath ten ice floes in the Weddell, Bellingshausen and
-Wilkes Land regions\citep{williamsThickDeformedAntarctic2015}.
+Wilkes Land regions \cite{williamsThickDeformedAntarctic2015}.
  This produced three-dimensional maps of the ice underside
 covering over 500{,}000\,m$^2$. These multibeam sonar scans were able to produce
-horizontal resolution of 0.5\,m \citep{williamsThickDeformedAntarctic2015}.
+horizontal resolution of 0.5\,m \cite{williamsThickDeformedAntarctic2015}.
 
 
-While the progression from single to multi beam sonar improves the coverage, the resolution remains
-too course for the centimeter scale features of the pancake ice. 
-Most surverys have focused on the consolidated pack ice, rather than the ice within the MIZ.% sure about the multibeam sonar...
+While the progression from single to multibeam sonar improves the coverage, the resolution remains
+too coarse for the centimetre-scale features of the pancake ice. 
+Most surveys have focused on the consolidated pack ice, rather than the ice within the MIZ.% sure about the multibeam sonar...
 
 % Then find example of when Photogrammetry was used for 3D reconstruction FIRST. Pivot towards optical sensinf
 
@@ -188,95 +188,116 @@ Most surverys have focused on the consolidated pack ice, rather than the ice wit
 \label{sec:ch2.optical_imaging}
 Under-ice observations have a long history and the earliest documented use
 of a remotely operated vehicle (ROV) beneath Antarctic sea ice dates to the
-Winter Weddell Sea Project in 1986 \citep{hempelAntarcticMarineResearch1988}.
+Winter Weddell Sea Project in 1986 \cite{hempelAntarcticMarineResearch1988}.
 During this expedition, an ROV equipped with a video camera was used to study
 Antarctic krill beneath the pack ice
-\citep{marschallOverwinteringStrategyAntarctic1988,langeDevelopmentSeaIce1989}.
+\cite{marschallOverwinteringStrategyAntarctic1988,langeDevelopmentSeaIce1989}.
 While the study's main aim was biological, the footage also revealed the smooth
-bottom surfaces of melting floes and, beneath the near-shore land-fast ice,
+bottom surfaces of melting floes and, beneath the near-shore landfast ice,
 layers of ice platelets up to 5\,m thick extending as far as 35\,km from the
-ice-shelf edge \citep{langeDevelopmentSeaIce1989}.
+ice-shelf edge \cite{langeDevelopmentSeaIce1989}.
 
-Optical methods use cameras to reconstruct surfaces through photogrammetry, 
-providing centimeter-scale or finer resolution. 
-However, under-ice cameras on ROVs have mostly been used to estimate 
-algal biomass \citep{katleinNewRemotelyOperated2017}, 
-and are affected by the imaging challenges described in \autoref{sec:ch2.imaging_challenges}.
+3D surface models can be generated at centimetre or finer resolution using photogrammetry, 
+which reconstructs three-dimensional shape from overlapping photographs. 
+Under-ice cameras on ROVs have however mostly been used to estimate 
+algal biomass \cite{katleinNewRemotelyOperated2017}.
 
-It was not until 2018 that cameras were used for 3D reconstruction of the ice underside. 
-\citet{cimoliUnderIceHyperspectralRGB2019} mounted an RGB camera and a hyperspectral imager 
-on a sled winched along the underside of land-fast ice at Cape Evans, Antarctica. 
-Structure-from-motion photogrammetry of a 20\,m transect, imaged from about 1.2\,m, produced 
-a digital elevation model of the ice bottom at sub-millimetre resolution.
-The same group later deployed HIcyBot, an ROV whose stereo camera 
-pair produced 3D reconstructions of the ice underside and helped compensate for vehicle motion 
-when acoustic positioning degraded beneath the ice \citep{cimoliAdvancingMonitoringNearshore2026}. 
+It was not until 2018 that cameras were used for 3D reconstruction of the Antarctic ice underside. 
+Cimoli et al.~\cite{cimoliUnderIceHyperspectralRGB2019} mounted an RGB camera and a hyperspectral imager 
+on a sled winched along the underside of land-fast ice at Cape Evans, Antarctica. They used
 
-Even on major campaigns, cameras have generally been used for documentation rather than mapping. 
+Structure-from-motion (SfM) photogrammetry to produce an
+elevation map at sub-millimetre resolution. 
+
+The same group later deployed HIcyBot, an ROV with a hyperspectral imager and 
+stereo cameras. Where acoustic positioning failed under the ice, the cameras
+ estimated the vehicle's movement to correct the data \cite{cimoliAdvancingMonitoringNearshore2026}.
+
+Cameras have generally been used for documentation rather than mapping. 
 During the year-long MOSAiC expedition, an ROV recorded upward-looking still images every 5\,s 
 beneath Arctic sea ice, while the three-dimensional geometry of the underside was mapped with 
-multibeam sonar \citep{anhausUndericeEnvironmentObservations2025}. Optical reconstruction of the 
-ice underside therefore remains at an early, proof-of-concept stage, and has been limited to 
-land-fast ice rather than the pancake ice of the MIZ.
+multibeam sonar \cite{anhausUndericeEnvironmentObservations2025}. To understand why camera-based under-ice
+reconstructions are rare, the
+ next section explains the challenges of underwater imaging.
 %===============================================================
 
-
-\section{Underwater imaging challenges: attenuation, scattering, illumination, refraction}
+\section{Underwater and under-ice imaging challenges}
 \label{sec:ch2.imaging_challenges}
-Optical methods offer far finer resolution than what sonar can achieve \citep{kocakFocusRecentDevelopments2008,williamsThickDeformedAntarctic2015}. Water however is a difficult medium
-for light, meaning every image of the ice is degraded before it reaches the sensor \citep{jaffeComputerModelingDesign1990}. 
+Optical methods offer far finer resolution than sonar
+\cite{kocakFocusRecentDevelopments2008,williamsThickDeformedAntarctic2015},
+but water is a difficult medium for light, and every image
+is degraded before it reaches the sensor \cite{jaffeComputerModelingDesign1990}.
 
-\textbf{Attenuation.} Light passing through water is absorbed and scattered, reducing its intensity 
-exponentially with distance. The rate of absorbtion is dependent on wavelength, with red light being lost
-within a few meters and blue-green light travelling the furthest. Colour and contrast fall off with range \citep{akkaynakWhatSpaceAttenuation2017}. 
+Underwater, light is absorbed and scattered. Its intensity falls
+off exponentially with distance. Red light is lost within a few
+metres, while blue-green light travels furthest
+\cite{akkaynakWhatSpaceAttenuation2017}.
 
-\textbf{Scattering.} Backscatter is,  light reflected into the lens by particles in the water, adds a haze and reduces contrast. It can be uneven 
-across the frame, putting strain on the cameras dynamic range \citep{treibitzActivePolarizationDescattering2009}. 
-Forward scatter, light from the object slightly deflected on its way to the camera, blurs the 
-fine detail. \citet{jaffeComputerModelingDesign1990} found that seperating the camera from the light source reduces the volume of
-illluminated wate in the field of view, thus reducing backscatter. The scattering is likely to be a particular
-problenm in the MIZ, with Frazil crystals \citep{shenConceptualModelPancakeice2001} and the marine snow described in \autoref{sec:ch2.region}.
+Backscatter\footnote{Backscatter: Light reflected back toward the camera by
+suspended particles}
+is uneven across the frame, putting strain on the camera's dynamic
+range\footnote{Dynamic range: The difference between the brightest and darkest light
+a sensor can record in a single image.}
+\cite{treibitzActivePolarizationDescattering2009}. Forward
+scatter\footnote{Forward scatter: Light deflected slightly from its path between
+the object and the camera, which blurs fine detail.} blurs fine
+detail. This is likely
+to be a particular problem in the MIZ with frazil crystals
+\cite{shenConceptualModelPancakeice2001}
+and marine snow.
 
-\textbf{Illumination.} The natural light reaching the underside of the ice depends on the ice and snow 
-aswell as the concentratino of the ice \citep{horvatEvidencePhytoplanktonBlooms2022}. \citet{arndtInfluenceSnowDepth2017} measured spectra irradiance (brief expl) under
-pack ice in Weddel Sea to be below 0.1\%. This is too dim, and therefore requires artificial lighting.
-Artificial lighting produces its own set of problems, with backscatter, rapid brightness falloff with distance
-and uneven lighting across the frame \citep{jaffeComputerModelingDesign1990}. Pancake ice adds further difficulty. Gaps between the pancakes
-leght bright light through, creating a strong contrast against the dark ice, producing a constrast
-that may be beyond a camera's dynamic range. 
+Lighting is a further challenge. The light reaching the underside
+of the ice depends on the overlying snow and ice, and on ice
+concentration \cite{horvatEvidencePhytoplanktonBlooms2022}.
+Arndt et al.~\cite{arndtInfluenceSnowDepth2017} measured irradiance\footnote{Irradiance: The
+radiant power received per unit area, here expressed as a
+percentage of the light at the surface.} below Weddell Sea pack
+ice at under 0.1\%, too dim for imaging, so artificial lighting
+is likely needed. This introduces further problems, including backscatter,
+brightness falloff, and uneven illumination
+\cite{jaffeComputerModelingDesign1990}. Pancake ice adds further
+difficulty, as gaps between pancakes let bright light through,
+creating contrast that may exceed the camera's dynamic range.
 
-\textbf{Refraction.} Underwater cameras sit within a housing and view the scene through a flat or dome port.
-Light bends at the water-glass-air interface \citep{shortisCalibrationTechniquesAccurate2015}. \citet{treibitzFlatRefractiveGeometry2012} proved that a 
-camera behind a flat port no longer has a single viewpoint, meaning the standard pinhole model produces 
-distant dependendent geometric errors (for further info see section X).
+Underwater cameras view the scene through a flat or dome port in
+a housing, so light bends at the water-glass-air interface
+\cite{shortisCalibrationTechniquesAccurate2015}.
+Treibitz et al.~\cite{treibitzFlatRefractiveGeometry2012} showed that a camera
+behind a flat port no longer has a single viewpoint, so the
+standard pinhole model produces distance-dependent errors (see
+\autoref{subsec:ch3.underwater_calib}).
 
-\textbf{Low Texture Environment.}
-The ice underside offers little texture for feature-based reconstruction: surfaces are often 
-smooth \citep{langeDevelopmentSeaIce1989}, and visible features such as air bubbles are small, 
-low in contrast and repetitive. \citet{zhaoModifyingAffordableROV2021} deployed an 
-upward-looking stereo camera on a BlueROV2, the same platform used in this work, beneath 
-freshwater sheets ice in Michigan. Despite sufficient natural light, visual odometry failed because 
-features were ``ubiquitous and similar'' across the low-contrast images.
+The ice underside also offers little texture for feature-based
+reconstruction. Surfaces are often smooth
+\cite{langeDevelopmentSeaIce1989}, and features such as air
+bubbles are small, low in contrast and repetitive.
+Zhao et al.~\cite{zhaoModifyingAffordableROV2021} deployed an upward-looking
+stereo camera on a BlueROV2, the same platform used in this work,
+beneath freshwater ice in Michigan. Despite adequate light,
+visual odometry\footnote{Visual odometry: Estimating a vehicle's motion by tracking
+how features in consecutive images shift.} failed because features
+were ``ubiquitous and similar'' across the images.
 
-These effects combine to make clean, geometrically accurate images
-difficult to capture. This places heavy emphasis on calibration and image
-correction. Cameras must either be optically correctted or well calibrated \citep{shortisCalibrationTechniquesAccurate2015}, and careful attention
-must be paid to lighting conditions and distance from the ice \citep{jaffeComputerModelingDesign1990}.
-The following section reviews existing 3D reconstruction
-techniques, and how they approach these issues.
-
-
+Together, these effects make clean, geometrically accurate images
+difficult to capture. This places heavy emphasis on calibration and
+image correction. Cameras must be optically corrected or well
+calibrated \cite{shortisCalibrationTechniquesAccurate2015}, and
+lighting and distance need careful attention
+\cite{jaffeComputerModelingDesign1990}. The subsequent section
+reviews existing 3D reconstruction techniques and how they handle
+these issues.
 % ===========================================================
 \section{Underwater 3D optical reconstruction }
 \label{sec:ch2.reconstruction_techniques}
-Underwater optical reconstruction tends to use stereo cameras, for reasons explained in (REF SEC X).
-Although limited under ice 3D reconstruction material exist, stereo
- reconstruction is widely used underwater, including for ship-hull inspection 
-\citep{negahdaripourROVStereovisionSystem2006}, seafloor mapping 
-\citep{johnson-robersonGenerationVisualizationLargescale2010}, coral reef monitoring 
-\citep{friedmanMultiScaleMeasuresRugosity2012,pizarroSimpleFastRepeatable2017} and archaeology 
-\citep{johnson-robersonHighResolutionUnderwaterRobotic2017}, as reviewed by 
-\citet{massot-camposOpticalSensorsMethods2015}. Five of these implementations are compared in 
+Underwater optical reconstruction tends to use stereo cameras, for reasons explained in \autoref{sec:ch3.stereo_geometry}.
+Although publicly available under-ice 3D reconstruction material
+ is limited, stereo reconstruction is widely used underwater, including  ship-hull inspection
+\cite{negahdaripourROVStereovisionSystem2006}, seafloor mapping
+\cite{johnson-robersonGenerationVisualizationLargescale2010}, coral reef monitoring
+\cite{friedmanMultiScaleMeasuresRugosity2012,pizarroSimpleFastRepeatable2017} and archaeology
+\cite{johnson-robersonHighResolutionUnderwaterRobotic2017}, as reviewed by
+Massot-Campos and Oliver-Codina~\cite{massot-camposOpticalSensorsMethods2015}. Five of these applications are
+compared in
 \autoref{tab:ch2.stereo_comparison}.
 % ---------------------------------------------------------------------
 % Concise comparison of underwater stereo reconstruction studies
@@ -285,92 +306,98 @@ Although limited under ice 3D reconstruction material exist, stereo
 %   \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
 %   \newcommand{\citeurl}[2]{\href{#2}{\begin{NoHyper}\citet{#1}\end{NoHyper}}}
 % ---------------------------------------------------------------------
-\begin{table}[htbp]
+\begin{table}[H]
 \centering
 \footnotesize
 \renewcommand{\arraystretch}{1.2}
 \caption{Summary of underwater stereo reconstruction studies.}
 \label{tab:ch2.stereo_comparison}
-\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.4cm} Y Y Y Y}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{2.6cm} Y Y Y Y}
 \toprule
-\textbf{Study} & \textbf{Application} & \textbf{Capture} & \textbf{Processing} & \textbf{Accuracy} \\
+\textbf{Study} & \textbf{Application} & \textbf{Capture} & \textbf{Processing} & \textbf{Accuracy tested} \\
 \midrule
-\citeurl{negahdaripourROVStereovisionSystem2006}{https://doi.org/10.1109/JOE.2005.851391}
-& Ship-hull inspection
-& ROV; 5\,in baseline; 0.5--1.5\,m range
-& Real time (3--5\,Hz)
-& $\approx$2\% distance error (pool); no 3-D accuracy \\
-\addlinespace
-\citeurl{johnson-robersonGenerationVisualizationLargescale2010}{https://doi.org/10.1002/rob.20324}
-& Seafloor mapping
-& AUV; 7\,cm baseline; 2\,m altitude; strobes
-& Offline; $\approx$ mission duration
-& $\sim$2\,cm (calibration board only) \\
-\addlinespace
-\citeurl{friedmanMultiScaleMeasuresRugosity2012}{https://doi.org/10.1371/journal.pone.0050440}
-& Reef complexity
-& AUV and diver rig; 7\,cm baseline; 2--3\,m altitude
-& Offline; not stated
-& $r\approx0.89$ vs.\ in-situ chain-tape \\
-\addlinespace
-\citeurl{johnson-robersonHighResolutionUnderwaterRobotic2017}{https://doi.org/10.1002/rob.21658}
-& Archaeology (Pavlopetri)
-& AUV and diver rig; 7.5--9\,cm baseline; 2\,m altitude; LED strobes
-& Offline; $\approx$13.6\,h bundle adjustment (360k images)
-& 2\,mm/px resolution; 1--2\,cm between repeat maps \\
-\addlinespace
-\citeurl{pizarroSimpleFastRepeatable2017}{https://doi.org/10.1002/ece3.2701}
-& Reef monitoring
-& Snorkeller, spiral line; 2\,m altitude; $\sim$113\,m$^2$ in 15\,min
-& Offline; not stated
-& Not tested (coverage only) \\
+Negahdaripour and Firoozfam~\cite{negahdaripourROVStereovisionSystem2006}
+  & Ship hull & ROV; 0.5--1.5\,m range & Real time & $\approx$2\% distance error (pool) \\
+Johnson-Roberson et al.~\cite{johnson-robersonGenerationVisualizationLargescale2010}
+  & Seafloor & AUV; 7\,cm baseline; 2\,m; strobes & Offline & Calibration board only \\
+Friedman et al.~\cite{friedmanMultiScaleMeasuresRugosity2012}
+  & Coral reef & AUV; 7\,cm baseline; 2--3\,m & Offline & Correlation with chain-tape \\
+Johnson-Roberson et al.~\cite{johnson-robersonHighResolutionUnderwaterRobotic2017}
+  & Archaeology & AUV; 7.5--9\,cm baseline; 2\,m; strobes & Offline (13.6\,h) & 1--2\,cm between repeat maps \\
+Pizarro et al.~\cite{pizarroSimpleFastRepeatable2017}
+  & Coral reef & Snorkeller; 2\,m & Offline & Not tested \\
 \bottomrule
 \end{tabularx}
 \end{table}
 %=============================================
 
-
-Most systems use a downward-looking stereo pair with a 7--9\,cm baseline at about 2\,m altitude, 
+Most systems use a downward-looking stereo pair with a 7--9\,cm baseline at an altitude of about 2\,m, 
 with strobes to reduce backscatter 
-\citep{johnson-robersonGenerationVisualizationLargescale2010,johnson-robersonHighResolutionUnderwaterRobotic2017}. 
+\cite{johnson-robersonGenerationVisualizationLargescale2010,johnson-robersonHighResolutionUnderwaterRobotic2017}. 
 
-\citep{johnson-robersonGenerationVisualizationLargescale2010,johnson-robersonHighResolutionUnderwaterRobotic2017}. 
-Processing is typically offline, combining stereo matching, SLAM or bundle adjustment to correct 
-drift, and mesh fusion The timing of processing range from roughly the equivelant mission duration 
-\citep{johnson-robersonGenerationVisualizationLargescale2010} to 13.6\,h for 360,000 images 
-\citep{johnson-robersonHighResolutionUnderwaterRobotic2017}. Only 
-\citet{negahdaripourROVStereovisionSystem2006} operated in real time, using shadows cast by waves as 
-texture on a featureless surface, which is relevant to the weakly textured underside of pancake ice.
+Processing is typically done offline afterwards, combining stereo matching, SLAM or bundle adjustment to correct 
+drift, and mesh fusion. Processing times range from roughly the duration of the mission 
+\cite{johnson-robersonGenerationVisualizationLargescale2010} to 13.6\,h for 360{,}000 images 
+\cite{johnson-robersonHighResolutionUnderwaterRobotic2017}. Only 
+Negahdaripour and Firoozfam~\cite{negahdaripourROVStereovisionSystem2006} operated in real time, using shadows cast by surface waves as 
+texture on an otherwise featureless surface. 
 
 
-\section{Underwater camera calibration and refraction-compensating optics}
-\label{sec:ch2.calibration}
-Underwater calibration must account for refraction at the air, housing and water interfaces, which 
-increased the principal distance of a camera behind a flat port by a factor of 1.34 
-\citep{shortisCalibrationTechniquesAccurate2015}. The most common approach calibrates in water and 
-absorbs refraction into the lens distortion parameters, but introduces scale errors outside the 
-calibrated range. Explicit ray-tracing models are exact but often housing-specific 
-\citep{shortisCalibrationTechniquesAccurate2015}. The Pinax model offers a compromise for flat ports, 
-converting images into an equivalent pinhole view so the camera need only be calibrated once in air 
-\citep{luczynskiPinaxmodelAccurateEfficient2017}.
+% \section{Underwater camera calibration and refraction-compensating optics}
+% \label{sec:ch2.calibration}
+% Underwater calibration must account for refraction at the air, housing and water interfaces, which 
+% increased the principal distance of a camera behind a flat port by a factor of 1.34 
+% \cite{shortisCalibrationTechniquesAccurate2015}. The most common approach calibrates in water and 
+% absorbs refraction into the lens distortion parameters, but introduces scale errors outside the 
+% calibrated range. Explicit ray-tracing models are exact but often housing-specific 
+% \cite{shortisCalibrationTechniquesAccurate2015}. The Pinax model offers a compromise for flat ports, 
+% converting images into an equivalent pinhole view so the camera need only be calibrated once in air 
+% \cite{luczynskiPinaxmodelAccurateEfficient2017}.
 
-Refraction can also be reduced optically. A dome port eliminates refraction if the lens is centred 
-exactly at the dome's centre of curvature \citep{kunzHemisphericalRefractionCamera2008,mennaGeometricOpticCharacterization2016}, 
-while corrector lenses counteract the aberrations of a flat window \citep{CorrectingLensesUnderwater1960}. 
-This project uses two global-shutter stellarHD cameras with Aquagon lenses, a seven-element design 
-specified to have less than 1.5\% distortion and a $78\times67^\circ$ field of view in water 
-\citep{dweStellarHDDatasheet}. However, such optics only approximate a perfect central 
-projection and are sufficient alone only for low-accuracy 2D work, so calibration remains necessary 
-for 3D reconstruction \citep{shortisCalibrationTechniquesAccurate2015}. In either case, cameras must 
-be rigidly fixed with focus locked, under which accuracies of around 0.5\% of measured lengths are 
-achievable \citep{shortisCalibrationTechniquesAccurate2015}.
+% Refraction can also be reduced optically. A dome port eliminates refraction if the lens is centred 
+% exactly at the dome's centre of curvature \cite{kunzHemisphericalRefractionCamera2008,mennaGeometricOpticCharacterization2016}, 
+% while corrector lenses counteract the aberrations of a flat window \cite{CorrectingLensesUnderwater1960}. 
+% This project uses two global-shutter stellarHD cameras with Aquagon lenses, a seven-element design 
+% specified to have less than 1.5\% distortion and a $78\times67^\circ$ field of view in water 
+% \cite{dweStellarHDDatasheet}. However, such optics only approximate a perfect central 
+% projection and are sufficient alone only for low-accuracy 2D work, so calibration remains necessary 
+% for 3D reconstruction \cite{shortisCalibrationTechniquesAccurate2015}. In either case, cameras must 
+% be rigidly fixed with focus locked, under which accuracies of around 0.5\% of measured lengths are 
+% achievable \cite{shortisCalibrationTechniquesAccurate2015}.
+
+\section{Disparity between Antarctic and Arctic Data}
+\label{sec:ch2.AVA}
+MIGHT STILL ADD.
+% WHy? easier, safer?
 
 \section{Critique of existing literature}
-\label{sec:ch2.literature_critique}
+\label{sec:ch2.critique}
+The underside of Antarctic sea ice remains largely unstudied at fine
+ resolution. At the time of this project, no three-dimensional
+  reconstructions of the underside of pancake ice have been published. 
+  This is a significant gap, as the underside forms the interface between the ice and the ocean.
+  Its shape determines the drag between ice and water and 
+   the area over which heat is exchanged, and it is home to sea-ice algae, 
+   which are the main primary producers when the open water is least productive \cite{lizotteContributionsSeaIce2001}. 
+   In the MIZ, the rapid freezing of pancake ice drives brine rejection, which feeds the physical carbon pump \cite{gruberOceanicSinkAnthropogenic2019,rysgaardSeaIceContribution2011}. 
+   Direct measurements of the underside are needed to improve models of these processes.
 
-probs 0.25 pages
+Multibeam sonar has provided the most detailed underside 
+maps in the Antarctic to date \cite{williamsThickDeformedAntarctic2015}, 
+but at about 0.5\,m horizontal resolution it cannot
+ resolve the centimetre-scale structure of pancake ice that
+  optical methods could capture.
 
--------------------
+The literature also highlights the importance of 
+careful calibration and of compensating for the underwater 
+environment. Backscatter and forward scatter reduce contrast 
+and blur fine detail, and both vary with distance and lighting \cite{jaffeComputerModelingDesign1990,treibitzActivePolarizationDescattering2009}. 
+Attenuation and refraction further distort the images, so they must be
+ corrected before a reconstruction can be trusted 
+ \cite{akkaynakWhatSpaceAttenuation2017,shortisCalibrationTechniquesAccurate2015}.
+ The methodology of this project is designed with these considerations in mind.
+
+% -------------------
 % Where the gap is that this project fills, leading into Chapter 3
 
 

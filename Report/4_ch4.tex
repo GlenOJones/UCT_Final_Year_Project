@@ -125,17 +125,17 @@ separate controllers, eliminating the dropouts.
 % TODO: cite the datasheets in the caption / text (add to Zotero, not the .bib).
 % TODO: explain how the lenses are optically corrected, giving a different
 %       FOV in air and in water (links to Ch3 "Calibrating underwater").
-The StellarHD cameras have DWE's Aquagon lenses, which are designed to counteract the effects of the underwater environment \citep{dweAquagon}, 
+The StellarHD cameras have DWE's Aquagon lenses, which are designed to counteract the effects of the underwater environment \cite{dweAquagon}, 
 correcting for distortion and chromatic aberration.
 Corrective optics address this by placing additional lens elements behind the port, so that the camera sees a virtual 
-image equivalent to the scene in air \citep{slaterAfocalViewportOptics2014}.
+image equivalent to the scene in air \cite{slaterAfocalViewportOptics2014}.
 The Aquagon lenses have seven elements, two of them aspherical and two extra-low dispersion, 
-behind a sapphire front port. The manufacturer quotes distortion below 1.5\,\% in water \citep{dweStellarHDDatasheet}.
+behind a sapphire front port. The manufacturer quotes distortion below 1.5\,\% in water \cite{dweStellarHDDatasheet}.
 The key camera specifications are listed in \autoref{table:ch4.cameraspecs}.
 % Bullet lists from the old draft merged into one table.
 \begin{table}[H]
     \centering
-    \caption[Camera and lens specifications.]{\textbf{Camera and lens specifications} \citep{dweStellarHDDatasheet}. Field of view is quoted in water.}
+    \caption[Camera and lens specifications.]{\textbf{Camera and lens specifications} \cite{dweStellarHDDatasheet}. Field of view is quoted in water.}
     \label{table:ch4.cameraspecs}
     \renewcommand{\arraystretch}{1.25}
     \begin{tabularx}{\textwidth}{@{} l X @{\hspace{1.5em}} l X @{}}
@@ -167,58 +167,6 @@ Ubuntu 26.04 LTS, was used for all post-processing in this project. It has an
 Intel Core i7-14700HX CPU, an NVIDIA GeForce RTX 5060 Laptop GPU with 8\,GB of
 VRAM and 32\,GB of DDR5 RAM. All computation completed for
 in this project was done on this machine.
-
-
-
-%==============
-\subsection{Calibration Board and test Rig Construction}
-
-
-% Calibration board
-As explained in \autoref{subsec:ch3.targets}, an AprilGrid can still be used for
-calibration when only some of its tags are detected. To get a target that is flat and
-waterproof, a custom AprilGrid was generated with Kalibr
-\citep{furgaleUnifiedTemporalSpatial2013, kalibrRepo} and printed on white aluminium
-Dibond by Orms Print Room \citep{ormsPrintRoom}. The board was sized as A1 with 50\,mm
-tags, to match standard Kalibr targets \citep{calibioKalibrTargets}. Due to a
-miscommunication, it was printed as A2 instead, which reduced the tag size to 36.56\,mm.
-
-% Test rig
-A custom sliding rig was designed and manufactured 
-using 2020 aluminium extrusions.
-The ROV is secured to 3D-printed rollers, fitted with ball bearings, that run along the top and bottom faces of the horizontal extrusions.
- The rig allows
-one-degree-of-freedom sliding towards 
-and away from the calibration board mounted at its end. 
-The board is attatched with a variable angle
-mount, allowing it to be set at angles rangeing
- from horizontal to vertical in intervals of 10 degrees.
-  The board can be mounted
-to the center, right or left of the end of the end rail.
- This allows for repeatable position, distance and
-  relative angle between the board and the cameras
-across different tests.
-
-TODO: PUT NEW LEFT PHOTO AND MAKE SMALLER
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[b]{0.2\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/Rail_In_Air.jpeg}
-        \caption{36h11 calibration board (further settings)}
-        \label{fig:ch5.rail_in_air}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.3\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/Rig_In_Water.jpeg}
-        \caption{ROV mounted to sliding test rig underwater. Note: warping
-		due to gopro lens, not bent calibration board.}
-        \label{fig:ch5.rig_in_water}
-    \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.test_rig}
-\end{figure}
 
 %=====================================================================
 \subsection{Software}
@@ -311,121 +259,6 @@ and downloads the matchers and their weights. Setup instructions are given in
 
 
 
-%=====================================================================
-% SECTION: Test rig and Dataset
-%=====================================================================
-\section{Reconstruction Targets}
-\label{sec:ch5.test_rig_dataset}
-% Explain both the ice and the shapes, both serve different purposes.
-% Intro, why two
-
-
-\subsection{3D printed shapes}
-\label{subsec:ch5.3d_printed_shapes}
-The 3D-printed targets were designed by Agoritsa Spirakis as part of her
-undergraduate thesis \cite{aggi_thesis}. The set used contains
-two pyramids and two curved surfaces resembling egg boxes. Images of each
-shape are given in \autoref{app:printed_shapes}, the raw STL files can be found on Agi's project github (ref link).
-\autoref{fig:ch5.G_side} shows the four shapes during data collection (\autoref{subsec:ch5.recordings_tested}).
-The 3D prints act as ground truth, with their exact geometry given in their CAD files.
-The reconstructed point clouds are compared against them to measure accuracy.
-
-% TODO: create the appendix with the shape images and add \label{app:printed_shapes}
-
-% TODO: Replace both with the test files
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[b]{0.49\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Foam Ice shapes.}
-        \label{fig:ch5.3DPrint_In_Air}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.49\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/3DPrint_In_Air.jpeg}
-        \caption{Side on data collection showing 3D prints}
-        \label{fig:ch5.G_side}
-    \end{subfigure}
-    \caption[short caption]{\textbf{Lead-in.} Description.}
-    \label{fig:ch5.printed_shapes}
-\end{figure}
-
-\subsection{Fake Sea ice}
-While the 3D prints are useful for measuring accuracy, they do not
-represent sea ice well. The black surfaces differ from ice in both texture and contrast. 
-Furthermore, under-ice scanning looks upwards towards the
-surface, where incoming sunlight affects the images. To better approximate real ice, four foam structures were
-cut with a hot wire and painted light blue. The set includes a grid of
-2\,$\times$\,2\,cm cubes to emulate repetitive patterns, an overhang to emulate large
-occlusions, a stepped pyramid to emulate layered ice, and a wave pattern to
-emulate curved ice features. \autoref{fig:ch5.foam_blocks} shows the four
-blocks and \autoref{fig:ch5.foam_test}
-
-
-%========================
-\section{Datasets}
-\label{sec:ch4.datasets}
-Data was recorded both in air (ARU laboratory) and in water (swimming pool). The swiming pool recordings
-were completed over three days, in varying lighting conditions. The weather, pool conditions and time 
-of all the data used within this project is given in the appendix. 
-
-All recordings were completed in 1600\,$\times$\,1200\,px, 30\,fps, MJPEG. The choice of MJPEG was to allow for more than 5 fps for 
-continous capture aswell as due to an issue in setting the YUYV white balance when testing underwater. This is also the format supported by
-the camera synchronisation that will likely be implemented on the system before a deployment.
-
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[t]{0.32\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/G_calib.JPG}
-        \caption{DS1: calibration board at the end of the rail.}
-        \label{fig:ch4.data_calib}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.32\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/G_side.JPG}
-        \caption{DS2: side scan of the 3D prints, ROV rotated 90\,$^\circ$.}
-        \label{fig:ch4.data_side}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.32\textwidth}
-        \centering
-        \includegraphics[width=\linewidth]{figs/Ch5/G_up.JPG}
-        \caption{DS3: upward scan of the pyramid in overcast late-afternoon light.}
-        \label{fig:ch4.data_up}
-    \end{subfigure}
-    \caption[Underwater datasets.]{\textbf{Underwater datasets.} The three datasets recorded in the pool: (a) calibration recordings, (b) side scans of the 3D prints on the rail, and (c) upward-looking scans of the foam blocks, positioned by a swimmer.}
-    \label{fig:ch4.datasets}
-\end{figure}
-
-%======================================
-\subsection{DS1: Calibration recordings}
-\label{sec:ch4.ds1}
-The calibration dataset was recorded on the test rail, with the calibration board mounted at one end.
-The board was mounted at two positions across the rail, centre and left. Its angle, measured from the
-horizontal, was set to 0, 20, 30, 40, 50 and 60\,$^\circ$ at the centre and 0, 20, 40 and 60\,$^\circ$ on the left.
-At each angle, recordings were taken every 10\,cm at distances from 40 to 150\,cm.
-This test was repeated both in air in the ARU experimantal space, and underwater in a students pool.
-
-\subsection{DS2: Side scans of the 3D prints}
-To 3D printed targets were fixed to a flat board with AprilTags placed around them. The tags provide a ground truth
-for pose (\autoref{sec:XXX}) and serve as reference points for separating the objects.
-The ROV was rolled past the board, stopping every 10\,cm. This was repeated with the stereo cameras
-20, 30, 40, 50 and 60\,cm from the board.
-
-\subsection{DS3: Upward-looking scans of the foam blocks}
-The four blocks (pyramid, overhang, wave and cubes) were held in place in the water while a swimmer
-moved the ROV around below them, with the cameras facing directly upwards.
-Each block was scanned separately, next to a flat foam block carrying AprilTags. As in DS2, the tags
-provide a ground-truth pose reference. Each scan consists of a single pass. Because the ROV was not fixed
-in place, the distance to the blocks was found by triangulating the AprilTags.
-
-The scans were repeated in two conditions: in direct sunlight at around 13:00, and in overcast
-late-afternoon light at around 17:00. \autoref{fig:ch4.data_up} shows a scan of the pyramid in the
-darker conditions.
 
 
 

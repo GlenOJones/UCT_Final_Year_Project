@@ -129,7 +129,8 @@
 %---------------------------------------------------------------------
 % 	FOOTNOTES
 %---------------------------------------------------------------------
-\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+% IEEE: superscript Arabic numerals, numbered consecutively through the document
+\counterwithout{footnote}{chapter}
 
 %---------------------------------------------------------------------
 % Header and Footer
