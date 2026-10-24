@@ -18,16 +18,25 @@
 %   Ch3 = theory (why it works). Ch4 = implementation (how it was done here).
 %   Avoid re-deriving equations from Ch3; cite the Ch3 section instead.
 %*********************************************************************
-\chapter{Design description}
+\chapter{System description}
 \label{ch:design}
 %---------------------------------------------------------------------
-% Chapter intro (2-4 sentences): what this chapter covers and that
-% Chapters 5 and 5b refer back to it for setup and metrics.
+This chapter describes the system used for this project. This includes the
+underwater ROV used for data collection, the stereo cameras and lighting fitted
+to it, the laptop used for all post-processing, and the software setup and
+libraries used for processing. 
 
-NB - GET THIS DOEN TO 5 PAGES
-%=====================================================================
-\section{Overview and design requirements}
-\label{sec:ch4.overview}
+\autoref{sec:ch4.software} gives an overview of the processing pipeline, showing
+which script runs each stage and how the inputs and outputs are stored. The
+versions of all libraries used are listed so that the results can be reproduced
+using the code in the project's
+\href{https://github.com/GlenOJones/UCT_Final_Year_Project}{\textcolor{blue}{GitHub repository}}.
+
+The design of the test rig and a description of the dataset follow in
+\autoref{ch:dataset}. The calibration and reconstruction methods that run on
+this system are tested in \autoref{ch:calibration} and
+\autoref{ch:reconstruction}.
+
 %=====================================================================
 % 1) DESIGN REQUIREMENTS
 %    Turn the project objectives (Ch1, sec "Project objectives") into
@@ -79,16 +88,16 @@ NB - GET THIS DOEN TO 5 PAGES
 %=====================================================================
 % Order: cameras -> how they are mounted -> lighting -> calibration target.
  
-This project uses an existing BlueROV2 Heavy, owned by UCT.
-The system is designed by Blue Robotics and is
+This project uses an existing \href{https://bluerobotics.com/store/rov/bluerov2/}{\textcolor{blue}{BlueROV2 Heavy}}, owned by UCT.
+The system is designed by \href{https://bluerobotics.com/}{\textcolor{blue}{Blue Robotics}} and is
 a low-cost, high-performance underwater ROV for research and inspection
-\cite{bluerobBlueROV2}. The setup system has six thrusters. The Heavy configuration adds two more,
+\cite{bluerobBlueROV2}. The standard configuration has six thrusters. The Heavy configuration adds two more,
 giving the ROV active roll and pitch control  \cite{bluerobBlueROV2Heavy}.
  
 In addition to the vehicle's standard forward monocular camera,
-two Deepwater Exploration (DWE) stellarHD cameras are fitted in a stereo camera configuration, 
-with a 150mm base line. Both have Aquagon lenses and are mounted to the lower front of the frame.
-Four Lumen subsea lights at the front of the ROV provide controlalble lights
+two Deepwater Exploration (DWE) \href{https://dwe.ai/products/stellarhd}{\textcolor{blue}{StellarHD}} cameras are fitted in a stereo camera configuration, 
+with a 150\,mm baseline. Both have \href{https://dwe.ai/pages/aquagon}{\textcolor{blue}{Aquagon}} lenses and are mounted to the lower front of the frame.
+Four Lumen subsea lights at the front of the ROV provide adjustable lighting
  \cite{bluerobLumen}.
 
  \begin{figure}[H]
@@ -101,18 +110,17 @@ Four Lumen subsea lights at the front of the ROV provide controlalble lights
 \end{figure}
  
 The vehicle is controlled by a Raspberry Pi with a
-Blue Robotics Navigator flight controller. The Navigator is a Pi
-expansion board  that provides the IMU, compass,
+Blue Robotics \href{https://bluerobotics.com/store/comm-control-power/control/navigator/}{\textcolor{blue}{Navigator}} flight controller. The Navigator is a Pi
+expansion board that provides the IMU, compass,
 barometer, ADC and PWM outputs for the thrusters and lights
 \cite{bluerobNavigator}. A Doppler velocity
-log (DVL), a scanning sonar, and the three cameras are connected over USB and ethernet ports.
+log (DVL), a scanning sonar, and the three cameras are connected over USB and Ethernet ports.
 % TODO: confirm models (e.g. Ping360 is a *mechanical scanning* sonar, not side-scan).
-connect to the Pi over its USB and Ethernet ports.
  
 The ROV was already assembled and configured when this research began, but
 the stereo camera feeds were dropping out. The cause was traced to USB
 bandwidth. All three cameras shared a single USB bus, which was being throttled. The
-original Raspberry Pi~4 was replaced with a Raspberry Pi~5. The new Pi~5's
+original Raspberry Pi~4 was replaced with a Raspberry Pi~5. The Pi~5's
 two independent USB controllers allowed the cameras to be split across
 separate controllers, eliminating the dropouts. 
 %---------------------------------------------------------------------
@@ -127,15 +135,16 @@ separate controllers, eliminating the dropouts.
 %       FOV in air and in water (links to Ch3 "Calibrating underwater").
 The StellarHD cameras have DWE's Aquagon lenses, which are designed to counteract the effects of the underwater environment \cite{dweAquagon}, 
 correcting for distortion and chromatic aberration.
-Corrective optics address this by placing additional lens elements behind the port, so that the camera sees a virtual 
-image equivalent to the scene in air \cite{slaterAfocalViewportOptics2014}.
-The Aquagon lenses have seven elements, two of them aspherical and two extra-low dispersion, 
+A flat port refracts light, narrowing the field of view and distorting the image
+(\autoref{subsec:ch3.underwater_calib}). Corrective optics address this by placing additional lens elements behind the port, so that the camera sees an undistorted
+virtual image equivalent to the scene in air \cite{slaterAfocalViewportOptics2014}.
+The Aquagon lenses have seven elements, two of them aspherical and two extra-low-dispersion (ED) elements, 
 behind a sapphire front port. The manufacturer quotes distortion below 1.5\,\% in water \cite{dweStellarHDDatasheet}.
 The key camera specifications are listed in \autoref{table:ch4.cameraspecs}.
 % Bullet lists from the old draft merged into one table.
 \begin{table}[H]
     \centering
-    \caption[Camera and lens specifications.]{\textbf{Camera and lens specifications} \cite{dweStellarHDDatasheet}. Field of view is quoted in water.}
+    \caption[Camera and lens specifications]{\href{https://storage.googleapis.com/docs-product-files/stellarHD-series/stellarHD/datasheets/stellarHD-datasheet.pdf}{\textcolor{blue}{\textbf{Camera and lens specifications}}} \cite{dweStellarHDDatasheet}. Field of view is quoted in water.}
     \label{table:ch4.cameraspecs}
     \renewcommand{\arraystretch}{1.25}
     \begin{tabularx}{\textwidth}{@{} l X @{\hspace{1.5em}} l X @{}}
@@ -146,18 +155,18 @@ The key camera specifications are listed in \autoref{table:ch4.cameraspecs}.
     Pixel size    & 3 $\times$ 3\,\textmu m        & Focal length   & 3.0\,mm \\
     Shutter       & Global                         & Aperture       & f/1.6 \\
     Resolution    & 1600 $\times$ 1200             & Min.\ focus    & 25\,cm \\
-    Frame rate    & Up to 60\,fps (MJPEG)          & Distortion     & $< -1.5$\,\% \\ % TODO: measured how?
+    Frame rate    & Up to 60\,fps (MJPEG)          & Distortion     & $< 1.5$\,\% \\ % TODO: measured how?
                   &                                & FOV (H/V/D)    & 78\textdegree{}/67\textdegree{}/93\textdegree{} \\
     \bottomrule[2.25pt]
     \end{tabularx}
 \end{table}
 
-The StellarHD cameras support leader follower frame synchronisation, 
+The StellarHD cameras support leader--follower frame synchronisation, 
 but the current setup does not have the shared cabling it needs.
- This synchronisation only 
-supported at 60\,fps and is therefore limited to MJPEG.
+ This frame synchronisation is only 
+supported at 60\,fps, limiting it to MJPEG recordings.
 In the current configuration, the two cameras can start with a time offset
-or drift.
+and drift apart during a recording.
 
 \section{Control and processing laptop} 
 The BlueROV2 connects to a laptop through its tether and a tether interface
@@ -165,11 +174,10 @@ adapter \cite{bluerobFXTI}. The laptop runs Blue Robotics' Cockpit software \cit
 with an Xbox controller. The same laptop, a Lenovo LOQ 15IRX10 \cite{lenovoLOQ15IRX10} running
 Ubuntu 26.04 LTS, was used for all post-processing in this project. It has an
 Intel Core i7-14700HX CPU, an NVIDIA GeForce RTX 5060 Laptop GPU with 8\,GB of
-VRAM and 32\,GB of DDR5 RAM. All computation completed for
-in this project was done on this machine.
+VRAM and 32\,GB of DDR5 RAM.
 
 %=====================================================================
-\subsection{Software}
+\section{Software}
 \label{sec:ch4.software}
 %=====================================================================
 % Keep short: a table plus one paragraph on code layout and config.
@@ -178,13 +186,33 @@ in this project was done on this machine.
 %        confirm which environment the TSDF runs used.
 % CHECK: COLMAP version (4.3 mentioned in code comments) and the
 %        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
+\subsection{Camera control and recording}
+A custom Python script (\texttt{stereo\_cam.py}) controls both StellarHD 
+cameras through the \href{https://www.kernel.org/doc/html/latest/userspace-api/media/v4l/v4l2.html}{\textcolor{blue}{Video4Linux2 (V4L2) API}}, using \href{https://manpages.ubuntu.com/manpages/noble/man1/v4l2-ctl.1.html}{\textcolor{blue}{\texttt{v4l2-ctl}}}. 
+It configures resolution, frame rate, pixel format, exposure,
+ white balance and image controls.
 
-The code is split into one folder per pipeline stage. Each stage is a standalone Python script that reads
+Recording saves the cameras' raw MJPEG or YUYV frames to the Pi's SD card or an 
+external SSD. In parallel, both feeds are transcoded to H.264 and streamed 
+over the tether to a MediaMTX server, letting the operator view the live stereo 
+feed in a browser during data collection. Each recording produces \texttt{left.mkv} and \texttt{right.mkv}, with the frame
+timestamps of each camera in \texttt{left\_timestamps.csv} and
+\texttt{right\_timestamps.csv}. The timestamps are used to check for large
+timing offsets between the two cameras.
+
+
+\subsection{Post-processing software}
+The code base is split into one folder per pipeline stage. Each stage is a standalone Python script that reads
 the previous stage's output and writes its own. This allows stages to be swapped out and compared without
 rerunning the earlier stages. The output of each stage is analysed by experiment scripts stored in
-\texttt{src/experiments/}. For the folder structure, file formats and instructions on running the code,
-refer to the project's GitHub repository:
-\href{https://github.com/GlenOJones/UCT_Final_Year_Project}{github.com/GlenOJones/UCT\_Final\_Year\_Project}.
+\texttt{src/experiments/}. Each experiment is defined by a JSON configuration file that states every
+setting used, and is run with a single command that executes the pipeline and
+generates its figures and tables. Each stage saves its output in a standard
+format, such as YAML for camera calibrations and PLY for point clouds. Each run also
+writes a manifest file recording the configuration and code version that
+produced the results. For the folder structure, file formats and instructions on running the code,
+refer to the project's
+\href{https://github.com/GlenOJones/UCT_Final_Year_Project}{\textcolor{blue}{GitHub repository}}.
 
  \begin{figure}[htbp]
     \centering
@@ -218,24 +246,22 @@ refer to the project's GitHub repository:
       \foreach \a/\b in {n0/n1, n1/n2, n2/n3, n3/n4, n4/n5, n5/n6, n6/n7}
           \draw[flow] (\a) -- (\b);
     \end{tikzpicture}
-    \caption[Processing pipeline.]{\textbf{Processing pipeline.} Stages from the stereo recording to the point cloud, with the script that runs each stage. Where a stage lists several scripts, they are alternative methods.}
+    \caption[Processing pipeline]{\textbf{Processing pipeline.} Stages from the stereo recording to the point cloud, with the script that runs each stage. Where a stage lists several scripts, they are alternative methods.}
     \label{fig:ch4.pipeline}
 \end{figure}
 
-All source code, including the script running on the ROV, is available on GitHub at \url{https://github.com/GlenOJones/UCT_Final_Year_Project}. 
-The versions of the libraries and tools used are listed in Table~\ref{table:ch4.software}.
-
+The versions of the libraries and tools used are listed in \autoref{table:ch4.software}.
 The main pipeline runs in one Python virtual environment. The learnt stereo
 matchers have conflicting dependencies, so each runs in its own environment.
-The script \texttt{src/setup\_envs.sh} creates all of them with pinned versions
+The script \href{https://github.com/GlenOJones/UCT_Final_Year_Project/blob/main/src/setup_envs.sh}{\textcolor{blue}{\texttt{src/setup\_envs.sh}}} creates all of them with pinned versions
 and downloads the matchers and their weights. Setup instructions are given in
-\href{https://github.com/GlenOJones/UCT_Final_Year_Project/blob/main/src/SETUP.md}{\texttt{src/SETUP.md}}.
+\href{https://github.com/GlenOJones/UCT_Final_Year_Project/blob/main/src/SETUP.md}{\textcolor{blue}{\texttt{src/SETUP.md}}}.
 
 
 \begin{table}[H]
     \centering
     \newcommand{\repo}[2]{\href{#1}{\textcolor{blue}{#2}}}% blue links, this table only
-    \caption[Software used.]{\textbf{Software used.} Libraries and tools used by the pipeline. Each name links to the project's source repository. The learnt matchers have no release numbers, so the commit and date of the code used are given (linked).}
+    \caption[Software used]{\textbf{Software used.} Libraries and tools used by the pipeline. Each name links to the project's source repository. The learnt matchers have no release numbers, so the commit and date of the code used are given (linked).}
     \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.0cm}>{\raggedright\arraybackslash}X}
     \toprule[2.25pt]
     \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
@@ -255,8 +281,6 @@ and downloads the matchers and their weights. Setup instructions are given in
     \end{tabularx}
     \label{table:ch4.software}
 \end{table}
-
-
 
 
 
