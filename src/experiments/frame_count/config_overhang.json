@@ -132,12 +132,24 @@
    2,
    5
   ],
-  "figure_dpi": 150
+  "figure_dpi": 150,
+  "_reference_jump_mm": "Tag poses further than this from the median camera centre of the tag-posed frames within reference_window frames either side are dropped from the ATE reference as wrong tag fits (25 Oct: the overhang's tag poses jump ~250 mm between consecutive frames around 0140-0146, while the rig moves ~10 mm per frame and every COLMAP subset agrees to ~3 mm).",
+  "reference_window": 5,
+  "reference_jump_mm": 30,
+  "c2c_icp_mm": 10,
+  "_c2c_icp_mm": "Before cloud-to-cloud, each subset cloud is aligned onto the all-frames cloud by rigid point-to-point ICP (max correspondence distance this many mm): each is placed by its own SfM poses, which differ by a few mm (wave, overhang: 5-10 mm, 1-2% scale), and the offset would otherwise count as missing surface."
  },
  "figures": {
   "_oblique_sources": "Depth sources shown in oblique_by_frames.png (Glen, 25 Oct: FoundationStereo only).",
   "oblique_sources": [
    "foundationstereo"
-  ]
+  ],
+  "oblique_steps": [
+   1,
+   2,
+   8,
+   16
+  ],
+  "_oblique_steps": "Steps shown in the oblique figures, each object's oblique_by_frames.png and all_ice/oblique_grid.png (Glen, 25 Oct)."
  }
 }

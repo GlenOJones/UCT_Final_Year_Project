@@ -1,0 +1,20 @@
+% Made by src/experiments/frame_count/aggregate_frame_count.py; do not edit.
+\begin{table}[H]
+\centering
+\caption{Cost of each pipeline stage over every run of the four ice objects (RTX 5060 Laptop GPU, 8~GB; 30~GB RAM; 28 CPU threads). Time per frame: slope of wall time against frames used. RAM: peak over the stage's processes, smallest to largest run. CPU: mean number of cores busy.}
+\label{tab:frame_count_stage_costs}
+\begin{tabular}{llrrrr}
+\toprule
+Stage & Device & Time/frame (s) & Peak RAM (GB) & Peak GPU (GB) & CPU (cores) \\
+\midrule
+COLMAP SfM (total) & CPU + GPU & 2.52 & 4.2--12.8 & 0.7 & 6.4 \\
+\quad SIFT features & GPU & 0.20 & -- & -- & -- \\
+\quad matching & GPU & 0.06 & -- & -- & -- \\
+\quad mapping (bundle adjustment) & CPU & 2.25 & -- & -- & -- \\
+Depth, FoundationStereo & GPU & 4.37 & 5.1--5.5 & 4.7 & 1.6 \\
+Depth, SGBM (tuned) & CPU & 0.43 & 0.5--0.5 & 0.0 & 3.4 \\
+TSDF, FoundationStereo depth & CPU & 0.14 & 0.5--11.6 & 0.0 & 6.3 \\
+TSDF, SGBM depth & CPU & 0.06 & 0.5--5.6 & 0.0 & 5.5 \\
+\bottomrule
+\end{tabular}
+\end{table}

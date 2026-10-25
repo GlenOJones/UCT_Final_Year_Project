@@ -6,6 +6,8 @@ Per step (every N'th frame) and depth source:
     cloud-to-cloud  against the same source's all-frames cloud, inside the region: accuracy = share of the subset's
                  points within each threshold of the reference; completeness = share of the reference's points
                  within it of the subset
+                 (the subset's cloud first aligned onto the reference by a short rigid ICP, since its own SfM poses
+                 place it a few mm from the all-frames run's; the unaligned completeness is kept too)
     cost         wall time and peak RAM / GPU memory of each stage. SfM and TSDF are measured per subset; depth is
                  made once on every frame, so a subset's depth time is the matcher's start-up (the run's wall time
                  less its frames' times) plus its own frames' times, and its peak memory is the full run's.
@@ -93,11 +95,44 @@ def coverage(xyz, region, cell):
     return float(np.isfinite(compare_fusion.height_map(xyz, (x0, x1), (y0, y1), cell)).mean())
 
 
+def align_to(a, b, max_distance):
+    """a moved onto b by point-to-point ICP (rigid, from identity): each subset's cloud is placed in the board frame
+    by its own SfM poses, which differ from the all-frames run's by a few mm, and that offset would otherwise be
+    counted as missing surface. Returns (moved a, ICP fitness, translation applied in mm)."""
+    pa, pb = o3d.geometry.PointCloud(), o3d.geometry.PointCloud()
+    pa.points, pb.points = o3d.utility.Vector3dVector(a), o3d.utility.Vector3dVector(b)
+    result = o3d.pipelines.registration.registration_icp(
+        pa, pb, max_distance, np.eye(4), o3d.pipelines.registration.TransformationEstimationPointToPoint(),
+        o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=50))
+    T = result.transformation
+    return a @ T[:3, :3].T + T[:3, 3], float(result.fitness), float(np.linalg.norm(T[:3, 3]))
+
+
 def nearest(a, b):
     """Distance from every point of a to its nearest point of b (mm)."""
     pa, pb = o3d.geometry.PointCloud(), o3d.geometry.PointCloud()
     pa.points, pb.points = o3d.utility.Vector3dVector(a), o3d.utility.Vector3dVector(b)
     return np.asarray(pa.compute_point_cloud_distance(pb))
+
+
+def clean_reference(reference, window, limit):
+    """The tag poses without the frames whose camera centre lies more than limit mm from where its neighbours put
+    it. Each tag-posed frame within window frames either side predicts the centre as its own centre plus the pass's
+    median velocity per frame times the frame gap; the median of those predictions is compared with the frame's
+    centre. The rig moves ~7-10 mm per frame along a near-straight pass, so the prediction holds at the ends of the
+    pass too; a tag pose far from it (seen on the overhang: ~250 mm jumps between consecutive frames) is a wrong
+    tag fit, not camera motion. Returns (cleaned reference, dropped frame names)."""
+    names = sorted(reference)
+    index = {n: int(os.path.splitext(n)[0]) for n in names}
+    centre = {n: np.linalg.inv(reference[n])[:3, 3] for n in names}
+    velocity = np.median([(centre[b] - centre[a]) / (index[b] - index[a]) for a, b in zip(names, names[1:])], axis=0)
+    dropped = []
+    for n in names:
+        predictions = [centre[m] + velocity * (index[n] - index[m]) for m in names
+                       if m != n and abs(index[m] - index[n]) <= window]
+        if len(predictions) >= 3 and np.linalg.norm(centre[n] - np.median(predictions, axis=0)) > limit:
+            dropped.append(n)
+    return {n: T for n, T in reference.items() if n not in dropped}, dropped
 
 
 # ====== SCORING ======
@@ -106,6 +141,9 @@ def score(cfg, p, steps):
     region, cell, thresholds = ev["region"], ev["coverage_cell_mm"], ev["c2c_thresholds_mm"]
     side = compare_fusion.camera_side(p)
     _, reference_poses, _ = pose_files.read_trajectory(p["reference"])
+    reference_poses, dropped = clean_reference(reference_poses, ev.get("reference_window", 5),
+                                               ev.get("reference_jump_mm", 30))
+    print(f"reference: {len(reference_poses)} tag poses kept, {len(dropped)} dropped as jumps: {dropped}")
     work = {n: p["step_work"](n) for n in cfg["steps"]}
     references = {s: region_cloud(os.path.join(work[1], f"tsdf_{s}", "cloud_board.ply"), region, side)
                   for s in cfg["depth"]}
@@ -143,11 +181,15 @@ def score(cfg, p, steps):
                 row.update({"points": len(xyz), "coverage": coverage(xyz, region, cell)})
                 ref = references[source]
                 if ref is not None and len(ref):
-                    to_ref, from_ref = nearest(xyz, ref), nearest(ref, xyz)
-                    row["c2c_median_mm"] = float(np.median(to_ref))
+                    raw = nearest(ref, xyz)
+                    aligned, fitness, shift = align_to(xyz, ref, ev["c2c_icp_mm"])
+                    to_ref, from_ref = nearest(aligned, ref), nearest(ref, aligned)
+                    row.update({"c2c_median_mm": float(np.median(to_ref)), "icp_fitness": fitness,
+                                "icp_shift_mm": shift})
                     for t in thresholds:
                         row[f"accuracy_{t:g}mm"] = float((to_ref <= t).mean())
                         row[f"completeness_{t:g}mm"] = float((from_ref <= t).mean())
+                        row[f"completeness_unaligned_{t:g}mm"] = float((raw <= t).mean())
             rows.append(row)
         print(f"step {n}: {base['frames_posed']}/{base['frames']} posed, ATE median "
               f"{base.get('ate_median_mm') or float('nan'):.2f} mm")
@@ -350,6 +392,7 @@ def memory_figure(cfg, p, rows):
         ax.legend(fontsize=8, frameon=False)
     axes[1].axhline(8, color=MUTED, lw=1, ls=":")
     axes[1].text(frames[0], 8, " GPU total (8 GB)", fontsize=8, color=MUTED, va="bottom")
+    axes[1].set_ylim(0, 9)
     fig.suptitle(f"{cfg['recording']['title']}: peak memory by stage (process tree; GPU excludes other programs)",
                  x=0.01, ha="left", fontsize=11)
     path = os.path.join(p["out"], "memory_by_stage.png")
@@ -358,36 +401,68 @@ def memory_figure(cfg, p, rows):
     print(f"-> {common.rel(path)}")
 
 
-def oblique_figure(cfg, p, rows, azimuth=225.0, elevation=30.0, pixel_mm=0.6, splat=1):
-    """Each subset's cloud from one oblique view (oblique_view.render), one colour range and extent for all."""
+def oblique_images(cfg, p, steps, sources, azimuth=225.0, elevation=30.0, pixel_mm=0.6, splat=1):
+    """({(step, source): rendered image or None}, (low, high)): every subset's cloud over the ice region from one
+    oblique view (oblique_view.render), with one colour range and extent for all, both set from the first step's
+    clouds (heights 10th-99.5th percentile, as oblique_view.py)."""
     ev = cfg["evaluation"]
     side = compare_fusion.camera_side(p)
-    sources = {s: cfg["depth"][s] for s in cfg.get("figures", {}).get("oblique_sources", cfg["depth"])}
-    steps = [n for n in cfg["steps"] if any(r["step"] == n and r.get("points") for r in rows)]
     clouds = {(n, s): region_cloud(os.path.join(p["step_work"](n), f"tsdf_{s}", "cloud_board.ply"), ev["region"], side)
               for n in steps for s in sources}
     ref = np.concatenate([c for (n, _), c in clouds.items() if n == steps[0] and c is not None])
     low, high = np.percentile(ref[:, 2], (10, 99.5))
     _, extent = oblique_view.render(ref[::50], np.zeros((len(ref[::50]), 3)), azimuth, elevation, pixel_mm, 0)
+    cmap = colormaps["turbo"]
+    images = {}
+    for key, xyz in clouds.items():
+        xyz = xyz[xyz[:, 2] >= low - 0.2 * (high - low)] if xyz is not None else None
+        if xyz is None or not len(xyz):
+            images[key] = None
+            continue
+        colours = cmap(np.clip((xyz[:, 2] - low) / (high - low), 0, 1))[:, :3] * oblique_view.shading(xyz)[:, None]
+        images[key], _ = oblique_view.render(xyz, colours, azimuth, elevation, pixel_mm, splat, extent)
+    # One crop for all of them, to the rows and columns any image draws on (plus a small margin): the extent comes
+    # from the first step's points before the far-below cut above, so it leaves white space; a shared crop keeps
+    # every panel at the same scale.
+    drawn = [np.any(im < 1, axis=2) for im in images.values() if im is not None]
+    if drawn:
+        mask = np.logical_or.reduce(drawn)
+        r, c = np.flatnonzero(mask.any(1)), np.flatnonzero(mask.any(0))
+        pad = 5
+        r0, r1 = max(r[0] - pad, 0), min(r[-1] + pad + 1, mask.shape[0])
+        c0, c1 = max(c[0] - pad, 0), min(c[-1] + pad + 1, mask.shape[1])
+        images = {k: im[r0:r1, c0:c1] if im is not None else None for k, im in images.items()}
+    return images, (low, high)
+
+
+def show_image(ax, image):
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for s in ax.spines.values():
+        s.set_visible(False)
+    if image is None:
+        ax.text(0.5, 0.5, "no reconstruction", transform=ax.transAxes, ha="center", va="center", color=MUTED)
+    else:
+        ax.imshow(image, interpolation="lanczos")
+
+
+def oblique_figure(cfg, p, rows):
+    """Each subset's cloud from one oblique view, a row per depth source in figures.oblique_sources."""
+    ev = cfg["evaluation"]
+    sources = {s: cfg["depth"][s] for s in cfg.get("figures", {}).get("oblique_sources", cfg["depth"])}
+    shown = cfg.get("figures", {}).get("oblique_steps", cfg["steps"])
+    steps = [n for n in shown if any(r["step"] == n and r.get("points") for r in rows)]
+    images, (low, high) = oblique_images(cfg, p, steps, sources)
     frames = {r["step"]: r["frames"] for r in rows}
     cmap = colormaps["turbo"]
-    fig, axes = plt.subplots(len(sources), len(steps), figsize=(3.2 * len(steps), 2.9 * len(sources)),
+    shape = next(im.shape for im in images.values() if im is not None)
+    fig, axes = plt.subplots(len(sources), len(steps),
+                             figsize=(3.2 * len(steps) + 1.2, 3.2 * shape[0] / shape[1] * len(sources) + 0.5),
                              squeeze=False, constrained_layout=True)
     for i, (source, spec) in enumerate(sources.items()):
         for j, n in enumerate(steps):
             ax = axes[i, j]
-            ax.set_xticks([])
-            ax.set_yticks([])
-            for s in ax.spines.values():
-                s.set_visible(False)
-            xyz = clouds[(n, source)]
-            xyz = xyz[xyz[:, 2] >= low - 0.2 * (high - low)] if xyz is not None else None
-            if xyz is not None and len(xyz):
-                colours = cmap(np.clip((xyz[:, 2] - low) / (high - low), 0, 1))[:, :3] * oblique_view.shading(xyz)[:, None]
-                image, _ = oblique_view.render(xyz, colours, azimuth, elevation, pixel_mm, splat, extent)
-                ax.imshow(image, interpolation="lanczos")
-            else:
-                ax.text(0.5, 0.5, "no reconstruction", transform=ax.transAxes, ha="center", va="center", color=MUTED)
+            show_image(ax, images[(n, source)])
             if i == 0:
                 ax.set_title(f"{frames.get(n)} frames (every {n})", fontsize=10)
             if j == 0 and len(sources) > 1:

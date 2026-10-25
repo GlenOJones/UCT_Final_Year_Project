@@ -1,0 +1,22 @@
+% Made by src/experiments/frame_count/aggregate_frame_count.py; do not edit.
+\begin{table}[H]
+\centering
+\caption{Frame-count sweep over the 4 shaded ice objects: mean over the objects at each frame spacing (every $N$th frame), with the range of frame counts. Posed: share of frames COLMAP registered (lowest over the objects); ATE: median camera position error against the AprilGrid poses; coverage: share of the ice region's 1~mm cells with a point; completeness: share of the all-frames reconstruction within 2~mm; time: SfM + depth + TSDF.}
+\label{tab:frame_count_all}
+\begin{tabular}{rrrrrrrrrr}
+\toprule
+ & & & & \multicolumn{2}{c}{Coverage (\%)} & \multicolumn{2}{c}{Complete. (\%)} & \multicolumn{2}{c}{Time (min)} \\
+\cmidrule(lr){5-6}\cmidrule(lr){7-8}\cmidrule(lr){9-10}
+$N$ & Frames & Posed (\%) & ATE (mm) & FS & SGBM & FS & SGBM & FS & SGBM \\
+\midrule
+1 & 131--231 & 100 & 8.1 & 72 & 80 & 100 & 100 & 21.4 & 9.9 \\
+2 & 66--116 & 100 & 6.2 & 68 & 75 & 86 & 79 & 10.2 & 4.3 \\
+3 & 44--77 & 100 & 5.5 & 65 & 70 & 76 & 67 & 6.6 & 2.5 \\
+4 & 33--58 & 100 & 5.6 & 64 & 66 & 70 & 58 & 5.0 & 1.9 \\
+6 & 22--39 & 100 & 5.4 & 62 & 60 & 59 & 47 & 3.4 & 1.2 \\
+8 & 17--29 & 100 & 6.2 & 59 & 54 & 49 & 40 & 2.8 & 1.1 \\
+12 & 11--20 & 100 & 6.4 & 53 & 43 & 39 & 30 & 2.0 & 0.7 \\
+16 & 9--15 & 100 & 6.5 & 45 & 31 & 32 & 23 & 1.7 & 0.7 \\
+\bottomrule
+\end{tabular}
+\end{table}

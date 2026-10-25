@@ -11,10 +11,14 @@ recording's runs pooled, with a straight-line fit giving seconds per frame.
 Writes, under results/<out_dir>/all_ice/:
     summary.csv / summary.md      per step: mean and range over the recordings of every measure
     table_frame_count_all.tex     the report table (LaTeX)
+    stage_costs.md / table_stage_costs.tex   per stage over every run of every object: time per frame (straight-
+                                  line fit), peak RAM, peak GPU memory, mean CPU (cores busy) and GPU utilisation
     pose_vs_step.png              frames posed and ATE median against step, a line per object and their mean
     quality_vs_step.png           coverage and completeness against step, a line per object and their mean
     time_vs_frames.png            total time against frames used, every run, with a fit per depth source
     memory_by_stage.png           peak RAM and GPU memory per stage, the largest over the recordings
+    oblique_grid.png              a row per object, a column per step: FoundationStereo's cloud from one oblique
+                                  view; each row has its own colour range and extent (set from its all-frames cloud)
 """
 import argparse
 import csv
@@ -25,13 +29,16 @@ import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib import colormaps  # noqa: E402
 import numpy as np  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "fusion"))
 import common  # noqa: E402
-from analyse_frame_count import MUTED, SOURCE_COLOURS, STAGE_COLOURS, fmt, style  # noqa: E402
+from oblique_view import place_row_labels  # noqa: E402
+from analyse_frame_count import MUTED, SOURCE_COLOURS, STAGE_COLOURS, fmt, oblique_images, show_image, style  # noqa: E402
 from run_frame_count import paths  # noqa: E402
 
 CONFIGS = ("config.json", "config_cubes.json", "config_wave.json", "config_overhang.json")
@@ -130,6 +137,76 @@ def write_tables(runs, steps, out):
         fh.write("\n".join(tex) + "\n")
 
 
+def stage_records(cfg):
+    """[(stage, frames, cost record)] of one recording: SfM and TSDF per step, depth once (every frame)."""
+    p = paths(cfg)
+    records = []
+    with open(os.path.join(p["out"], "depth_costs.json")) as fh:
+        for source, record in json.load(fh).items():
+            with open(os.path.join(p["depth"](source), "depth_frames.json")) as dj:
+                records.append((f"depth_{source}", len(json.load(dj)["per_frame"]), record))
+    for n in cfg["steps"]:
+        path = os.path.join(p["step_out"](n), "run.json")
+        if os.path.exists(path):
+            with open(path) as fh:
+                run = json.load(fh)
+            for stage, record in run["stages"].items():
+                if record.get("returncode") == 0:
+                    records.append((stage, run["frames"], record))
+            for sub, seconds in run.get("sfm_seconds", {}).items():
+                records.append((f"sfm_{sub}", run["frames"], {"wall_s": seconds}))
+    return records
+
+
+def write_stage_costs(runs, out):
+    records = [r for cfg, _ in runs for r in stage_records(cfg)]
+    stages = [("sfm", "COLMAP SfM (total)", "CPU + GPU"), ("sfm_features", "  SIFT features", "GPU"),
+              ("sfm_match", "  matching", "GPU"), ("sfm_map", "  mapping (bundle adjustment)", "CPU"),
+              ("depth_foundationstereo", "Depth, FoundationStereo", "GPU"), ("depth_sgbm_tuned", "Depth, SGBM (tuned)", "CPU"),
+              ("tsdf_foundationstereo", "TSDF, FoundationStereo depth", "CPU"),
+              ("tsdf_sgbm_tuned", "TSDF, SGBM depth", "CPU")]
+    rows = []
+    for key, label, device in stages:
+        rs = [(f, r) for k, f, r in records if k == key]
+        if not rs:
+            continue
+        frames = np.array([f for f, _ in rs], float)
+        seconds = np.array([r["wall_s"] for _, r in rs])
+        per_frame = np.polyfit(frames, seconds, 1)[0] if len(set(frames)) > 1 else float(np.median(seconds / frames))
+        get = lambda name: [r[name] for _, r in rs if r.get(name) is not None]  # noqa: E731
+        rows.append({"label": label, "device": device, "runs": len(rs), "s_per_frame": per_frame,
+                     "ram_gb": (min(get("peak_tree_rss_mb")) / 1024, max(get("peak_tree_rss_mb")) / 1024)
+                     if get("peak_tree_rss_mb") else None,
+                     "gpu_gb": max(get("peak_gpu_mib")) / 1024 if get("peak_gpu_mib") else None,
+                     "cores": np.mean(get("mean_cpu_percent")) / 100 if get("mean_cpu_percent") else None,
+                     "gpu_util": np.mean(get("mean_gpu_util_percent")) if get("mean_gpu_util_percent") else None})
+    md = ["# Stage costs, every run of every ice object", "",
+          "Time per frame: slope of a straight-line fit of wall time against frames. RAM: peak over the stage's process "
+          "tree (lowest to highest run). CPU: mean cores busy (100% = one core; the laptop has 28 threads).", "",
+          "| Stage | Device | Runs | Time per frame (s) | Peak RAM (GB) | Peak GPU memory (GB) | Mean CPU (cores) | "
+          "Mean GPU use (%) |", "|---|---|---|---|---|---|---|---|"]
+    tex = ["% Made by src/experiments/frame_count/aggregate_frame_count.py; do not edit.",
+           r"\begin{table}[H]", r"\centering",
+           r"\caption{Cost of each pipeline stage over every run of the four ice objects (RTX 5060 Laptop GPU, 8~GB; "
+           r"30~GB RAM; 28 CPU threads). Time per frame: slope of wall time against frames used. RAM: peak over the "
+           r"stage's processes, smallest to largest run. CPU: mean number of cores busy.}",
+           r"\label{tab:frame_count_stage_costs}", r"\begin{tabular}{llrrrr}", r"\toprule",
+           r"Stage & Device & Time/frame (s) & Peak RAM (GB) & Peak GPU (GB) & CPU (cores) \\", r"\midrule"]
+    for r in rows:
+        ram = f"{r['ram_gb'][0]:.1f}-{r['ram_gb'][1]:.1f}" if r["ram_gb"] else "-"
+        md.append(f"| {r['label'].strip()} | {r['device']} | {r['runs']} | {r['s_per_frame']:.2f} | {ram} | "
+                  f"{fmt(r['gpu_gb'], '.1f', '-')} | {fmt(r['cores'], '.1f', '-')} | {fmt(r['gpu_util'], '.0f', '-')} |")
+        indent = r"\quad " if r["label"].startswith("  ") else ""
+        tex.append(rf"{indent}{r['label'].strip()} & {r['device']} & {r['s_per_frame']:.2f} & {ram.replace('-', '--')} & "
+                   rf"{fmt(r['gpu_gb'], '.1f')} & {fmt(r['cores'], '.1f')} \\")
+    tex += [r"\bottomrule", r"\end{tabular}", r"\end{table}"]
+    with open(os.path.join(out, "stage_costs.md"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(md) + "\n")
+    with open(os.path.join(out, "table_stage_costs.tex"), "w", encoding="utf-8") as fh:
+        fh.write("\n".join(tex) + "\n")
+    print("\n".join(md))
+
+
 # ====== FIGURES ======
 def step_axis(ax, steps):
     ax.set_xscale("log")
@@ -203,7 +280,7 @@ def time_figure(runs, out, dpi):
         slope, intercept = np.polyfit(pts[:, 0], pts[:, 1], 1)
         label = runs[0][0]["depth"][source]["label"]
         ax.scatter(pts[:, 0], pts[:, 1], s=28, color=colour, edgecolor="white", linewidth=0.8, zorder=3,
-                   label=f"{label}: {60 * slope:.1f} s per frame + {intercept:.1f} min")
+                   label=f"{label}: {60 * slope:.1f} s per frame")
         x = np.linspace(0, pts[:, 0].max(), 50)
         ax.plot(x, slope * x + intercept, color=colour, lw=1.5, alpha=0.8)
     ax.set_xlabel("frames used")
@@ -238,12 +315,35 @@ def memory_figure(runs, out, dpi):
         ax.set_xlim(left=0)
         ax.set_ylim(bottom=0)
         style(ax)
-        ax.legend(fontsize=8, frameon=False, loc="upper left")
+        ax.legend(fontsize=8, frameon=False, loc="center right")
     axes[1].axhline(8, color=MUTED, lw=1, ls=":")
     axes[1].text(2, 8, "GPU total (8 GB)", fontsize=8, color=MUTED, va="bottom")
+    axes[1].set_ylim(0, 9)
+    axes[1].legend(fontsize=8, frameon=False, loc="center right")
     fig.suptitle("Peak memory by stage, every ice object (process tree; GPU excludes other programs)", x=0.01,
                  ha="left", fontsize=11)
     save(fig, out, "memory_by_stage.png", dpi)
+
+
+def oblique_grid(runs, steps, out, dpi, source="foundationstereo"):
+    """A row per object, a column per step; each row scaled on its own (colour bar per row), as in each object's
+    oblique_by_frames.png."""
+    cmap = colormaps["turbo"]
+    fig, axes = plt.subplots(len(runs), len(steps), figsize=(3.0 * len(steps) + 1.6, 2.7 * len(runs)), squeeze=False,
+                             constrained_layout=True)
+    for i, (cfg, rows) in enumerate(runs):
+        images, (low, high) = oblique_images(cfg, paths(cfg), steps, {source: cfg["depth"][source]})
+        frames = {r["step"]: r["frames"] for r in rows}
+        for j, n in enumerate(steps):
+            show_image(axes[i, j], images.get((n, source)))
+            axes[i, j].set_title(f"{frames.get(n)} frames" + (f" (every {n})" if i == 0 else ""), fontsize=10)
+        bar = fig.colorbar(matplotlib.cm.ScalarMappable(matplotlib.colors.Normalize(low, high), cmap), ax=axes[i, :],
+                           shrink=0.85, pad=0.01)
+        bar.set_label("height towards\ncamera (mm)", fontsize=8)
+        bar.ax.tick_params(labelsize=8)
+    place_row_labels(fig, axes, [cfg["recording"]["title"].split(",")[0].replace("Ice ", "").capitalize()
+                                 for cfg, _ in runs], 13)
+    save(fig, out, "oblique_grid.png", dpi)
 
 
 def main(argv=None):
@@ -259,10 +359,12 @@ def main(argv=None):
     os.makedirs(out, exist_ok=True)
     dpi = cfg["evaluation"]["figure_dpi"]
     write_tables(runs, steps, out)
+    write_stage_costs(runs, out)
     pose_figure(runs, steps, out, dpi)
     quality_figure(runs, steps, out, dpi)
     time_figure(runs, out, dpi)
     memory_figure(runs, out, dpi)
+    oblique_grid(runs, cfg.get("figures", {}).get("oblique_steps", steps), out, dpi)
 
 
 if __name__ == "__main__":
