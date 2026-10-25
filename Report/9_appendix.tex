@@ -286,6 +286,10 @@ T5 Brown-Conrady + axial shift & 0.270 {\scriptsize[0.201, 0.361]} & 0.266 {\scr
 \end{table}
 
 %---------------------------------------------------------------------
+\section*{Depth map generation per recording}
+\phantomsection
+\addcontentsline{toc}{section}{Depth map generation per recording}
+\label{app:depth_matchers}
 
 \begin{table}[H]
 \centering
@@ -484,4 +488,19 @@ Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
     Figure~\ref{fig:app.fusion_accuracy_pyramid}. COLMAP follows the designed surface most closely; the TSDF
     reconstructions sit below it over the bumps.}
     \label{fig:app.fusion_accuracy_egg}
+\end{figure}
+
+%---------------------------------------------------------------------
+\section*{Frame-count reconstructions of every ice target}
+\phantomsection
+\addcontentsline{toc}{section}{Frame-count reconstructions of every ice target}
+\label{app:frame_count_oblique}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{figs/Ch5/frame_count_all_oblique_grid.png}
+    \caption[Frame-count reconstructions of every ice target]{\textbf{Frame-count reconstructions of every ice
+    target.} TSDF reconstructions of the four shaded ice targets with FoundationStereo depth, using every 1st,
+    2nd, 8th and 16th frame of each pass, shown from the same oblique view. Points are coloured by height towards
+    the camera, with a separate colour scale for each target.}
+    \label{fig:app.frame_count_oblique_all}
 \end{figure}

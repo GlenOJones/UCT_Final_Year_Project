@@ -68,9 +68,9 @@ In this way, detected pixel positions can be mapped back to undistorted normalis
 % Refernce doces: https://docs.opencv.org/4.13.0/d9/d0c/group__calib3d.html
 % Explain the baseic maths
 Brown-Conrady is a camera model capable of correcting lens induced geometric 
-distortions \cite{xuComprehensiveOverviewFishEye2024}. The model handles radial distortion (barrel and pincushion) through
- multiplying each point by $(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)$, where $r$ is the distance from the
-image centre and $k_i$ are the radial coefficients. Tangential distortion, caused
+distortions \cite{xuComprehensiveOverviewFishEye2024}. The model handles radial distortion (barrel and pincushion) by
+ multiplying each point by $(1 + k_1 r^2 + k_2 r^4 + k_3 r^6)$, where $k_i$ are the radial coefficients and $r$ is the distance from the
+image centre. Tangential distortion, caused
 by the lens not being perfectly lined up with the sensor, is handled by adding an
 offset controlled by $p_1$ and $p_2$. Joining together, this gives: 
 \begin{align}
@@ -98,10 +98,10 @@ r(\theta) = k_1\theta + k_2\theta^3 + k_3\theta^5 + k_4\theta^7 + k_5\theta^9
 \end{equation}
 Because the distortion is written as a function of the ray angle $\theta$ rather
 than the image radius, the model can handle wide fields of view. In the pinhole
-model the radius $r = f\tan\theta$ grows towards infinity as $\theta$ approaches
+model the radius $r = f\tan\theta$ grows towards infinity as $\theta$ nears
 $90^\circ$, whereas $\theta$ itself stays finite.
 
-OpenCV uses the simpler version in \href{https://docs.opencv.org/4.x/db/d58/group__calib3d__fisheye.html#gad626a78de2b1dae7489e152a5a5a89e1}{\textcolor{blue}{\texttt{cv2.fisheye.calibrate}}}:
+OpenCV uses a simplified version in \href{https://docs.opencv.org/4.x/db/d58/group__calib3d__fisheye.html#gad626a78de2b1dae7489e152a5a5a89e1}{\textcolor{blue}{\texttt{cv2.fisheye.calibrate}}}:
 \begin{align}
 \theta_d &= \theta\,(1 + k_1\theta^2 + k_2\theta^4 + k_3\theta^6 + k_4\theta^8) \\
 (x_d,\, y_d) &= \frac{\theta_d}{r}\,(x,\, y)
@@ -159,7 +159,7 @@ normalised radius:
 \begin{equation}
 \Delta z(r) = a_1 r^2 + a_2 r^4, \qquad r = \sqrt{x^2 + y^2}.
 \end{equation}
-If $a_1=a_2=0$, every ray starts at the origin and it is a standard Brown-Conrady. If the $a_1$ and $a_2$ parameters do not
+If $a_1=a_2=0$, every ray starts at the origin making it a standard Brown-Conrady. If the $a_1$ and $a_2$ parameters do not
 reduce error on held-out images, the extra shift is not helping and the camera behaves as a single-viewpoint camera.
 
 The model is fitted by starting from the standard \texttt{cv2.calibrateCamera} solution ($a_1 = a_2 = 0$)
@@ -261,7 +261,7 @@ An example image with annotated detections is shown in \autoref{fig:ch5.detected
 
 \subsection{Evaluation metrics}
 \label{subsec:ch5.metrics}
-Optimising for calibration requires careful consideration to avoid degrading the accuracy of the calibration. Selectively choosing frames to reduce RMS error results in losing calibration
+Optimising for calibration needs careful consideration to avoid reducing the accuracy of the calibration. Selectively choosing frames to reduce RMS error results in losing calibration
 coverage. Harder to detect tags may increase RMS errors due to higher noise with their detections, resulting in worse RMS error. This may punish algorithms for a more accurate output.
 To avoid this, five metrics are used to evaluate the effectiveness of the calibration:
 \begin{enumerate}
@@ -395,7 +395,7 @@ This trend was consistent across all distances and is plotted in (\hyperref[app:
 When looking at which tag detections were made for each channel, an interesting observation was made. Although they had a similar detection rate,
 not all the detections were of the same tags. \autoref{fig:ch5.channel_overlap} below shows which tags were detected by each channel. 
 The \texttt{Calibration.py} script was subsequently adapted to also take a merged configuration, running the tag detection on
-the greyscale and RGB channels separately and merging the detected tags. This improved the detection rate to 0.432.
+the greyscale and RGB channels separately and merging the detected tags. This improved the detection rate up to 0.432.
 
 \begin{figure}[H]
     \centering

@@ -144,6 +144,13 @@
 %---------------------------------------------------------------------
 \hypersetup{colorlinks=true, linkcolor=blue, citecolor=black,
             urlcolor=blue}
+% IEEE style: \autoref prints "Section 7.2" (also for subsections).
+% Must go through \extrasbritish: babel resets hyperref's names at
+% \begin{document}, so a plain \renewcommand here has no effect.
+\addto\extrasbritish{%
+  \def\sectionautorefname{Section}%
+  \def\subsectionautorefname{Section}%
+  \def\subsubsectionautorefname{Section}}
 \usepackage{fancyref}                % Enhanced references
 \usepackage{url}                     % URL formatting
 %=====================================================================
@@ -282,7 +289,7 @@
 %	DOCUMENT
 %---------------------------------------------------------------------
 % Fast preview: only these files are compiled. Delete this line for the full thesis.
-\includeonly{0_documentproperties,4_ch4,4b_dataset,5_ch5}
+% \includeonly{0_documentproperties,1_intro,4b_dataset,5b_reconstruction,7_discussion,8_conclusions,9_furtherwork,A_gitrepo,B_ethics,C_topicdescription,D_ECSA,9_appendix}
 \begin{document}
 %---------------------------------------------------------------------
 \include{0_documentproperties}
