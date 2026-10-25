@@ -1,0 +1,205 @@
+{
+ "voxel_mm": 1.5,
+ "scans": [
+  {
+   "id": "s30_PYRAMID_1",
+   "title": "Printed pyramid",
+   "group": "Printed objects (S30)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "s30_PYRAMID_1/colmap.ply",
+     "points": 37662
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "s30_PYRAMID_1/tsdf_fs.ply",
+     "points": 16779
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "s30_PYRAMID_1/tsdf_sgbm.ply",
+     "points": 20491
+    }
+   ]
+  },
+  {
+   "id": "s30_PYRAMID_2X2",
+   "title": "Printed pyramids 2x2",
+   "group": "Printed objects (S30)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "s30_PYRAMID_2X2/colmap.ply",
+     "points": 63041
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "s30_PYRAMID_2X2/tsdf_fs.ply",
+     "points": 21310
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "s30_PYRAMID_2X2/tsdf_sgbm.ply",
+     "points": 37755
+    }
+   ]
+  },
+  {
+   "id": "s30_EGG_1PK",
+   "title": "Egg carton, 1 pack",
+   "group": "Printed objects (S30)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "s30_EGG_1PK/colmap.ply",
+     "points": 60978
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "s30_EGG_1PK/tsdf_fs.ply",
+     "points": 24495
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "s30_EGG_1PK/tsdf_sgbm.ply",
+     "points": 48459
+    }
+   ]
+  },
+  {
+   "id": "s30_EGG_2PKS",
+   "title": "Egg carton, 2 packs",
+   "group": "Printed objects (S30)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "s30_EGG_2PKS/colmap.ply",
+     "points": 68968
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "s30_EGG_2PKS/tsdf_fs.ply",
+     "points": 21877
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "s30_EGG_2PKS/tsdf_sgbm.ply",
+     "points": 32861
+    }
+   ]
+  },
+  {
+   "id": "ice_pyramid_shade_pyr1_pass4",
+   "title": "Ice pyramid (shade)",
+   "group": "Ice (shade)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "ice_pyramid_shade_pyr1_pass4/colmap.ply",
+     "points": 124685
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "ice_pyramid_shade_pyr1_pass4/tsdf_fs.ply",
+     "points": 52300
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "ice_pyramid_shade_pyr1_pass4/tsdf_sgbm.ply",
+     "points": 47426
+    }
+   ]
+  },
+  {
+   "id": "ice_cubes_shade_cub2",
+   "title": "Ice cubes (shade)",
+   "group": "Ice (shade)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "ice_cubes_shade_cub2/colmap.ply",
+     "points": 98057
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "ice_cubes_shade_cub2/tsdf_fs.ply",
+     "points": 47950
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "ice_cubes_shade_cub2/tsdf_sgbm.ply",
+     "points": 33516
+    }
+   ]
+  },
+  {
+   "id": "ice_wave_shade_wave1",
+   "title": "Ice wave (shade)",
+   "group": "Ice (shade)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "ice_wave_shade_wave1/colmap.ply",
+     "points": 135208
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "ice_wave_shade_wave1/tsdf_fs.ply",
+     "points": 51392
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "ice_wave_shade_wave1/tsdf_sgbm.ply",
+     "points": 55391
+    }
+   ]
+  },
+  {
+   "id": "ice_overhang_shade_hang1",
+   "title": "Ice overhang (shade)",
+   "group": "Ice (shade)",
+   "methods": [
+    {
+     "name": "colmap",
+     "label": "COLMAP (full pipeline)",
+     "file": "ice_overhang_shade_hang1/colmap.ply",
+     "points": 120801
+    },
+    {
+     "name": "tsdf_fs",
+     "label": "TSDF, FoundationStereo",
+     "file": "ice_overhang_shade_hang1/tsdf_fs.ply",
+     "points": 80312
+    },
+    {
+     "name": "tsdf_sgbm",
+     "label": "TSDF, SGBM (tuned)",
+     "file": "ice_overhang_shade_hang1/tsdf_sgbm.ply",
+     "points": 87503
+    }
+   ]
+  }
+ ]
+}

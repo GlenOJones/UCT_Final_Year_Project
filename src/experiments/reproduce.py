@@ -10,6 +10,7 @@
     src/venv/bin/python src/experiments/reproduce.py pose_ice          # pose on the ice passes (shade, sun pass 2)
     src/venv/bin/python src/experiments/reproduce.py fusion            # COLMAP vs TSDF (FS, SGBM) on S30
     src/venv/bin/python src/experiments/reproduce.py fusion_ice        # the same on the ice pyramid, cubes, wave
+    src/venv/bin/python src/experiments/reproduce.py frame_count       # frames needed: whole pipeline per subset
     src/venv/bin/python src/experiments/reproduce.py all
 
 Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
@@ -30,7 +31,8 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation", "depth_matchers", "fusion"):
+for _experiment in ("channels", "detector_sweep", "compensation", "pose_estimation", "depth_matchers", "fusion",
+                    "frame_count"):
     sys.path.insert(0, os.path.join(HERE, _experiment))
 sys.path.insert(0, HERE)
 import common  # noqa: E402
@@ -261,9 +263,36 @@ def fusion_ice(config, skip_existing):
                               {"poses": common.rel(common.project_path(rec["poses"]))})
 
 
+FRAME_COUNT_CONFIGS = ("config.json", "config_cubes.json", "config_wave.json", "config_overhang.json")
+
+
+def frame_count(config, skip_existing):
+    """Frame-count sweep on the four shaded ice objects (frame_count/config*.json): the whole chosen pipeline (COLMAP
+    SfM, FoundationStereo and tuned-SGBM depth, TSDF) on every N'th frame, each stage's time and peak compute
+    recorded (run_frame_count.py); per object, poses, coverage and cloud-to-cloud scored (analyse_frame_count.py);
+    then the average over the objects (aggregate_frame_count.py). Needs the tag masks and reference poses of
+    pose_comparison (pyramid) and fusion_ice (cubes, wave, overhang). --config runs one object only."""
+    import aggregate_frame_count
+    import analyse_frame_count
+    import run_frame_count
+
+    configs = [config] if config else [os.path.join(HERE, "frame_count", c) for c in FRAME_COUNT_CONFIGS]
+    for path in configs:
+        cfg = common.load_config(path)
+        steps = run_frame_count.main(["--config", path] + (["--skip-existing"] if skip_existing else []))
+        analyse_frame_count.main(["--config", path])
+        rec = cfg["recording"]
+        common.write_manifest(os.path.join(common.project_path(cfg["out_dir"]), rec["name"]), "frame_count", [path],
+                              [common.project_path(rec["frames"]), common.project_path(rec["tag_masks"])], [], steps,
+                              {"reference_poses": rec["reference_poses"]})
+    if not config:
+        aggregate_frame_count.main([])
+
+
 EXPERIMENTS = {"channels": channels, "detector_sweep": detector_sweep, "compensation": compensation,
                "pose_estimation": pose_estimation, "depth_matchers": depth_matchers,
-               "pose_comparison": pose_comparison, "pose_ice": pose_ice, "fusion": fusion, "fusion_ice": fusion_ice}
+               "pose_comparison": pose_comparison, "pose_ice": pose_ice, "fusion": fusion, "fusion_ice": fusion_ice,
+               "frame_count": frame_count}
 
 
 def main(argv=None):

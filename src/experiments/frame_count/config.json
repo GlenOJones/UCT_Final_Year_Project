@@ -1,0 +1,143 @@
+{
+ "_what": "Frame-count sweep through the whole chosen pipeline (COLMAP SfM poses, FoundationStereo and tuned-SGBM depth, TSDF fusion) on the shade ice pyramid: every N'th frame for each N in steps, SfM re-run on every subset. Records each stage's wall time and peak compute (RAM, GPU memory, CPU), and scores each subset's poses (ATE against the AprilGrid tags) and clouds (coverage of the ice region, cloud-to-cloud against the all-frames cloud).",
+ "out_dir": "results/experiments/frame_count",
+ "work_dir": "work/experiments/frame_count",
+ "python": {
+  "default": "src/venv/bin/python",
+  "ffs": "envs/ffs/bin/python"
+ },
+ "recording": {
+  "name": "ice_pyramid_shade_pyr1_pass4",
+  "title": "Ice pyramid, shade",
+  "frames": "data/3DRecon/Ice/Pyramid/Shade/pyr1_frames_pass4_730mm",
+  "calibration": "results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml",
+  "_inputs": "Made by reproduce.py pose_comparison: the tag masks (every frame) and the AprilGrid reference poses. Both are evaluation support (ice has no tags), so neither is timed as a pipeline stage.",
+  "tag_masks": "work/experiments/pose_comparison/ice_pyramid_shade_pyr1_pass4/tag_masks",
+  "reference_poses": "results/experiments/pose_comparison/ice_pyramid_shade_pyr1_pass4/tag_poses.yaml",
+  "depth_min_mm": 400,
+  "depth_max_mm": 1400
+ },
+ "_steps": "Every N'th frame pair, starting at the first: 151 frames down to 10.",
+ "steps": [
+  1,
+  2,
+  3,
+  4,
+  6,
+  8,
+  12,
+  16
+ ],
+ "colmap": {
+  "_why": "As in the pose comparison: sequential matching of 12 frames either side, SIFT on the GPU, tags masked. The window counts frames of the subset, so sparser subsets match over a longer stretch of the pass, as they would in use.",
+  "argv": [
+   "--window",
+   "12",
+   "--gpu",
+   "0"
+  ]
+ },
+ "_depth": "Depth is made once on every frame and each subset fuses its own frames from it: each frame's depth depends on that frame alone, so re-running it per subset would repeat the same maps. A subset's depth time is the matcher's start-up time plus the per-frame times of its frames (depth_frames.json); its peak memory is the full run's.",
+ "depth": {
+  "foundationstereo": {
+   "python": "ffs",
+   "label": "FoundationStereo",
+   "argv": [
+    "--matcher",
+    "foundationstereo",
+    "--fs-model",
+    "vitl",
+    "--net-scale",
+    "0.5",
+    "--net-iters",
+    "32",
+    "--lr-tolerance",
+    "3",
+    "--fs-max-disp",
+    "416",
+    "--voxel",
+    "1"
+   ]
+  },
+  "sgbm_tuned": {
+   "python": "default",
+   "label": "SGBM (tuned)",
+   "argv": [
+    "--matcher",
+    "sgbm",
+    "--block-size",
+    "11",
+    "--uniqueness",
+    "0",
+    "--sgbm-mode",
+    "hh",
+    "--p1",
+    "16",
+    "--p2",
+    "32",
+    "--speckle-window",
+    "200",
+    "--speckle-range",
+    "2",
+    "--disp12-max-diff",
+    "1",
+    "--prefilter-cap",
+    "63",
+    "--sgbm-scale",
+    "0.5",
+    "--median-filter",
+    "0",
+    "--voxel",
+    "1"
+   ]
+  }
+ },
+ "tsdf": {
+  "_why": "The fusion comparison's settings (fusion/config_pyramid_shade.json).",
+  "argv": [
+   "--voxel",
+   "1",
+   "--trunc",
+   "4",
+   "--min-weight",
+   "3",
+   "--pixel-mm",
+   "1.2",
+   "--block-resolution",
+   "4",
+   "--mesh"
+  ],
+  "memory_max": "20G",
+  "_memory_max": "20G, not the fusion comparison's 12G: on 25 Oct the wave's 231-frame FoundationStereo TSDF reached the 12G cap and was killed. Stages run one at a time, so it never overlaps SfM's ~13G."
+ },
+ "monitor": {
+  "_why": "Samples the stage's process tree (RSS summed over it, CPU) and the GPU (memory used by the tree's processes, utilisation) every interval_s.",
+  "interval_s": 0.5,
+  "memory_max": "24G"
+ },
+ "evaluation": {
+  "align_lever_mm": 400,
+  "rpe_distance_mm": 50,
+  "_region": "The ice box of the fusion comparison (picked by Glen on 18 Oct), board frame [x_min, x_max, y_min, y_max] mm.",
+  "region": [
+   80,
+   380,
+   -120,
+   200
+  ],
+  "coverage_cell_mm": 1.0,
+  "_c2c": "Cloud-to-cloud against the same depth source's all-frames (step 1) cloud, inside the region: accuracy = share of the subset's points within each threshold of the reference, completeness = share of the reference's points within it of the subset.",
+  "c2c_thresholds_mm": [
+   1,
+   2,
+   5
+  ],
+  "figure_dpi": 150
+ },
+ "figures": {
+  "_oblique_sources": "Depth sources shown in oblique_by_frames.png (Glen, 25 Oct: FoundationStereo only).",
+  "oblique_sources": [
+   "foundationstereo"
+  ]
+ }
+}

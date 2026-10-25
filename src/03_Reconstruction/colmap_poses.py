@@ -87,24 +87,27 @@ def main(argv=None):
     names = [name for name, _, _ in find_frame_pairs(args.frames_dir)][::args.step]
     run = STAGES[STAGES.index(args.from_stage):]
     start = time.time()
+    stage_seconds = {}   # wall time of each SfM stage run, for the frame-count sweep's timing breakdown
+
+    def timed(stage, function, *stage_args, **stage_kwargs):
+        print(f"== {stage}")
+        stage_start = time.time()
+        result = function(*stage_args, **stage_kwargs)
+        stage_seconds[stage] = round(time.time() - stage_start, 1)
+        return result
 
     if "workspace" in run:
-        print("== workspace")
-        names = colmap_mvs.stage_workspace(ws, args.frames_dir, names)
+        names = timed("workspace", colmap_mvs.stage_workspace, ws, args.frames_dir, names)
     mask_path = link_masks(ws, args.masks, names) if args.masks else None
     if "features" in run:
-        print("== features")
-        colmap_mvs.stage_features(ws, rig, names, args.gpu, mask_path=mask_path)
+        timed("features", colmap_mvs.stage_features, ws, rig, names, args.gpu, mask_path=mask_path)
     has_rig = True
     if "rig" in run:
-        print("== rig")
-        has_rig = colmap_mvs.stage_rig(ws, rig)
+        has_rig = timed("rig", colmap_mvs.stage_rig, ws, rig)
     if "match" in run:
-        print("== match")
-        colmap_mvs.stage_match(ws, names, args.window, args.gpu)
+        timed("match", colmap_mvs.stage_match, ws, names, args.window, args.gpu)
     if "map" in run:
-        print("== map")
-        colmap_mvs.stage_map(ws, has_rig)
+        timed("map", colmap_mvs.stage_map, ws, has_rig)
     seconds = time.time() - start
 
     poses = frame_poses(ws, rig, names)
@@ -118,7 +121,8 @@ def main(argv=None):
                      {"frames_dir": rel(args.frames_dir), "calibration": rel(args.calibration),
                       "workspace": rel(ws), "step": args.step, "window": args.window,
                       "masks": rel(args.masks) if args.masks else "", "frames": len(names),
-                      "frames_posed": len(poses), "seconds": round(seconds, 1)},
+                      "frames_posed": len(poses), "seconds": round(seconds, 1),
+                      **{f"seconds_{stage}": value for stage, value in stage_seconds.items()}},
                      frames)
     print(f"SfM posed {len(poses)} of {len(names)} frame pairs ({seconds:.0f} s) -> {rel(args.out)}")
 

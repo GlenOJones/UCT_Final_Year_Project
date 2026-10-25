@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Point cloud viewer</title>
+<style>
+  :root { --bg:#f6f7f9; --panel:#ffffff; --ink:#1c2128; --muted:#59636e; --line:#d0d7de; --accent:#0b6bcb; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#0d1117; --panel:#161b22; --ink:#e6edf3; --muted:#9198a1; --line:#30363d; --accent:#4493f8; }
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font:14px/1.4 system-ui, sans-serif; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  header { padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--line); display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; }
+  h1 { font-size:16px; margin:0; }
+  .group { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  label { color:var(--muted); }
+  select, button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:5px 10px; cursor:pointer; }
+  button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:#fff; }
+  #stage { position:relative; flex:1; min-height:0; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+  #info { position:absolute; left:12px; bottom:10px; color:var(--muted); background:color-mix(in srgb, var(--panel) 80%, transparent); padding:4px 8px; border-radius:6px; font-size:12px; }
+  #msg { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); pointer-events:none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Point cloud viewer</h1>
+    <div class="group"><label for="scan">Scan</label><select id="scan"></select></div>
+    <div class="group" id="methods" role="group" aria-label="Method"></div>
+    <div class="group">
+      <label for="size">Point size</label><input id="size" type="range" min="0.5" max="6" step="0.1" value="2">
+      <button id="colour" aria-pressed="false">Colour by height</button>
+      <button id="reset">Reset view</button>
+    </div>
+  </header>
+  <div id="stage"><canvas id="c"></canvas><div id="msg">Loading…</div><div id="info"></div></div>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const $ = id => document.getElementById(id);
+const canvas = $("c"), stage = $("stage");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 1, 20000);
+camera.up.set(0, 0, 1);                       // board frame: z is height towards the camera
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+const dark = () => matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light";
+const setBackground = () => scene.background = new THREE.Color(dark() ? 0x0d1117 : 0xf6f7f9);
+setBackground();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", setBackground);
+
+let manifest, scan, method, points, byHeight = false, home = null;
+const cache = new Map();
+
+// Binary little-endian PLY written by export_web_clouds.py: float32 xyz + uint8 rgb.
+async function loadPly(url) {
+  if (cache.has(url)) return cache.get(url);
+  const buf = await (await fetch(url)).arrayBuffer();
+  const head = new TextDecoder().decode(new Uint8Array(buf, 0, 400));
+  const end = head.indexOf("end_header\n") + "end_header\n".length;
+  const n = +/element vertex (\d+)/.exec(head)[1];
+  const view = new DataView(buf, end), pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const o = i * 15;
+    pos[3*i] = view.getFloat32(o, true); pos[3*i+1] = view.getFloat32(o+4, true); pos[3*i+2] = view.getFloat32(o+8, true);
+    col[3*i] = view.getUint8(o+12) / 255; col[3*i+1] = view.getUint8(o+13) / 255; col[3*i+2] = view.getUint8(o+14) / 255;
+  }
+  const r = { pos, col, n }; cache.set(url, r); return r;
+}
+
+function heightColours(pos, n, lo, hi) {
+  const out = new Float32Array(n * 3), c = new THREE.Color();
+  for (let i = 0; i < n; i++) {
+    const t = Math.min(1, Math.max(0, (pos[3*i+2] - lo) / (hi - lo)));
+    c.setHSL(0.75 * (1 - t), 0.85, 0.5); out[3*i] = c.r; out[3*i+1] = c.g; out[3*i+2] = c.b;
+  }
+  return out;
+}
+
+async function show() {
+  const m = scan.methods.find(x => x.name === method) || scan.methods[0];
+  $("msg").style.display = "grid";
+  const d = await loadPly("clouds/" + m.file);
+  $("msg").style.display = "none";
+  if (points) { scene.remove(points); points.geometry.dispose(); }
+  const first = !home || home.scan !== scan.id;
+  // Same centre for every method of a scan, so switching methods compares like with like.
+  if (first) {
+    const ref = await loadPly("clouds/" + scan.methods[0].file);
+    // 1st-99th percentile per axis, so a few stray points do not set the zoom.
+    const q = k => { const a = new Float32Array(ref.n); for (let i = 0; i < ref.n; i++) a[i] = ref.pos[3*i+k]; a.sort();
+      return [a[Math.floor(ref.n * 0.01)], a[Math.floor(ref.n * 0.99)]]; };
+    const [x, y, z] = [q(0), q(1), q(2)];
+    const lo = new THREE.Vector3(x[0], y[0], z[0]), hi = new THREE.Vector3(x[1], y[1], z[1]);
+    const centre = lo.clone().add(hi).multiplyScalar(0.5), span = hi.clone().sub(lo);
+    home = { scan: scan.id, centre, zlo: lo.z, zhi: hi.z, radius: span.length() / 2 };
+    resetView();
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(d.pos, 3));
+  g.setAttribute("color", new THREE.BufferAttribute(byHeight ? heightColours(d.pos, d.n, home.zlo, home.zhi) : d.col, 3));
+  points = new THREE.Points(g, new THREE.PointsMaterial({ size: +$("size").value, sizeAttenuation: false, vertexColors: true }));
+  points.position.copy(home.centre).negate();
+  scene.add(points);
+  $("info").textContent = `${scan.title} · ${m.label} · ${d.n.toLocaleString()} points · units mm, voxel ${manifest.voxel_mm} mm`;
+}
+
+function resetView() {
+  const r = home.radius;
+  camera.position.set(0, -r * 1.6, r * 1.5);
+  controls.target.set(0, 0, 0); controls.update();
+}
+
+function buildMethods() {
+  const box = $("methods"); box.replaceChildren();
+  for (const m of scan.methods) {
+    const b = document.createElement("button");
+    b.textContent = m.label; b.setAttribute("aria-pressed", m.name === method);
+    b.onclick = () => { method = m.name; buildMethods(); show(); };
+    box.append(b);
+  }
+}
+
+function pickScan(id) {
+  scan = manifest.scans.find(s => s.id === id);
+  if (!scan.methods.some(m => m.name === method)) method = scan.methods[0].name;
+  history.replaceState(null, "", "#" + id + "/" + method);
+  buildMethods(); show();
+}
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+(function loop() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+
+$("size").oninput = () => { if (points) points.material.size = +$("size").value; };
+$("colour").onclick = e => { byHeight = !byHeight; e.target.setAttribute("aria-pressed", byHeight); show(); };
+$("reset").onclick = () => home && resetView();
+$("scan").onchange = e => pickScan(e.target.value);
+
+fetch("clouds/manifest.json").then(r => r.json()).then(m => {
+  manifest = m;
+  const sel = $("scan"); const groups = {};
+  for (const s of m.scans) {
+    const g = groups[s.group] ??= Object.assign(document.createElement("optgroup"), { label: s.group });
+    g.append(new Option(s.title, s.id)); if (!g.parentNode) sel.append(g);
+  }
+  const [hs, hm] = location.hash.slice(1).split("/");
+  method = hm;
+  const start = m.scans.some(s => s.id === hs) ? hs : m.scans[0].id;
+  sel.value = start; pickScan(start);
+}).catch(err => { $("msg").textContent = "Could not load clouds/manifest.json: " + err; });
+</script>
+</body>
+</html>

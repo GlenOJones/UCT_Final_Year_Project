@@ -134,7 +134,7 @@ def median(values):
 # figures, laid out at the report's text width (GRID_WIDTH_IN) so they go in at 1:1 and the text stays readable.
 SINGLE = {"line": 1.2, "corner": 14, "tag_font": 8, "note_font": 12, "legend_font": 7, "title_font": 10,
           "unused": 1.5, "used": 3, "icp": 0.4}
-GRID = {"line": 0.7, "corner": 4, "tag_font": 5, "note_font": 6, "legend_font": 4.5, "title_font": 6.5,
+GRID = {"line": 0.7, "corner": 4, "tag_font": 6.5, "note_font": 8, "legend_font": 5.5, "title_font": 8,
         "unused": 0.3, "used": 0.6, "icp": 0.08}
 GRID_WIDTH_IN = 18 / 2.54   # A4 less the report's 1.5 cm margins
 # One colour per method (matplotlib Tableau; clear of the gold board outline and the red mask)
@@ -210,7 +210,7 @@ def save_grid(path, rows, dpi):
     gap = 0.04
     panel_w = (GRID_WIDTH_IN - label_w - (cols - 1) * gap) / cols
     panel_h = panel_w * h / w
-    row_title, foot = 0.24, 0.02   # two-line panel titles, bottom margin
+    row_title, foot = 0.30, 0.02   # two-line panel titles, bottom margin
     fig_h = len(rows) * (row_title + panel_h) + foot
     fig = plt.figure(figsize=(GRID_WIDTH_IN, fig_h))
     for r, (image, mask, board_px, panels, label) in enumerate(rows):
@@ -299,7 +299,7 @@ def run(cfg, recording, args):
                        "title": f"{colmap['label']}\n{int((kp[:, 2] > 0).sum()):,} SIFT points used"})
         for e in icps:
             xyz, matched, fitness, floor = icp_matched(p["depth"](e["depth"]), p["poses"](e["name"]), name)
-            used = (f"{int(matched.sum()):,} of {len(xyz):,} depth points used" if matched is not None else
+            used = (f"{int(matched.sum()):,} of {len(xyz):,} points used" if matched is not None else
                     f"lost: {fitness:.0%} matched (< {floor:.0%})")
             panels.append({"kind": "icp", "method": e["name"], "px": project(xyz, rig), "matched": matched,
                            "title": f"{e['label']}\n{used}"})
