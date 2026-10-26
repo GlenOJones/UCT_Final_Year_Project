@@ -1,18 +1,17 @@
 %*********************************************************************
 %	CHAPTER 3 - THEORETICAL DEVELOPMENT
 %*********************************************************************
-\chapter{Theoretical development}
+\chapter{Theoretical Development}
 \label{ch:theory}
 %-----------------------
-\section{Introduction}
 % Pipeline: calibrated camera → stereo depth → pose → fused surface
 This chapter presents the theory behind each stage of the reconstruction pipeline. It begins with how a camera forms an
 image and how the camera is calibrated, including the effect of a flat port underwater. It then covers stereo geometry
 and matching, which give depth from a stereo pair, and finally pose estimation and fusion, which combine the depth from
-many frames into a single 3D surface.
+many frames into a single three surface.
 
 \section{Image formation}
-This section describes how a camera maps a 3D world point to a 2D pixel, starting from the ideal pinhole model and
+This section describes how a camera maps a three-dimensional point to a two-dimensional pixel, starting from the ideal pinhole model and
 then accounting for real lens distortion. The pinhole and projective camera models follow Hartley and
 Zisserman~\cite{hartleyMultipleViewGeometry2004} and the Stanford CS231A course notes~\cite{hataCS231ACourseNotes}.
 The intrinsic parameters use the notation of Zhang~\cite{zhangFlexibleNewTechnique2000}, and the lens distortion
@@ -24,19 +23,22 @@ implemented in OpenCV~\cite{opencvCameraCalibration3D}.
 \label{subsec:ch3.pinhole}
 %---------------------------------------------------------------------
 % Merge the two sections
+% TRISTYN COMMENT ABOUT BARRIER RELATIVE TO?
 %---------------------------------------------------------------------
-Before looking at reconstruction, it is important to understand how a camera maps a 3D point
-in a scene to a pixel. Every on a 3D object emits or reflects light in multiple directions. If a sensor is placed
+Before looking at reconstruction, it is important to understand how a camera maps a three-dimensional point
+in a scene to a pixel. Every point on a three-dimensional object reflects light in multiple directions. If a sensor is placed
 in front of the object, each point on the sensor receives light from every point on the object, resulting in a blurred
 image. This can be fixed by placing a barrier with a tiny hole (aperture) between the object and the sensor.
-Each point's rays therefore land on a single point on the sensor, producing a clear image and a mapping from the 3D object 
-to the 2D sensor. This is known as the pinhole camera
-model \cite{hataCS231ACourseNotes} and is shown in \autoref{fig:ch3.pinhole_model}.
+Each point's rays therefore land on a single point on the sensor, producing a clear image and a mapping from the three-dimensional object 
+to the two-dimensional sensor. This is known as the pinhole camera
+model \cite{hataCS231ACourseNotes} and is illustrated in \autoref{fig:ch3.pinhole_model}.
 
 \begin{figure}[H]
 	\centering
 	\includegraphics[width=0.6\textwidth]{figs/Ch3/pinhole_model2.png}
-	\caption[Pinhole camera model]{\textbf{Pinhole Model.} Incoming rays with aperture and barrier.}
+	\caption[Pinhole camera model]{\textbf{Pinhole camera model.} Interaction of incoming light rays with the camera's barrier and aperture.
+	Rays from each point on the object are blocked by the barrier except for the one passing through the aperture, which forms an inverted image on the sensor.}
+
 	\label{fig:ch3.pinhole_model}
 \end{figure}
 
@@ -45,20 +47,19 @@ The following terms are used for the pinhole camera throughout this report \cite
 \begin{itemize}
 	\item \textbf{Camera centre} $O$: the pinhole, through which every ray passes. It is also called the optical centre or centre of projection.
 	\item \textbf{Image plane} $\Pi'$: the plane of the sensor, on which the inverted image forms.
-	\item \textbf{Focal length} $f$: the distance from $O$ to the image plane.
+	\item \textbf{Focal length} $f$: the straightline distance from $O$ to the image plane.
 	\item \textbf{Optical axis}: the line through $O$, perpendicular to the image plane.
-	\item \textbf{Principal point}: the point where the optical axis intersects the image plane.
-	\item \textbf{Virtual image plane} $\Pi'_v$: an imaginary plane a distance $f$ \textit{in front} of $O$. The image on it is identical to the sensor image except that it is not inverted.
+	\item \textbf{Principal point}: the point where the optical axis intersects with the image plane.
+	\item \textbf{Virtual image plane} $\Pi'_v$: an imaginary plane, a distance $f$ in front of $O$. The image on it is identical to the sensor image except that it is not inverted.
 	\item \textbf{Camera coordinate frame}: The \textit{camera frame} with origin at $O$ and axes $\hat{\mathbf{x}}_c$, $\hat{\mathbf{y}}_c$ and $\hat{\mathbf{z}}_c$, where $\hat{\mathbf{z}}_c$ lies along the optical axis towards the scene.
 \end{itemize}
 
 
 Suppose $\mathbf{M}_c = [X_c, Y_c, Z_c]^T$ is a point in the camera frame, and $\mathbf{m}' = [x', y']^T$ is 
-where it appears on the virtual image plane. Since every point on this plane lies at $Z = f$, only its first two coordinates are needed.
-The image coordinates $(x', y')$ can be found from the scene coordinates using similar triangles, as shown in the cross-section of 
-\autoref{fig:ch3.pinhole_detailed}.
-The smaller triangle is shown in orange and the larger triangle in blue. Both are 
-right-angled and share the angle at $O$, so they are similar triangles with their corresponding sides having equal ratios:
+its location on the virtual image plane. Since every point on this plane lies at $Z = f$, only its first two coordinates are needed.
+The image coordinates $(x', y')$ can be found from the scene coordinates using similar triangles \cite{hataCS231ACourseNotes,hartleyMultipleViewGeometry2004}, as shown in the cross-section of 
+\autoref{fig:ch3.pinhole_detailed}. Both are 
+right-angled and share the angle at $O$, such that they are similar triangles with their corresponding sides having equal ratios:
 \begin{equation}
 	\frac{y'}{f} = \frac{Y_c}{Z_c}, \qquad \frac{x'}{f} = \frac{X_c}{Z_c}
 	\qquad\Longrightarrow\qquad
@@ -80,18 +81,18 @@ right-angled and share the angle at $O$, so they are similar triangles with thei
 \autoref{eq:ch3.persp} gives the equations of \textit{perspective projection} \cite{hataCS231ACourseNotes,hartleyMultipleViewGeometry2004}. 
 From these equations two key observations can be made. Objects appear smaller with distance, 
 since the image coordinates scale with $1/Z_c$. 
-Secondly, and more important to this report, depth is lost in the mapping from 3D to 2D.
+Secondly, and more important to this report, depth is lost in the mapping from three dimensions to two.
 Every point along the ray through $\mathbf{M}_c$ projects to the same image point. Recovering depth requires a second 
-viewpoint (\autoref{sec:ch3.stereo_geometry}). Setting $f = 1$ gives the \textit{normalised image coordinates}
+viewpoint, discussed in \autoref{sec:ch3.stereo_geometry}. Setting $f = 1$ gives the \textit{normalised image coordinates}
 \begin{equation}
 	x = \frac{X_c}{Z_c}, \qquad y = \frac{Y_c}{Z_c},
 	\label{eq:ch3.normcoord}
 \end{equation}
 which depend only on the direction of the ray \cite{hartleyMultipleViewGeometry2004}.
  
-Modern cameras use a glass lens instead of a pinhole, which gathers more light while still focusing the rays from each point onto one sensor point.
-An ideal thin lens follows the same projection as \autoref{eq:ch3.persp}, with $f$ the lens-to-sensor distance \cite{hataCS231ACourseNotes}. 
-As the lenses used in this project are fixed-focus (\autoref{sec:ch4.hardware}), this distance is constant and a single calibration holds for all images.
+Modern cameras use a glass lens instead of a pinhole, which gathers more light while still focusing the rays from each point onto one sensor point \cite{hataCS231ACourseNotes}.
+An ideal thin lens follows the same projection as \autoref{eq:ch3.persp}, with $f$ as the lens-to-sensor distance \cite{hataCS231ACourseNotes}. 
+The lenses used in this project are fixed-focus, discussed in \autoref{sec:ch4.hardware}, meaning this distance is constant and a single calibration holds for all images \cite{shortisCalibrationTechniquesAccurate2015}.
  
 % MAYBE INCLUDE THE IMAGE?
 
@@ -101,11 +102,11 @@ As the lenses used in this project are fixed-focus (\autoref{sec:ch4.hardware}),
 \label{subsec:ch3.homogeneous}
 %---------------------------------------------------------------------
 The division by $Z_c$ makes \autoref{eq:ch3.persp} nonlinear, meaning it cannot be written as a matrix. Homogeneous coordinates
-solve this by adding an extra coordinate that holds the scale \cite{hartleyMultipleViewGeometry2004}. A 2D point $[x, y]^T$
-now becomes $\tilde{\mathbf{m}} = [x, y, 1]^T$, and a 3D point $\tilde{\mathbf{M}} = [X, Y, Z, 1]^T$. Any multiple of a
-homogeneous vector represents the same point, so $[2x, 2y, 2]^T$ still represents $[x, y]^T$. The point is recovered by dividing
+solve this by adding an extra coordinate that holds the scale \cite{hataCS231ACourseNotes,hartleyMultipleViewGeometry2004}. A two-dimensional point $[x, y]^T$
+now becomes $\tilde{\mathbf{m}} = [x, y, 1]^T$, and a three-dimensional point $\tilde{\mathbf{M}} = [X, Y, Z, 1]^T$. Any multiple of a
+homogeneous vector represents the same point, so that $[2x, 2y, 2]^T$ still represents $[x, y]^T$ \cite{hartleyMultipleViewGeometry2004}. The point is recovered by dividing
 by the last element. This lets the division be left until the end, so that projection, rotation and translation can all be
-written as matrices and chained together. The perspective projection equations then become:
+written as matrices and chained together. The perspective projection equations then become \cite{hartleyMultipleViewGeometry2004}:
 \begin{equation}
 	Z_c
 	\begin{bmatrix} x' \\ y' \\ 1 \end{bmatrix}
@@ -118,15 +119,15 @@ written as matrices and chained together. The perspective projection equations t
 	\begin{bmatrix} X_c \\ Y_c \\ Z_c \\ 1 \end{bmatrix}.
 	\label{eq:ch3.persp_homog}
 \end{equation}
-The matrix product gives $[fX_c, fY_c, Z_c]^T$, and dividing by its last element returns \autoref{eq:ch3.persp}. The unknown
-scale, here $Z_c$, is often written as $\lambda$. 
+The matrix product gives $[fX_c, fY_c, Z_c]^T$, and dividing by its last element returns \autoref{eq:ch3.persp}. This scale is the depth $Z_c$;
+Zhang \cite{zhangFlexibleNewTechnique2000} and OpenCV write it as $s$. 
 %---------------------------------------------------------------------
 \subsection{Intrinsic parameters}
 \label{subsec:ch3.intrinsics}
 %---------------------------------------------------------------------
-\autoref{eq:ch3.persp} gives image positions in millimetres, measured from the principal point. 
+\autoref{eq:ch3.persp} gives image positions in millimetres, measured from the principal point $(u_0, v_0)$. 
 A digital image instead uses pixels $\mathbf{m} = [u, v]^T$, measured from the top-left corner. 
-The intrinsic matrix $\mathbf{K}$ converts the positions from the image plane (mm) to pixel coordinates \cite{zhangFlexibleNewTechnique2000}:
+The intrinsic matrix $\mathbf{K}$ converts the positions from the image plane in millimeters to pixel coordinates \cite{zhangFlexibleNewTechnique2000}:
 \begin{equation}
 	\tilde{\mathbf{m}} = \mathbf{K}\,\tilde{\mathbf{x}},
 	\qquad
@@ -140,8 +141,8 @@ The intrinsic matrix $\mathbf{K}$ converts the positions from the image plane (m
 \end{equation}
 where $\tilde{\mathbf{x}} = [x, y, 1]^T$ are the point's normalised coordinates. The intrinsic matrix parameters are:
 \begin{itemize}
-	\item $\alpha$ and $\beta$: the horizontal and vertical focal length in pixels, equal to $f$ multiplied by the number of pixels per millimetre.
-	\item $(u_0, v_0)$: the principal point in pixels, usually close to the image centre.
+	\item $\alpha$ and $\beta$: the horizontal and vertical focal length in pixels, equal to $f$ multiplied by the number of pixels per millimetre;
+	\item $(u_0, v_0)$: the principal point in pixels, usually close to the image centre;
 	\item $\gamma$: the skew between the sensor axes. This is negligible for modern sensors 
 	and set to zero in OpenCV \cite{opencvCameraCalibration3D}.
 \end{itemize}
@@ -169,10 +170,10 @@ The \textit{extrinsic parameters} describe the rotation and translation
 	\end{bmatrix},
 	\label{eq:ch3.extrinsic}
 \end{equation}
-where $\mathbf{R}$ is a $3 \times 3$ rotation matrix, and $\mathbf{t}$ is a translation vector.
+$\mathbf{R}$ is a 3 by 3 rotation matrix, and $\mathbf{t}$ is a translation vector.
   $\mathbf{R}$ rotates without stretching or mirroring.
-  Note that $\mathbf{t}$ is the position of the world origin seen from the camera, not the position of the camera itself. Regarding the notation used in this report, 
-  $\mathbf{T}_{ab}$ maps points from frame $b$ into frame $a$. This means $\mathbf{T}_{cw}$ corresponds to the \texttt{T\_cam\_world} poses determined in \autoref{ch:reconstruction}. 
+  Importantly, $\mathbf{t}$ is the position of the world origin seen from the camera, not the position of the camera itself.
+  $\mathbf{T}_{cw}$ maps points from the world frame ($w$) into the camera frame ($c$).
 The intrinsics stay fixed for a camera, while the extrinsics change with every image.
 
 
@@ -182,11 +183,11 @@ The intrinsics stay fixed for a camera, while the extrinsics change with every i
 %---------------------------------------------------------------------
 Combining the extrinsics, perspective projection and intrinsics gives the pinhole camera model \cite{zhangFlexibleNewTechnique2000}:
 \begin{equation}
-	\lambda\,\tilde{\mathbf{m}} = \mathbf{K}\,[\mathbf{R} \mid \mathbf{t}]\,\tilde{\mathbf{M}}_w = \mathbf{P}\,\tilde{\mathbf{M}}_w,
+	Z_c\,\tilde{\mathbf{m}} = \mathbf{K}\,[\mathbf{R} \mid \mathbf{t}]\,\tilde{\mathbf{M}}_w = \mathbf{P}\,\tilde{\mathbf{M}}_w,
 	\label{eq:ch3.P}
 \end{equation}
-where $\lambda$ is the depth $Z_c$ and $\mathbf{P}$ is a $3 \times 4$ \textit{projection matrix}. 
-This assumes an ideal lens. Lens distortion cannot be written as a matrix, so it is applied separately to
+where Zc is the depth and $\mathbf{P}$ is a $3 \times 4$ \textit{projection matrix}. 
+This assumes an ideal lens as lens distortion cannot be written as a matrix, instead it is applied separately to
  the normalised coordinates \cite{heikkilaFourstepCameraCalibration1997,opencvCameraCalibration3D}.
   The full projection with distortion is shown in \autoref{fig:ch3.projection_chain},
 where $\bm{\kappa}$ holds the distortion coefficients. 
@@ -212,7 +213,10 @@ where $\bm{\kappa}$ holds the distortion coefficients.
 		\node[op, below=0.15cm of $(n.south)!0.5!(d.south)$] {Distortion\\$\bm{\kappa}$};
 		\node[op, below=0.15cm of $(d.south)!0.5!(p.south)$] {Intrinsics\\$\mathbf{K}$};
 	\end{tikzpicture}
-	\caption[The projection chain]{\textbf{The projection chain.} Extrinsics (\autoref{eq:ch3.extrinsic}), perspective division (\autoref{eq:ch3.normcoord}), lens distortion (\autoref{eq:ch5.bc_x}) and intrinsics (\autoref{eq:ch3.K}).}
+	\caption[The projection chain]{\textbf{The projection chain.} The four steps that map a world point $\mathbf{M}_w$ to a pixel $(u, v)$.
+	The extrinsics $\mathbf{R}, \mathbf{t}$ move the point into the camera frame (\autoref{eq:ch3.extrinsic}), dividing by the depth $Z_c$
+	gives normalised image coordinates $(x, y)$ (\autoref{eq:ch3.normcoord}), the distortion coefficients $\bm{\kappa}$ shift these to
+	$(x_d, y_d)$ (\autoref{eq:ch5.bc_x}), and the intrinsics $\mathbf{K}$ convert them to pixels (\autoref{eq:ch3.K}).}
 	\label{fig:ch3.projection_chain}
 \end{figure}
  
@@ -220,7 +224,7 @@ where $\bm{\kappa}$ holds the distortion coefficients.
 \subsection{Lens distortion}
 \label{subsec:ch3.distortion}
 %---------------------------------------------------------------------
-Real lenses do not follow the pinhole model exactly. The main difference is \textit{radial distortion}. For real lenses, magnification can vary slightly
+The pinhole model is only an approximation of a real camera, and is not accurate enough on its own for precise measurement \cite{heikkilaFourstepCameraCalibration1997}. The main difference is \textit{radial distortion}. For real lenses, magnification can vary slightly
  with distance from the image centre,  so points are pushed towards or away from the principal point. This bends straight lines outwards (\textit{barrel}) 
 or inwards (\textit{pincushion}), as shown in \autoref{fig:ch3.radial_distortion} \cite{brownCloseRangeCameraCalibration1971}. 
 A smaller \textit{tangential} distortion can occur when the lens is not perfectly centred or parallel to the sensor \cite{brownDecenteringDistortionLenses1966}.
@@ -240,11 +244,14 @@ Different methods for mapping normalised coordinates to distorted coordinates ar
 \section{Camera calibration}
 \label{sec:ch3.calibration}
 
-Calibration determines the camera's intrinsics $\mathbf{K}$ and distortion $\bm{\kappa}$,
- which are the same for every image, along with the pose $(\mathbf{R}_i, 
+Calibration determines the camera's intrinsic matrix $\mathbf{K}$ and distortion $\bm{\kappa}$.
+Both are the same for every image, along with the pose $(\mathbf{R}_i, 
  \mathbf{t}_i)$ of each image $i$.
-  It uses a target with a known layout, so the 3D position $\mathbf{M}_j$
-   of each point on it is known. These points are detected in each image at pixel positions 
+  It uses a target with a known layout, so that the three-dimensional position $\mathbf{M}_j$
+   of each point on it is known. 
+   Calibration boards are flat targets printed with a high-contrast pattern, such as a checkerboard or a grid of markers, whose corner positions are precisely known
+   An example of both are shown in \autoref{fig:ch3.targets} in the subsequent section.
+   These points are detected in each image at pixel positions 
  $\mathbf{m}_{ij}$, using the sharp dark-to-light edges at the corners of the black tags.
  With many points across multiple calibration images
  there are far more equations than unknowns. The best fit values are found
@@ -253,26 +260,47 @@ by least squares \cite{zhangFlexibleNewTechnique2000}.
 %---------------------------------------------------------------------
 \subsection{Targets and corner detection}
 \label{subsec:ch3.targets}
-%---------------------------------------------------------------------
-Standard checkerboard targets require the whole board to be visible, so that each corner 
-can be identified by its position in the grid. 
-Fiducial markers such as AprilTags instead encode a unique ID in each tag. This means
- every detected corner can be matched to its known position even when the board 
- is partly out of view or occluded \cite{olsonAprilTagRobustFlexible2011}.
+
+Every corner on a standard checkerboard looks the same, so each one can only be identified by counting its position in the grid.
+This requires the entire board to be visible.
+Fiducial markers such as AprilTags instead encode a unique binary code in each tag (36 bits for the 36h11 family used here). This means
+ every detected corner can be matched to its known position although the board 
+ may be partly out of view or occluded \cite{olsonAprilTagRobustFlexible2011}.
   This project uses an AprilGrid, a board of 
-  AprilTags \cite{furgaleUnifiedTemporalSpatial2013}, as AprilTags 
-  were the most reliably detected of the markers tested in turbid water
- by dos Santos Cesar et al.~\cite{dossantoscesarEvaluationArtificialFiducial2015}. 
+  AprilTags \cite{furgaleUnifiedTemporalSpatial2013}, as dos Santos Cesar et al found AprilTags 
+ to be the most reliably detected markers in turbid water
+  \cite{dossantoscesarEvaluationArtificialFiducial2015}. 
  The calibration procedure is given in \autoref{subsec:ch5.calibration} and the detector settings in \autoref{app:detector_configs}.
+ 
+\begin{figure}[H]
+	\centering
+	\begin{subfigure}[t]{0.36\textwidth}
+		\centering
+		\includegraphics[width=\linewidth]{figs/Ch3/checkerboard.png}
+		\caption{Checkerboard.}
+		\label{fig:ch3.checkerboard}
+	\end{subfigure}
+	\hspace{1.5em}
+	\begin{subfigure}[t]{0.36\textwidth}
+		\centering
+		\includegraphics[width=\linewidth]{figs/Ch3/aprilgrid_36h11_10x7.pdf}
+		\caption{AprilGrid.}
+		\label{fig:ch3.aprilgrid}
+	\end{subfigure}
+	\caption[Calibration targets]{\textbf{Calibration targets.} Flat boards with corners at known positions, which are detected in each image to calibrate the camera.
+	(a) A standard checkerboard \cite{calib.ioCheckerboardTargets}, which must be fully visible for its corners to be identified.
+	(b) An AprilGrid, a board of AprilTags. Each tag carries a unique binary code, so its corners can be identified even when the board is partly hidden.}
+	\label{fig:ch3.targets}
+\end{figure}
 
 %---------------------------------------------------------------------
 \subsection{Zhang's method}
 \label{subsec:ch3.zhang}
 %---------------------------------------------------------------------
 Zhang's method \cite{zhangFlexibleNewTechnique2000} has become the standard approach for camera calibration and works in two stages.
-Because the calibration board is flat, the mapping from board points to image points in
+Since the calibration board is flat, the mapping from board points to image points in
  each image is a plane-to-plane transformation, a \textit{homography}.
-Each homography combines the intrinsics $\mathbf{K}$, which are the same in every image, with the board's pose, which changes between images.
+Each homography combines the intrinsic matrix $\mathbf{K}$, which are the same in every image, with the board's pose, which changes between images.
 With three or more images of the board at different orientations, $\mathbf{K}$ can be solved in closed form, and the pose of each image then follows.
 This first estimate ignores lens distortion and noise.
 
@@ -280,14 +308,14 @@ In the second stage, all parameters, including distortion, are refined together 
  minimising the \textit{reprojection error}. This is the distance between each detected 
  corner and where the camera model predicts it should appear,
 \begin{equation}
-	E = \sum_{i}\sum_{j} \left\| \mathbf{m}_{ij} - \pi(\mathbf{M}_j;\, \mathbf{K}, \bm{\kappa}, \mathbf{R}_i, \mathbf{t}_i) \right\|^2 .
+	E_{\text{reproj}} = \sum_{i}\sum_{j} \left\| \mathbf{m}_{ij} - \pi(\mathbf{M}_j;\, \mathbf{K}, \bm{\kappa}, \mathbf{R}_i, \mathbf{t}_i) \right\|^2 ,
 	\label{eq:ch3.reproj}
 \end{equation}
 where $\pi(\cdot)$ projects a board point through the full camera model of \autoref{fig:ch3.projection_chain}.
 In the OpenCV implementation, this is solved iteratively
  with the Levenberg--Marquardt algorithm\footnote{Levenberg--Marquardt algorithm: An iterative method for non-linear least-squares problems.}
  \cite{marquardtAlgorithmLeastSquaresEstimation1963} as the camera model is non-linear. The model's fit is determined
- by the root-mean-square (RMS) reprojection error in pixels.
+ by the \gls{rms} reprojection error in pixels.
 %---------------------------------------------------------------------
 \subsection{Stereo calibration}
 \label{subsec:ch3.stereo_calib}
@@ -300,29 +328,28 @@ In a stereo pair, both cameras view the same board.
 	\mathbf{R}_{rl} = \mathbf{R}_r\,\mathbf{R}_l^T, \qquad \mathbf{t}_{rl} = \mathbf{t}_r - \mathbf{R}_{rl}\,\mathbf{t}_l .
 	\label{eq:ch3.stereo_extrinsics}
 \end{equation}
-As the cameras are rigidly mounted, this transformation is the same for every image pair.
+Since the cameras are rigidly mounted, this transformation is the same for every image pair.
 It is refined together with both cameras' parameters by minimising the
  reprojection error in both images. 
- The \textit{baseline} is the distance between the camera centres, 
- $B = \|\mathbf{t}_{rl}\|$.
 
 %---------------------------------------------------------------------
 \subsection{Calibrating underwater}
 \label{subsec:ch3.underwater_calib}
 %---------------------------------------------------------------------
-Underwater cameras are sealed inside a waterproof housing and capture the underwater scene through either a dome or a flat window.
-With a flat window, or \textit{port}, light passes from water through
- glass into air, bending at each surface. The angle of this refractive bending
+Underwater cameras are sealed inside a waterproof housing and capture the underwater scene through either a dome or a flat port.
+With a flat port, light passes from water through
+ glass into air, bending at each surface (\autoref{fig:ch3.snell_port}). The angle of this refractive bending
  is defined by Snell's law \cite{hechtOptics2017}:
 \begin{equation}
 	n_w \sin\theta_w = n_g \sin\theta_g = n_a \sin\theta_a ,
 	\label{eq:ch3.snell}
 \end{equation}
-where $n$ is the refractive index and $\theta$ the angle to the port'S normal.
- Near the optical axis, $\sin\theta \approx \tan\theta$, so a ray arriving at angle $\theta_w$ reaches the camera 
- at $\tan\theta_a \approx n \tan\theta_w$, where $n = n_w / n_a \approx 1.33$. The image is therefore magnified by about 1.33. 
- The effective focal length increases and the field of view narrows \cite{shortisCalibrationTechniquesAccurate2015}. 
-
+where $n_w$, $n_g$ and $n_a$ are the refractive indices of water, glass and air, and $\theta$ is the angle to the port's normal.
+ Since the two faces of the port are parallel, the glass does not change the final angle, so only water and air matter.
+ With $n_w \approx 1.33$ and $n_a \approx 1.00$ \cite{hechtOptics2017}, their ratio is $n = n_w / n_a \approx 1.33$.
+ For seawater, $n_w$ is slightly higher at about 1.34 \cite{quanEmpiricalEquationIndex1995}.
+ Near the optical axis, $\sin\theta \approx \tan\theta$, so a ray arriving at angle $\theta_w$ reaches the camera
+ at $\tan\theta_a \approx n \tan\theta_w$. The image is therefore magnified by approximately 1.33. 
  
 % DIAGRAM ADAPTED FROM https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=6248073
 \begin{figure}[H]
@@ -335,7 +362,7 @@ where $n$ is the refractive index and $\theta$ the angle to the port'S normal.
 \end{figure}
 
 
-Refraction also breaks the pinhole assumption. The refracted rays no longer pass through a single point, so the camera is no longer \textit{central} \cite{treibitzFlatRefractiveGeometry2012}. 
+Refraction further invalidates the pinhole assumption. The refracted rays no longer pass through a single point, so that the camera is no longer central \cite{treibitzFlatRefractiveGeometry2012}. 
 A pinhole model fitted underwater is therefore only exact at certain distances, and its errors depend on how far away the scene is \cite{treibitzFlatRefractiveGeometry2012}.
 
 Shortis~\cite{shortisCalibrationTechniquesAccurate2015} separates underwater calibration methods into three groups:
@@ -344,7 +371,7 @@ Shortis~\cite{shortisCalibrationTechniquesAccurate2015} separates underwater cal
 	most of the refraction. This is simple but is only accurate over the distances it was calibrated at \cite{shortisCalibrationTechniquesAccurate2015}.
 	\item \textbf{Calibrate in air and correct separately.} The camera is calibrated in air, and refraction is corrected using the port geometry and the refractive index of 
 	the water, as in the Pinax model \cite{luczynskiPinaxmodelAccurateEfficient2017}.
-	\item \textbf{Model refraction explicitly.} The refraction at the port is modelled explicitly (e.g. tracing each ray through the glass)~\cite{agrawalTheoryMultilayerFlat2012}.
+	\item \textbf{Model refraction explicitly.} The refraction at the port is modelled explicitly by tracing each ray through the glass~\cite{agrawalTheoryMultilayerFlat2012}.
 \end{enumerate}
 
 \autoref{subsec:ch5.theory_calibration_techniques} describes the compensation methods tested in this project, and \autoref{subsec:ch5.underwater_compensation_analysis} compares them.
@@ -358,9 +385,10 @@ Shortis~\cite{shortisCalibrationTechniquesAccurate2015} separates underwater cal
 
 A single image can determine the ray on which a point lies, but not how far along it the point is in space.
  A second camera, at a known distance from the first, sees the same point along a second ray. The point lies 
- where the two rays meet. The distance between the cameras is the baseline (\autoref{subsec:ch3.stereo_calib}). 
+ where the two rays meet. The distance between the cameras is the baseline, $B = \|\mathbf{t}_{rl}\|$,
+ where $\mathbf{t}_{rl}$ is the translation from stereo calibration (\autoref{eq:ch3.stereo_extrinsics}). 
  This section describes the geometry that joins the two views.
-
+.
 %---------------------------------------------------------------------
 \subsection{Epipolar geometry and triangulation}
 \label{subsec:ch3.epipolar}
@@ -370,11 +398,11 @@ The \textit{epipolar plane} is made up of the two camera centres and a point in 
   A point seen in the left image must therefore appear somewhere along the corresponding epipolar line in the right image.
   This reduces the search for a matching point from the whole image down to a single line \cite{hartleyMultipleViewGeometry2004}. 
   % The actual search is given in addressed in ref section
-  
- With matched left and right points, \textit{triangulation} finds the 3D point where the two rays meet.
- The standard linear method combines the projection equations (\autoref{eq:ch3.P}) of both cameras into one 
+  % TOOD: ADD DIAGRAM
+ With matched left and right points, \textit{triangulation} finds the three-dimensional point where the two rays meet.
+ The standard linear method combines the projection equations, in \autoref{eq:ch3.P}, of both cameras into one 
  system and solves it by least squares \cite{hartleyMultipleViewGeometry2004}. 
- OpenCV's \texttt{triangulatePoints} uses this method \cite{opencvCameraCalibration3D}. Triangulation produces a 3D point in the left camera frame.
+ OpenCV's \texttt{triangulatePoints} uses this method \cite{opencvCameraCalibration3D}. Triangulation produces a three-dimensional point in the left camera frame.
 %---------------------------------------------------------------------
 \subsection{Rectification}
 \label{subsec:ch3.rectification}
@@ -382,19 +410,19 @@ The \textit{epipolar plane} is made up of the two camera centres and a point in 
 The epipolar lines generally run at an angle across the images.
  \textit{Rectification} virtually rotates both cameras so that their image planes are
   parallel to each other and to the baseline.
-   The epipolar lines then become horizontal and aligned, so a point on any row of the 
+   The epipolar lines then become horizontal and aligned, so that a point on any row of the 
    left image has its match on the same row of the right image \cite{fusielloCompactAlgorithmRectification2000}. 
-   Rectification is applied as an image warp, computed once from the calibration, which also removes lens distortion \cite{opencvCameraCalibration3D}.
+   Rectification is applied as an image warp, computed once from the calibration, and also removes lens distortion \cite{opencvCameraCalibration3D}.
 
 %---------------------------------------------------------------------
 \subsection{Depth from disparity}
 \label{subsec:ch3.disparity}
 %---------------------------------------------------------------------
-After rectification, the two cameras act like identical pinhole cameras placed side by side with baseline $B$.
+After rectification, the two cameras act as identical pinhole cameras, placed side-by-side with baseline, $B$.
  With the left camera at the origin, a point at horizontal position $X$ and depth $Z$ is at $x_l = fX/Z$ 
  in the left image and $x_r = f(X - B)/Z$ in the right (\autoref{eq:ch3.persp}).
  The difference between these two positions is the \textit{disparity} $d$, and 
- gives depth at that point \cite{szeliskiComputerVisionAlgorithmsa}:
+ resolves depth at that point \cite{szeliskiComputerVisionAlgorithmsa}:
 \begin{equation}
 	d = x_l - x_r = \frac{fB}{Z}
 	\qquad\Longrightarrow\qquad
@@ -402,38 +430,38 @@ After rectification, the two cameras act like identical pinhole cameras placed s
 	\label{eq:ch3.depth}
 \end{equation}
 with $f$ and $d$ in pixels and $Z$ in the units of $B$. Points close to the camera
- have large disparities and distant points have small ones. 
- Once $Z$ is known, $X$ and $Y$ can be calculated from \autoref{eq:ch3.persp}, so every matched pixel gives a 3D point.
+ have larger disparities than distant points. 
+ Once $Z$ is known, $X$ and $Y$ can be calculated from \autoref{eq:ch3.persp}, so that every matched pixel
+ resolves to a three-dimensional point.
 
 Since disparity can only be measured to the accuracy of the point matching, 
 typically a fraction of a pixel, the depth error grows
  with the square of the distance \cite{szeliskiComputerVisionAlgorithmsa}.
  Furthermore, any  error in the calibrated focal length or
- baseline scales every depth by the same proportion.
+ baseline proportionately scales every depth measurement.
 
 
 \section{Stereo matching}
 \label{sec:ch3.stereo_matching}
 %=====================================================================
-Using \autoref{eq:ch3.depth} requires the disparity of each pixel, 
-which means finding pixels that show the same point in the left and right image.
- This is the \textit{correspondence problem}. 
+Using \autoref{eq:ch3.depth} to calculate depth requires the disparity of each pixel. 
+This requires finding pixels that show the same point in the left and right image, known as the \textit{correspondence problem}. 
 Rectification reduces the search to a single row, but matching is still difficult \cite{scharsteinTaxonomyEvaluationDense2002}.
-In areas with little texture, many candidates look alike, and repetitive surface patterns produce several possible matches.
-Underwater, scattering and attenuation also reduce contrast, making matches less distinct
+In areas with little texture, such as the smooth ice underside \cite{langeDevelopmentSeaIce1989,zhaoModifyingAffordableROV2021}
+(\autoref{sec:ch2.imaging_challenges}), many candidates look alike and repetitive surface patterns produce several possible matches.
+Underwater, scattering and attenuation contribute to reduced contrast, making matches less distinct
 \cite{jaffeComputerModelingDesign1990,roserSimultaneousUnderwaterVisibility2014}.
 
 % Might remove this if not really relevant
-Most stereo matching methods follow the same four steps \cite{scharsteinTaxonomyEvaluationDense2002}:
+Most stereo matching methods follow the following four steps \cite{scharsteinTaxonomyEvaluationDense2002}:
 \begin{enumerate}
 	\item \textbf{Matching cost:} for each pixel, compare its patch in the left image with patches at every possible 
-	disparity in the right image, and score how different they look. Together, these scores form a \textit{cost volume}.
+	disparity in the right image, and score how different they look. Together, these scores form a \textit{cost volume}, giving the matching cost of every pixel at every candidate disparity.
 	\item \textbf{Cost aggregation:} average the scores over neighbouring pixels to reduce any noise effects.
 	\item \textbf{Disparity selection:} choose the lowest-cost disparity for each pixel, either directly (local methods) or while also penalising jumps between neighbouring pixels (global and semi-global methods).
 	\item \textbf{Refinement:} estimate disparities to a fraction of a pixel, and remove unreliable ones.
 \end{enumerate}
 The result is a disparity map, which \autoref{eq:ch3.depth} converts into depth, giving a point cloud.
-
 This project compares three types of matchers in \autoref{sec:ch5.depth_test}.
 
 
@@ -444,17 +472,17 @@ This project compares three types of matchers in \autoref{sec:ch5.depth_test}.
 \label{sec:ch3.pose}
 
 \autoref{sec:ch3.stereo_matching} showed that a point cloud can be generated from each
-frame. During a video the camera moves, so every frame's
+frame. During a video the camera moves, and so every frame's
  cloud is in a different reference frame. 
- To combine them, the pose of the camera in each frame must be determined (\autoref{subsec:ch3.extrinsics}).
+ To combine them, the pose of the camera in each frame must be determined as discussed in \autoref{subsec:ch3.extrinsics}.
 
 %---------------------------------------------------------------------
 %---------------------------------------------------------------------
 \subsection{Pose estimation}
 \label{subsec:ch3.pose}
 %---------------------------------------------------------------------
-A camera pose is the position and orientation of the camera in the world frame, and it changes as the camera moves
-through the scene. The poses are needed to combine the 3D points from every frame into a single reconstruction.
+A \textit{camera pose} is the position and orientation of the camera in the world frame, and it changes as the camera moves
+through the scene. It is written $\mathbf{T}_{wc}$, the inverse of the extrinsics in \autoref{eq:ch3.extrinsic}, and maps points from the camera frame into the world frame. The poses are needed to combine the three-dimensional points from every frame into a single reconstruction.
 Pose can be determined in several ways, three of which are compared in \autoref{sec:ch5.pose_estimation}.
 
 
@@ -464,38 +492,37 @@ Pose can be determined in several ways, three of which are compared in \autoref{
 %---------------------------------------------------------------------
 Once a frame's pose is known, the frame's depth map can be
  converted into the world frame. 
-Each pixel $\tilde{\mathbf{m}}$ with depth $Z$ is first turned back into a 3D point in the camera frame, and then moved into the world frame using the inverse of the camera pose:
+Each pixel $\tilde{\mathbf{m}}$ with depth $Z_c$ is first turned back into a three-dimensional point in the camera frame, and then moved into the world frame using the camera pose:
 \begin{equation}
-	\mathbf{M}_c = Z\,\mathbf{K}^{-1}\tilde{\mathbf{m}},
+	\mathbf{M}_c = Z_c\,\mathbf{K}^{-1}\tilde{\mathbf{m}},
 	\qquad
-	\tilde{\mathbf{M}}_w = \mathbf{T}_{wc}\,\tilde{\mathbf{M}}_c ,
-	\quad \mathbf{T}_{wc} = \mathbf{T}_{cw}^{-1} .
+	\tilde{\mathbf{M}}_w = \mathbf{T}_{wc}\,\tilde{\mathbf{M}}_c
+	\quad \mathbf{T}_{wc} = \mathbf{T}_{cw}^{-1} ,
 	\label{eq:ch3.backproject}
 \end{equation}
-Successive frames overlap, so the same surface is captured in
+where $\mathbf{T}_{wc}$ is the camera pose and $\mathbf{T}_{cw}$ the extrinsic matrix of \autoref{eq:ch3.extrinsic}.
+Successive frames overlap, so that the same surface is captured in
 multiple frames. Merging these overlapping points averages out noise and
 removes points seen in only a few frames \cite{curlessVolumetricMethodBuilding1996}.
 The fusion methods used in this report, described in \autoref{subsec:ch5.fusion_tested}, are based on \textit{voxels}:
-  small cubes that divide the scene into a 3D grid, each storing
+  small cubes that divide the scene into a three-dimensional grid, each storing
   information about the surface inside it, which is combined across frames.
 %--------------------------------------
 
-\section{Pipeline summary: from 2D images to 3D}
+\section[Pipeline summary]{Pipeline summary: from two-dimensional images to a three-dimensional surface}
 \label{sec:ch3.pipeline_summary}
 This chapter has explained the foundational theory needed to turn a set of stereo
- image pairs into a 3D surface. 
-\autoref{fig:ch3.pipeline} below shows how the different stages come together.
- Calibration 
-(\autoref{sec:ch3.calibration}) gives the
+ image pairs into a three-dimensional surface. 
+\autoref{fig:ch3.pipeline} below shows how the different steps come together.
+ Calibration, discussed in \autoref{sec:ch3.calibration}, gives the
 intrinsics, distortion coefficients and stereo extrinsics, which are 
-used to undistort and rectify each image pair
-(\autoref{subsec:ch3.rectification}). Stereo matching 
+used to undistort and rectify each image pair, as described in\autoref{subsec:ch3.rectification}. Stereo matching 
 (\autoref{sec:ch3.stereo_matching}) then finds the disparity of
-each pixel, which is converted to depth (\autoref{subsec:ch3.disparity}) 
+each pixel, which is converted to depth in \autoref{subsec:ch3.disparity}
 to give a point cloud in the camera frame.
-Finally, each frame's pose (\autoref{subsec:ch3.pose}) is used to move its points 
+Finally,\autoref{subsec:ch3.pose} describes how each frame's pose (\autoref{subsec:ch3.pose}) is used to move its points 
 into a common world frame, where overlapping
-frames are joined into a single surface (\autoref{subsec:ch3.fusion}).
+frames are joined into a single surface in \autoref{subsec:ch3.fusion}.
 
 \begin{figure}[H]
 	\centering
@@ -510,7 +537,7 @@ frames are joined into a single surface (\autoref{subsec:ch3.fusion}).
 		\node[box, right=of rect] (disp) {Disparity map\\$d$};
 		\node[box, right=of disp] (cam) {Camera points\\$\mathbf{M}_c$};
 		\node[box, right=of cam] (world) {World points\\$\mathbf{M}_w$};
-		\node[box, right=of world] (surf) {3D surface};
+		\node[box, right=of world] (surf) {Three-dimensional surface};
 		\foreach \a/\b in {raw/rect, rect/disp, disp/cam, cam/world, world/surf} \draw[->] (\a) -- (\b);
 		\node[op, below=0.15cm of $(raw.south)!0.5!(rect.south)$] {Rectify\\$\mathbf{K}, \bm{\kappa}, \mathbf{R}, \mathbf{t}$};
 		\node[op, below=0.15cm of $(rect.south)!0.5!(disp.south)$] {Stereo\\matching};
@@ -518,9 +545,14 @@ frames are joined into a single surface (\autoref{subsec:ch3.fusion}).
 		\node[op, below=0.15cm of $(cam.south)!0.5!(world.south)$] {Pose\\$\mathbf{T}_{wc}$};
 		\node[op, below=0.15cm of $(world.south)!0.5!(surf.south)$] {Fusion};
 	\end{tikzpicture}
-	\caption[The processing pipeline from images to a 3D surface]{\textbf{Processing pipeline from stereo images to a 3D surface.} The operation
-	 done between each stage is
-	 labelled below its arrow.}
+	\caption[The processing pipeline from images to a three-dimensional surface]{\textbf{Processing pipeline from stereo images to a three-dimensional surface.}
+	 Each box is a stage of the data, and the operation between stages is labelled below its arrow.
+	 The stereo pair is rectified using the calibrated intrinsics $\mathbf{K}$, distortion $\bm{\kappa}$ and stereo extrinsics $\mathbf{R}, \mathbf{t}$
+	 (\autoref{sec:ch3.calibration}, \autoref{subsec:ch3.rectification}).
+	 Stereo matching finds a disparity $d$ for each pixel (\autoref{sec:ch3.stereo_matching}), which is converted to depth with $Z = fB/d$
+	 and back-projected to points $\mathbf{M}_c$ in the camera frame (\autoref{subsec:ch3.disparity}).
+	 Each frame's pose $\mathbf{T}_{wc}$ moves its points into the world frame (\autoref{subsec:ch3.pose}),
+	 and overlapping frames are fused into a single surface (\autoref{subsec:ch3.fusion}).}
 	\label{fig:ch3.pipeline}
 \end{figure}
 

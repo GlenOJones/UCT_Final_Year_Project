@@ -4,8 +4,85 @@
 \chapter{Conclusions}
 \label{ch:conclusions}
 %---------------------------------------------------------------------
+%
+% Add references to full chaptes. I e in chapter on , or (Chapter 2)
 
-Should be like a two page summary of how the thing went. 
+This project set out to research and carry out an initial proof of concept for underwater three-dimensional
+stereo reconstruction, using the \gls{uct} BlueROV2 platform. The aim was to generate a dataset and to analyse the
+surface reconstruction of known targets, as a first step towards assessing the feasibility of reconstructing the
+underside of Antarctic sea ice.
+
+% Lit review summary
+The report began by reviewing the existing literature (\hyperref[ch:review]{Chapter~\ref*{ch:review}}). The role of the Southern Ocean
+and its sea ice in absorbing anthropogenic heat and CO\textsubscript{2}, and the role of sea ice in the ecosystem,
+were examined. The formation of pancake ice within the \gls{miz} was then described, showing how wave action breaks
+forming ice into pancake-like disks. The shortcomings of satellite and above-ice observations were identified,
+showing the need to observe from below the ice. Previous sonar and optical measurements in the region were
+summarised and compared. Finally, the difficulties of optical observation underwater were explained, and
+existing underwater reconstructions from different applications were examined.
+
+% Theory summary
+Building on this research and its associated challenges, the underlying theory was developed in
+\hyperref[ch:theory]{Chapter~\ref*{ch:theory}}. The pinhole camera model was built up from first principles, followed by camera
+calibration, how a stereo pair generates depth maps, and how the resulting frames are posed and fused into a three-dimensional
+reconstruction.
+
+% Hardware and software explanation
+The hardware and software used for data collection and processing were then described in
+\hyperref[ch:design]{Chapter~\ref*{ch:design}}. This highlighted the dropouts in the stereo camera feeds, which were traced to USB
+bandwidth on the \gls{rpi} and fixed by upgrading it from an \gls{rpi}~4 to an \gls{rpi}~5.
+
+\hyperref[ch:dataset]{Section~\ref*{ch:dataset}} described how the test rig and calibration board were designed, built and used to
+record the dataset for this report. This dataset is a significant product of the research, as it contains further
+recordings beyond the three datasets used here. It can be used by future students or researchers, either to
+extend this work or for other tests.
+
+% Calibration summary, what was done, what was concluded
+The experimental work began with underwater stereo calibration (\hyperref[ch:calibration]{Chapter~\ref*{ch:calibration}}). AprilTag detection
+was first improved by merging the detections from the greyscale and colour channels, which raised the detection
+rate from 0.354 to 0.432, and then by tuning the OpenCV detector, which kept 75\,\% more tags.
+With enough tags detected for reliable calibration, five approaches to underwater calibration were
+tested: two based on in-air calibration and three fitted to underwater images. Repeated train and held-out splits
+were used to reduce bias in the evaluation. Calibrating with underwater images was found to be crucial for
+preserving accuracy across the full field of view. The underwater Brown-Conrady model was selected, with a
+held-out reprojection error of 0.29\,px, against 8.6\,px for the in-air calibration and 1.9\,px for Pinax, and it
+measured tags on an independent target to within about 2\,mm (1.5\,\%). Testing an axial shift model further
+showed that the Aquagon optics follow the single-viewpoint approximation, so the underwater images could be
+processed with the standard pinhole camera model.
+
+% 3D Reconstruction
+The next stage generated three-dimensional surfaces from the calibrated stereo pairs (\hyperref[ch:reconstruction]{Chapter~\ref*{ch:reconstruction}}). This was
+split into depth map generation, estimating each frame's pose, and fusing the frames into a three-dimensional point cloud. For
+depth map generation, a classical matcher (\gls{sgbm}) was compared with two learnt models, FoundationStereo and
+AquaStereo. FoundationStereo gave the highest coverage on the ice targets in shade and was the only matcher to
+keep the full ice shape in direct sunlight, where most of the \gls{sgbm} depth was speckle. For pose estimation, COLMAP
+produced the most accurate trajectories in shade, but in sunlight its poses jumped between frames and left. \Gls{icp} with
+FoundationStereo depth maps was the second most accurate in shade, and the only method to track the camera
+throughout the sunlit pass. Frame fusion then compared COLMAP's PatchMatch stereo with \gls{tsdf} fusion of both the
+FoundationStereo and the tuned \gls{sgbm} depth maps. \Gls{tsdf} with FoundationStereo performed best overall, giving the most
+complete and accurate reconstructions of both pyramids and the cleanest surfaces on the ice targets. However, on
+the egg carton, the learnt model placed a smooth surface across a partly hidden curved region, resulting in a high
+error. It was therefore recommended that reconstructions of real sea ice be compared against COLMAP, to check how
+often this occurs. Finally, the full pipeline was tested with reduced numbers of frames, and the run times were
+measured. Reducing the number of frames had little impact on the surfaces facing the camera, but the side walls,
+which are only seen in a few frames, became degraded. The final pipeline uses COLMAP for pose, FoundationStereo for
+depth and \gls{tsdf} for fusion, and takes around 7\,s per frame.
+
+This project successfully demonstrated an initial test of underwater three-dimensional stereo reconstruction using the BlueROV2.
+A test rig was manufactured and a thorough dataset was generated. Different implementations were tested for the
+calibration, depth generation, pose estimation and frame fusion stages of the pipeline, and the best method for
+each stage was selected. Specific failure cases were identified for each method, and the performance of the full
+pipeline was analysed. The project was not designed to be ready for full deployment, but it serves as a solid
+foundation and proof of concept. Furute work discussed in the following chapter
+
+
+
+ % 3D reconstruction, how seperated, what was tested, what teh results were
+
+ % Genera results of everything
+
+ % SUmmarirtive success
+ 
 %*********************************************************************
 % END
 %*********************************************************************

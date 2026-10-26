@@ -4,16 +4,58 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-This report describes the ......
-
-Add the image here
-
 %====================================================
 \section{Background}
 \label{sec:ch1.background}
-Bring Tristyn stuff from the lit review here
 
 
+Although the Southern Ocean 
+covers only 20 to 30\,\% of Earth's oceans, 
+it absorbs approximately $75\,\%$ of all anthropogenic\footnote{Anthropogenic: caused or produced by human activity, rather than occurring naturally.} and $40\,\%$ of the anthropogenic CO\textsubscript{2} 
+ heat taken up by the world's oceans \cite{kennicuttSustainedAntarcticResearch2019}. Each winter, up to 18 million km$^2$ of this ocean
+  freezes over \cite{parkinson40yRecordReveals2019}, and this seasonal sea ice plays a central role in both the heat and carbon uptake \cite{rysgaardSeaIceContribution2011}.
+
+The heat absorption is driven by unique wind patterns and deep ocean vertical mixing.
+Persistent westerly winds over the Southern Ocean transport surface water north via Ekman drift \cite{Circulation}. This draws deep water masses (Circumpolar Deep Water) 
+to the surface, where the cold water pulls heat out of the atmosphere \cite{armourSouthernOceanWarming2016}.
+The cold  water moves towards the equator and sinks beneath the warmer subtropical waters, burying the
+absorbed atmospheric thermal energy.
+
+There are two main engines driving the absorption of CO\textsubscript{2} in the Southern and Antarctic oceans \cite{gruberOceanicSinkAnthropogenic2019,kennicuttSustainedAntarcticResearch2019}.
+The first is a physical pump. CO\textsubscript{2}'s solubility improves at low temperatures, meaning the cold upwelled water pulls carbon out of the atmosphere \cite{gruberOceanicSinkAnthropogenic2019}.
+The second is a biological pump. The cold upwelled water contains nutrients, inducing large phytoplankton blooms during
+the polar spring and summer. The phytoplankton absorb carbon during photosynthesis which then sinks deep into the ocean in the form of dead biomass and faecal matter \cite{kennicuttSustainedAntarcticResearch2019}.
+
+% Ice importatns - NEED MUCH MORE EMPHASIS FOR THE IMPORTANCE OF THE ICE, AND THE UNDERSIDE OF THE ICE.
+The ice surrounding the Antarctic continent plays a critical role in these processes as well
+as serving key ecological purposes. 
+It provides a habitat for sea-ice algae, which act as primary producers in the Antarctic food web during low-productivity periods \cite{lizotteContributionsSeaIce2001}.
+%and contributes to the carbon pump that increases net CO\textsubscript{2} uptake through brine rejection and further processes \cite{rysgaardSeaIceContribution2011}.
+
+
+ The region between the main ice pack and the open ocean, where \gls{sic} ranges from 15 to 80\,\%, is
+ typically defined as the \gls{miz} \cite{dumontMarginalIceZone}.
+ In the \gls{miz}, ice forms rapidly as pancake ice, which consists of circular disks that are continually subjected to ocean swells. The formation
+ of this pancake ice is examined in \autoref{sec:ch2.pancake_ice}.
+ This accelerated freezing causes intense brine rejection, where the excluded salt increases surface water density. 
+ This high-density water sinks, directly powering the physical carbon pump
+ \cite{gruberOceanicSinkAnthropogenic2019}. 
+
+
+Much of this exchange occurs at the underside of the ice, which forms the interface between the ice and the ocean. 
+The shape of the underside determines the drag between the ice and the water and the area over which heat is exchanged. 
+It also provides a habitat for sea-ice algae, which act as the main primary producers when the open water is 
+least productive \cite{lizotteContributionsSeaIce2001}. Antarctic krill are concentrated in a narrow band 
+beneath the ice edge \cite{brierleyAntarcticKrillSea2002}.
+Despite this, the underside of pancake ice remains largely unstudied. Satellites infer ice thickness from the 
+height of the ice above the waterline, and cannot observe the underside directly \cite{zygmuntowskaUncertaintiesArcticSea2014}. 
+While the upper surface of pancake ice has been reconstructed at centimetre resolution \cite{spirakis3DReconstructionPancake2023}, 
+no equivalent measurements exist for the underside, and models of the ice-ocean interface simplify the pancake geometry. 
+Direct, fine-scale observations of the underside of pancake ice are therefore needed to improve 
+understanding of heat exchange, carbon uptake and primary production in the region.
+
+%  What about ecological factors? habitat for what? why important?
+% Conlcusion sentence.
 
 %====================================================
 \section{Problem Statement}
@@ -22,6 +64,12 @@ Bring Tristyn stuff from the lit review here
 
 
 
+\begin{figure}[H]
+	\centering
+	\includegraphics[width=0.6\textwidth]{figs/ch1/ROVIceSetup.pdf}
+	\caption[BlueROV2 mapping the sea ice underside]{\textbf{BlueROV2 mapping the sea ice underside.} The tethered \acrshort{rov} looks upwards with a stereo camera pair, and points on the ice underside are seen by both cameras.}
+	\label{fig:ch1.rov_ice_setup}
+\end{figure}
 %====================================================
 \section{Project objectives}
 \label{sec:ch1.projectobjectives}
@@ -29,8 +77,11 @@ Bring Tristyn stuff from the lit review here
 % General goal to test underwater environemner, using ROVYn
 
 % NOt a fully fledged ready to deploy, but rather a proof of concept and analyse of how it might work
-
-
+The aim of this project is to research and carry out an initial proof of concept for three-dimensional stereo underwater reconstruction using the BlueROV2. 
+The first objective is to investigate different reconstruction implementations and select the most suitable one for the platform. 
+The second is to design and build a test rig that allows stereo imagery to be collected in a controlled environment. The third is 
+to use this rig to generate a dataset of targets with known geometry, which allows the accuracy of the reconstruction to be quantified. 
+The final objective is to discuss the performance of the system and recommend improvements towards under-ice deployment
 %====================================================
 \section{Scope, limitations and assumptions}
 \label{sec:ch1.scope}
@@ -48,17 +99,9 @@ TIme based
 \section{Plan of development}
 \label{sec:ch1.planofdevelopment}
 
-GEneral structure
+This report begins with
 
-stuff
-stuffSG[Nigeria] x ASEIC 2026 in Abuja
-stuff
-stuff
-\pagebreak
-stuff
-stuff
-\newpage
-\pagebreak
+% Just general trend of events
 %====================================================
 %----------------------------------------------------
 %****************************************************

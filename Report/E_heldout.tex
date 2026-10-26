@@ -16,10 +16,10 @@ the list of splits is also saved in \texttt{run\_info.json} beside the results.
 \section{Underwater recordings and frames}
 \label{app:heldout:recordings}
 
-The underwater calibration data are eight recordings of the Kalibr AprilGrid (AprilTag 36h11, 35.36~mm tags,
+The underwater calibration data are eight recordings of the Kalibr AprilGrid (AprilTag 36h11, 35.36\,mm tags,
 $10\times7$), each a sweep of the board towards and away from the rig at one tilt. One stereo frame was extracted
 per nominal distance; the nominal distance in centimetres is the number in the file name
-(\texttt{c1\_Left\_100.png} is the left image at a nominal 100~cm). The corners were detected once by
+(\texttt{c1\_Left\_100.png} is the left image at a nominal 100\,cm). The corners were detected once by
 \texttt{Calibration.py} with the \texttt{water\_final} detector preset on the gray channel. Only the images and
 tags that run kept after its outlier rejection are used, so a camera can have fewer frames than its recording.
 The measured distance is from the camera to the board centre, from each image's board pose in that calibration.
@@ -49,7 +49,7 @@ Total                      & 84                    & 80                    & 232
 \end{tabular}
 \end{table}
 
-Within each range in Table~\ref{tab:app:recordings} the frames are at every 10~cm. The images of
+Within each range in Table~\ref{tab:app:recordings} the frames are at every 10\,cm. The images of
 \texttt{Water\_L1\_Frames} are named \texttt{c1\_\ldots} on disk; they are a separate recording from
 \texttt{Water\_C1\_frames}. Altogether the left camera contributes 18\,772 board corners and the right camera
 18\,436.
@@ -129,7 +129,7 @@ into three concentric zones:
 \end{equation}
 
 Table~\ref{tab:app:zones} gives the values for the underwater Brown-Conrady fit on all recordings. The other
-techniques' principal points are within 4~px of these, so their zone boundaries move by less than 4~px.
+techniques' principal points are within 4\,px of these, so their zone boundaries move by less than 4\,px.
 
 \begin{table}[H]
 \centering
@@ -179,7 +179,7 @@ Corners near / far / between (\%)        & 42.6 / 35.9 / 21.5 & 34.4 / 41.8 / 23
 \caption{The left image ($1600\times1200$~px) divided into the centre ($r<0.33$), mid ($0.33\le r<0.66$) and
 outer ($r\ge0.66$) zones about the principal point, Equation~\eqref{eq:app:radius}. The board never reached the
 grey band at the bottom of the image, so the outer zone is sampled only towards the top and sides; this is why
-it holds only 3--4\% of the corners.}
+it holds only 3--4\,\% of the corners.}
 \label{fig:app:zones}
 \end{figure}
 
@@ -197,7 +197,7 @@ right images of one pair can differ by a few centimetres). Two bands are compare
 \begin{equation}
   \text{near: } 200 \le d < 800~\text{mm}, \qquad \text{far: } 1000 \le d < 1500~\text{mm}.
 \end{equation}
-Boards at 800--1000~mm belong to neither band; they count towards the overall RMS but are left out of the
+Boards at 800--1000\,mm belong to neither band; they count towards the overall RMS but are left out of the
 near/far comparison so the two bands are clearly separated. The \emph{far/near} ratio is
 $\mathrm{RMS}_\text{far} / \mathrm{RMS}_\text{near}$.
 

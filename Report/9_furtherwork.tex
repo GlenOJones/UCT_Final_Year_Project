@@ -4,32 +4,56 @@
 \chapter{Recommendations}
 \label{ch:recommendations}
 %---------------------------------------------------------------------
-% TODO: move "Recommendations for further work" (sec:ch8.furtherwork)
-%       here from 8_conclusions.tex.
 
-While this report does seuccessfully examine the full reconstruciton pipeline and underwater testing, there is still more functionality needde and urther possibel 
-tests to do before final deployment. Not done due to timeline These are examined ehre:
+This report examined the full reconstruction pipeline and tested it underwater. Several further tests and
+features are recommended here as future work to be completed before the system is deployed.
 
 
-\section{Filtering and dehazing}
-
-\section{Full ice berg test}
-Our tests were square blocks, gave more points
-
-\section{Salt water testing}
-What was EMS pool?
-
-\section{Hardware Sycn}
-\section{Error at horizontal distance from camera}
-Need larger test subject
-
-\subsection{Optimal patterns}
-All tests were single passes. Look towards optimal mappig. THis could also include an automated technique, possibly
-couple with a realtime VIO pipeline.
+\section{Testing on Full-Sized Ice Mock-ups}
+The upward-looking ice scans of \hyperref[sec:ch4.ds3]{DS3} showed how the system responds to varying
+lighting conditions and how well it reconstructs surfaces resembling ice, but they fall short of emulating a real
+deployment. The sharp corners of the blocks and the texture in the background provided matching points that will
+not be present beneath full-sized pancake ice. In a real scan, there will likely be regions where the whole field
+of view is filled with ice, with no edges to match. This may cause the pipeline to fail, as was the case with visual odometry
+beneath freshwater ice in previous under-ice work (\autoref{sec:ch2.imaging_challenges}). Before a costly and
+time-consuming expedition to the \gls{miz}, the system should therefore be tested on full-sized mock-ups that more
+closer resemble the underside of pancake ice.
 
 
-\section{Examine active texture creation}
-Look at using a projector
+\section{Filtering, Dehazing and Exposure Locking}
+On full-sized ice, the feature detection and matching may fail. Filtering and dehazing could help, for example
+\gls{clahe} to increase the local texture, provided it does not shift
+the original pixel locations. Manually setting the camera exposure for the dark underside of the ice may also
+improve results. Auto exposure adjusts to the whole scene, so it must cover both the dark ice and the bright sky,
+which strains the cameras' dynamic range. Lowering the exposure may reveal more detail on the ice. The sky would
+then be overexposed, but it holds no useful data. Further testing would be needed to confirm that the overexposed
+sky does not reduce the accuracy at the edges of the ice.
+
+
+\section{Distance Dependence and Optimal Range}
+Due to time constraints, the effect of distance on accuracy was not examined in this report, although the optimal
+distance from the ice is important for planning a deployment. \hyperref[sec:ch4.ds2]{DS2} contains the same
+side-on scans at distances of 20 to 60\,cm from the targets. Initial testing showed the best accuracy at around
+30\,cm, but further analysis is needed to confirm this. It would also be beneficial to measure how accuracy falls off
+with distance from the centre of the field of view.
+
+
+\section{Hardware Synchronisation}
+The two StellarHD cameras are not synchronised in hardware. This was acceptable for the slow scans in this report,
+but adapting the cameras for hardware synchronisation is advised before deployment, as the \gls{rov} will move faster under
+its own propulsion.
+
+
+\section{Survey Patterns and Automation}
+All tests in this report were single passes. Full-sized pancake ice will likely need multiple passes for complete
+coverage, so experimenting with the patterns followed beneath the ice could give better reconstructions.
+Furthermore, real-time processing with \gls{vio} could allow automated scanning of
+pancake ice, making scans faster and reducing time spent on deployment.
+
+
+\section{Active Texture Projection}
+Finally, active texture could be examined. Projecting a pattern, such as a grid of dots, onto the ice would add
+texture to low-texture surfaces and help the stereo matching.
 %*********************************************************************
 % END
 %*********************************************************************

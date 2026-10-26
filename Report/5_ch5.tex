@@ -82,7 +82,7 @@ $(x_d, y_d)$ are the distorted coordinates.
 
 OpenCV implements this through \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga3207604e4b1a1758aa66acb6ed5aa65d}{\textcolor{blue}{\texttt{cv2.calibrateCamera}}},
 using Zhang's method \cite{zhangFlexibleNewTechnique2000} for an
-initial estimate. This is followed by Levenberg--Marquardt optimisation to refine all parameters \cite{CvCalibrateCameraAuroraVision}.
+initial estimate. This is followed by Levenberg-Marquardt optimisation to refine all parameters \cite{CvCalibrateCameraAuroraVision}.
 
  % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html
 
@@ -139,7 +139,7 @@ steps in reverse. Because the Aquagon is a water-contact lens, $d_0$ and $d_1$ h
 the virtual centre sits on the optical axis, which the fitted board pose absorbs, and how far the rays spread about
 it, which is not modelled here. The glass index cancels out of the ray direction, so only the ray directions are
 modelled. No intrinsic parameters are fitted to the underwater data. As for the other models, only the board poses
-and the stereo extrinsics are fitted under water.
+and the stereo extrinsics are fitted underwater.
 
 
 %========================================================
@@ -195,8 +195,8 @@ error, where each point's ray is found iteratively because its starting point de
 % For these sets of tests, the cameras were set to auto exposure and to record 30fps in MJPG at maximum resolution, $1600$x$1200$
 % The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
 
-Experiments 1--3 use the calibration image dataset (\hyperref[sec:ch4.ds1]{\textcolor{blue}{DS1}}). \autoref{fig:ch5.air_vs_water} compares the in-air and
-underwater sets. Refraction at the glass--water interface narrows the field of view underwater, so the
+Experiments 1 to 3 use the calibration image dataset (\hyperref[sec:ch4.ds1]{\textcolor{blue}{DS1}}). \autoref{fig:ch5.air_vs_water} compares the in-air and
+underwater sets. Refraction at the glass-water interface narrows the field of view underwater, so the
 board appears smaller in air at the same distance. Because the Aquagon lenses are designed for use
 underwater, the in-air images show  pincushion distortion along the straight edges of the board.
 Underwater, haze reduces contrast, and some frames show floating particles and bubbles on the board.
@@ -227,7 +227,7 @@ Underwater, haze reduces contrast, and some frames show floating particles and b
 The StellarHD cameras cannot capture single still images. Each frame is extracted from the .mkv video file using
 \texttt{extract\_stereo\_frames.py}. As there is no hardware synchronisation between the two StellarHD cameras,
  the script pairs left and right frames with the closest timestamp, rejecting pairs with a difference above a configurable 
- threshold (default 10\,ms). Since the ROV is stationary at each set position, a 10\,ms offset
+ threshold (default 10\,ms). Since the \gls{rov} is stationary at each set position, a 10\,ms offset
 causes negligible relative motion between the two views. \texttt{extract\_stereo\_frames.py} allows for manual frame selection 
 or selecting frames at set steps (e.g. every 10th frame).
 
@@ -240,7 +240,7 @@ or selecting frames at set steps (e.g. every 10th frame).
 \subsection{Calibration}
 \label{subsec:ch5.calibration}
 
-Calibration is performed by \texttt{Calibration.py}, which takes the full set of calibration images and a JSON file of OpenCV detector settings as input.
+Calibration is performed by \texttt{Calibration.py}, which takes the full set of calibration images and a \gls{json} file of OpenCV detector settings as input.
 The geometry of the AprilGrid board is hard-coded in the script, and is used to build a board object that matches the physical target.
 Tags are detected in a single-channel image (greyscale, luma or one colour channel, as selected, or several channels merged), and their corners are then refined to sub-pixel accuracy on the greyscale image.
 Images with fewer than 10 detected tags are rejected, and misplaced tags and badly fitting images are removed by the outlier rejection described in \autoref{subsec:ch5.optimising_detection}.
@@ -261,15 +261,15 @@ An example image with annotated detections is shown in \autoref{fig:ch5.detected
 
 \subsection{Evaluation metrics}
 \label{subsec:ch5.metrics}
-Optimising for calibration needs careful consideration to avoid reducing the accuracy of the calibration. Selectively choosing frames to reduce RMS error results in losing calibration
-coverage. Harder to detect tags may increase RMS errors due to higher noise with their detections, resulting in worse RMS error. This may punish algorithms for a more accurate output.
+Optimising for calibration needs careful consideration to avoid reducing the accuracy of the calibration. Selectively choosing frames to reduce \gls{rms} error results in losing calibration
+coverage. Harder to detect tags may increase \gls{rms} errors due to higher noise with their detections, resulting in worse \gls{rms} error. This may punish algorithms for a more accurate output.
 To avoid this, five metrics are used to evaluate the effectiveness of the calibration:
 \begin{enumerate}
     \item \textbf{Tag detection rate:} number of AprilTags detected, as a fraction of the total board tags.
-    \item \textbf{Mean per-image RMS:} reprojection error computed separately for each image, then averaged over all images.
-    \item \textbf{Overall RMS:} reprojection error over all detected corners, as returned by \texttt{calibrateCameraExtended}.
-    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a different AprilTag target at distances of 50--250\,cm.
-    \item \textbf{Matched-tag RMS:} reprojection error computed only over tags detected in all of the compared calibrations.
+    \item \textbf{Mean per-image \gls{rms}:} reprojection error computed separately for each image, then averaged over all images.
+    \item \textbf{Overall \gls{rms}:} reprojection error over all detected corners, as returned by \texttt{calibrateCameraExtended}.
+    \item \textbf{Measurement accuracy:} error in tag size measured by stereo triangulation of a different AprilTag target at distances of 50 to 250\,cm.
+    \item \textbf{Matched-tag \gls{rms}:} reprojection error computed only over tags detected in all of the compared calibrations.
 \end{enumerate}
 
 
@@ -323,7 +323,7 @@ The first experiment compares how AprilGrid detection works for the different ch
  takes single-channel images. Five inputs were compared: greyscale 
  (converted using OpenCV's \href{https://docs.opencv.org/4.x/d8/d01/group__imgproc__color__conversions.html#ga397ae87e1288a81d2363b61574eb8cab}{\textcolor{blue}{\texttt{cvtColor}}}), 
 the camera's JPEG luma (Y), and the red, green and blue channels. Each run used OpenCV's default detector and calibration settings on the same set of calibration frames. Runs were compared on 
-tag detection rate and matched-tag RMS error (Mean and median).
+tag detection rate and matched-tag \gls{rms} error (Mean and median).
 
 % TODO: Make this comparison a permanent python code. Rerun comparison and look at other metrics
 
@@ -348,12 +348,12 @@ given in \hyperref[app:recall_distance]{Appendix~E}.
 \begin{table}[htbp]
 \centering
 \small
-\caption{Colour channel comparison. Detection rate: distinct board tags per image $\div$ 70, mean over all images. Matched-tag RMS and median:
+\caption{Colour channel comparison. Detection rate: distinct board tags per image $\div$ 70, mean over all images. Matched-tag \acrshort{rms} and median:
  corner reprojection error over only the tags every input detected.}
 \label{tab:channel_summary}
 \begin{tabular}{llccccc}
 \toprule
- & & Detection & \multicolumn{2}{c}{Matched-tag RMS (px)} & \multicolumn{2}{c}{Matched-tag median (px)} \\
+ & & Detection & \multicolumn{2}{c}{Matched-tag \acrshort{rms} (px)} & \multicolumn{2}{c}{Matched-tag median (px)} \\
 \cmidrule(lr){4-5} \cmidrule(lr){6-7}
 Medium & Input & rate & L & R & L & R \\
 \midrule
@@ -379,12 +379,12 @@ The detection rate was noticeably lower in air than in water. This seems
 counterintuitive, since water introduces haze and reduces contrast. 
 The likely cause is that the Aquagon lenses are designed specifically for underwater use. 
 As was shown in \autoref{fig:ch5.air_water_comp}, the in air images produce a wider field of view with distortion.
-Another possible reason could be how the camera is handling the MJPG compression.
+Another possible reason could be how the camera is handling the \gls{mjpeg} compression.
 If the camera caps the size of each compressed frame, the more textured lab background would force heavier compression and blur fine detail on the target.
 
 In water, the four single channels had similar detection rates, with luma the highest (0.354) and blue
-the lowest (0.299). The left and right cameras differed in accuracy. Their median RMS errors were within
-7\,\% of each other for every input except blue (17\,\%), but the right camera's RMS error was about
+the lowest (0.299). The left and right cameras differed in accuracy. Their median \gls{rms} errors were within
+7\,\% of each other for every input except blue (17\,\%), but the right camera's \gls{rms} error was about
 70\,\% higher than the left's (49\,\% for blue). The likely cause is that in DS1, the board is only placed at
 the centre and left positions, which put it further from the right camera and left more of its tags
 occluded in the close up frames. This difference does not appear in air, probably because of the
@@ -395,7 +395,7 @@ This trend was consistent across all distances and is plotted in (\hyperref[app:
 When looking at which tag detections were made for each channel, an interesting observation was made. Although they had a similar detection rate,
 not all the detections were of the same tags. \autoref{fig:ch5.channel_overlap} below shows which tags were detected by each channel. 
 The \texttt{Calibration.py} script was subsequently adapted to also take a merged configuration, running the tag detection on
-the greyscale and RGB channels separately and merging the detected tags. This improved the detection rate up to 0.432.
+the greyscale and \gls{rgb} channels separately and merging the detected tags. This improved the detection rate up to 0.432.
 
 \begin{figure}[H]
     \centering
@@ -420,8 +420,8 @@ The two parameters that describe the printed board, \texttt{markerBorderBits} an
 \texttt{errorCorrectionRate}, were set by hand and not swept.
 
 Each resulting configuration was evaluated by calibrating with it, using the standard outlier
-rejection. A tag was dropped if its worst corner exceeded the larger of 2~px and five times the
-median. An image was dropped if its corner RMS exceeded the larger of 1~px and three times the
+rejection. A tag was dropped if its worst corner exceeded the larger of 2\,px and five times the
+median. An image was dropped if its corner \gls{rms} exceeded the larger of 1\,px and three times the
 median, or if it had fewer than 10 tags.
 
 
@@ -441,14 +441,14 @@ found in  \hyperref[app:detector_configs]{Appendix~E}. The improvements over the
 Tags detected                       & 5769  & 10374 \\
 Tags kept after rejection           & 5323  & 9302 \\
 Stereo pairs                        & 54    & 77 \\
-RMS reprojection, left (px)         & 0.243 & 0.264 \\
+\acrshort{rms} reprojection, left (px)         & 0.243 & 0.264 \\
 $f_x$ uncertainty, left (px)        & $\pm 0.53$ & $\pm 0.32$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The tuned detector kept 75\% more tags after rejection and 43\% more stereo pairs, giving coverage
-across the full frame and cutting the uncertainty on $f_x$ by about 40\%. The RMS reprojection error
+The tuned detector kept 75\,\% more tags after rejection and 43\,\% more stereo pairs, giving coverage
+across the full frame and cutting the uncertainty on $f_x$ by about 40\,\%. The \gls{rms} reprojection error
 rose slightly, likely because the tuned detector included more steep-angle images. 
 %=====================================================================
 \section{Experiment 3: Underwater compensation}
@@ -503,7 +503,7 @@ out, the method was fitted on the remaining six, and it was then tested on the t
 for every possible pair, giving 28 splits (\hyperref[app:heldout]{Appendix~E}).
 
 To test an image, the fitted intrinsics are kept fixed and only the board pose is fitted. The held-out error is
-the RMS distance between the detected corners and the corners reprojected by the model. The reported result is
+the \gls{rms} distance between the detected corners and the corners reprojected by the model. The reported result is
 the mean over the 28 splits.
 
 % For this and further, water final was used. Defualt for the Calibration. At this time, was from the frame shots and param sweep
@@ -521,8 +521,8 @@ optical centre and $r = 1$ at the farthest corner.
 
 %The image is divided into three zones: centre ($r < 0.33$), mid ($0.33 \le r < 0.66$) and outer ($r \ge 0.66$).
 
-The results are further split into \textbf{near} and \textbf{far} bands by board distance. Near covers boards at 200--800\,mm and far
-covers boards at 1000--1500\,mm. For the near and far comparisons, only the centre zone of the image is compared because
+The results are further split into \textbf{near} and \textbf{far} bands by board distance. Near covers boards at 200 to 800\,mm and far
+covers boards at 1000 to 1500\,mm. For the near and far comparisons, only the centre zone of the image is compared because
 further boards appear small and do not reach the outer zones.
 
 \subsection{Stereo scale}
@@ -532,7 +532,7 @@ calibration of both cameras and the stereo extrinsics between them. The central 
 \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gad3fc9a0c82b08df034234979960b778c}{\textcolor{blue}{\texttt{cv2.triangulatePoints}}}
  on the normalised rays; however, T5 cannot use this method as it does not have a single P matrix to describe it. 
 T5 uses midpoint triangulation. Due to small errors in corner detection and calibration, the two rays pass close to each other without 
-intersecting. The midpoint triangulation method finds the shortest segment connecting the two and takes the midpoint as the $3D$ point.
+intersecting. The midpoint triangulation method finds the shortest segment connecting the two and takes the midpoint as the three-dimensional point.
 As a check, with $a_1$ and $a_2$ set to zero (making T5 central), the midpoint method agreed with \texttt{cv2.triangulatePoints} to within $10^{-6}$\,mm.
 
 %Each pair of AprilGrid corners are $250-400$mm  apart and are used as a "scale bar". Error is determined from the subtraction of true length and measured length 
@@ -555,7 +555,7 @@ An example image is shown in \autoref{fig:ch5.reference_left_200}.
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.4 \textwidth]{figs/Ch5/reference__Left_200.png}
-    \caption[Comparison target under water at 200\,cm.]{\textbf{Comparison target under water at 200\,cm.} Left camera view of the six 145\,mm AprilTags (three rows of two) at the 200\,cm distance label, positioned along the rail on the pool floor.}
+    \caption[Comparison target underwater at 200\,cm.]{\textbf{Comparison target underwater at 200\,cm.} Left camera view of the six 145\,mm AprilTags (three rows of two) at the 200\,cm distance label, positioned along the rail on the pool floor.}
     \label{fig:ch5.reference_left_200}
 \end{figure}
 
@@ -582,11 +582,11 @@ about 3.5\,px at the centre, and rises to over 50\,px at the edge of the image, 
 The Pinax model (T2) starts much lower, at about 0.4\,px in the centre, but its error rises steadily with radius. 
 It reaches 1\,px at the centre/mid boundary and about 20\,px at the edge. The curve is 
 close to a straight line on the log scale, so the error grows approximately exponentially with radius.
- This suggests that the refraction model does not fully capture the water--Aquagon interface, which is also 
+ This suggests that the refraction model does not fully capture the water-Aquagon interface, which is also 
  expected. Pinax assumes the camera looks through a flat port (a plain sheet of glass), whereas
  the Aquagon is a corrective lens with seven elements that is designed to remove the effects of refraction \cite{dweAquagon}.
 
-The underwater calibrations (T3--T5) follow the same rising trend but much more weakly. They go from about 0.25\,px at 
+The underwater calibrations (T3 to T5) follow the same rising trend but much more weakly. They go from about 0.25\,px at 
 the centre to about 0.7\,px at the edge, a factor of roughly three. All three stay below 0.5\,px up to $r \approx 0.8$. Kannala-Brandt 
 slightly outperforms across all compared metrics. 
 % TODO - Switch acial shift to kannala brandt.
@@ -599,7 +599,7 @@ slightly outperforms across all compared metrics.
 \begin{figure}[H]
     \centering
     \includegraphics[width=1 \textwidth]{figs/Ch5/fig_radial.pdf}
-    \caption[Held-out error against radius.]{\textbf{Held-out error against radius.} RMS held-out reprojection error of the left camera against normalised radius ($r = 1$ at the farthest image corner), on a log scale. Dashed lines mark the zone boundaries and shaded bands show the range over the 28 splits.}
+    \caption[Held-out error against radius.]{\textbf{Held-out error against radius.} \acrshort{rms} held-out reprojection error of the left camera against normalised radius ($r = 1$ at the farthest image corner), on a log scale. Dashed lines mark the zone boundaries and shaded bands show the range over the 28 splits.}
     \label{fig:ch5.radial}
 \end{figure}
 
@@ -611,18 +611,18 @@ slightly outperforms across all compared metrics.
 % and make exceeding clear scaling differenece due to dwarfing. Lets have both left and right cameras
 % I like the blue plots but hard to add the in air and clearly explain scale refrence
 The Quiver plots below indicate where the error is accumulating for each technique. Due to the 
-large disparity in the scaling of the RMS error, T1-T3 are compared on a 20x scale (\autoref{fig:ch5.quiver_in_air}) while T3-T5 are 
+large disparity in the scaling of the \gls{rms} error, T1-T3 are compared on a 20x scale (\autoref{fig:ch5.quiver_in_air}) while T3-T5 are 
 at a 100x scale (\autoref{fig:ch5.quiver_fitted}).
 
 No values are detected or plotted below
-850 px. This is consistent with the dataset (DS1), as the raised calibration board is never in view.
+850\,px. This is consistent with the dataset (DS1), as the raised calibration board is never in view.
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{figs/Ch5/fig_quiver_in_air.pdf}
     \caption[Held-out residual vectors at $\times20$]{\textbf{Mean held-out residual vector per image cell for
     the techniques using the in-air calibration (T1, T2), with T3 for reference.} Arrows show observed minus
     reprojected corner position, averaged over a $16\times12$ grid and drawn at $\times20$: an arrow one cell
-    long (100~px) is a 5~px mean residual. On this scale T3's residuals barely register. + marks the
+    long (100\,px) is a 5\,px mean residual. On this scale T3's residuals barely register. + marks the
     principal point; no calibration board was seen below $v \approx 850$~px.}
     \label{fig:ch5.quiver_in_air}
 \end{figure}
@@ -631,8 +631,8 @@ No values are detected or plotted below
     \centering
     \includegraphics[width=1\textwidth]{figs/Ch5/fig_quiver_fitted.pdf}
     \caption[Held-out residual vectors at $\times100$]{\textbf{Mean held-out residual vector per image cell
-    for the techniques fitted in water (T3--T5).} As Figure~\ref{fig:ch5.quiver_in_air}, but drawn at
-    $\times100$: an arrow one cell long (100~px) is a 1~px mean residual, so arrows of the same drawn length
+    for the techniques fitted in water (T3 to T5).} As Figure~\ref{fig:ch5.quiver_in_air}, but drawn at
+    $\times100$: an arrow one cell long (100\,px) is a 1\,px mean residual, so arrows of the same drawn length
     represent errors five times smaller than in Figure~\ref{fig:ch5.quiver_in_air}. T3 is the same data as
     in Figure~\ref{fig:ch5.quiver_in_air}, drawn five times longer.}
     \label{fig:ch5.quiver_fitted}
@@ -647,12 +647,12 @@ The observed corners therefore lie further from the centre than the in-air model
 the pattern expected from uncorrected refraction. T2 has much shorter arrows and almost none in the centre,
  but large errors remain at the edges. At the bottom and right edges these point inwards, possibly the result of overcorrection.
 
-The errors for T3--T5 are far smaller, which is why they are drawn at $\times100$. They are negligible 
+The errors for T3 to T5 are far smaller, which is why they are drawn at $\times100$. They are negligible 
 across the centre and appear only in parts of the outer region, at the edges of the area the board covered. 
 The same small errors also appear along the bottom of the area the board covered, which is the lower
 edge of the calibration data but not the edge of the image. This suggests that they come from being at
 the edge of the calibration data, not from the edge of the lens. This highlights the importance of covering the whole image with calibration data.
-The T3--T5 plots look almost identical, so this remaining error does not depend on the camera model. 
+The T3 to T5 plots look almost identical, so this remaining error does not depend on the camera model. 
 
 %An important note to make is that across all images, the increased corner RMS error also appears on the bottm 850 px cutoff. This indicates that it may be less about the 
 
@@ -668,18 +668,18 @@ gives the error at each distance, where a negative value means the tag is measur
 
 \begin{table}[H]
 \centering
-\caption{WaterComparison target: tag error (median edge length $-$ 145~mm) at each distance label, in mm.
+\caption{WaterComparison target: tag error (median edge length $-$ 145\,mm) at each distance label, in mm.
 The number in brackets is how many tags were detected in both cameras at that distance, and so how many tags
 the error is taken over. The last three columns cover all tags: the median error in mm and as a percentage of
-the tag size, and the RMS error over every edge. The calibration boards reached about 1.4~m, so the 150--250~cm
-labels are extrapolation; the 250~cm label has a single tag.}
+the tag size, and the \acrshort{rms} error over every edge. The calibration boards reached about 1.4\,m, so the 150 to 250\,cm
+labels are extrapolation; the 250\,cm label has a single tag.}
 \label{tab:target}
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lrrrrrrrr}
 \toprule
  & \multicolumn{5}{c}{Tag error per distance label (mm)} & \multicolumn{3}{c}{All tags} \\
 \cmidrule(lr){2-6}\cmidrule(lr){7-9}
-Technique & 50~cm & 100~cm & 150~cm & 200~cm & 250~cm & Median (mm) & Median (\%) & Edge RMS (mm) \\
+Technique & 50\,cm & 100\,cm & 150\,cm & 200\,cm & 250\,cm & Median (mm) & Median (\%) & Edge \acrshort{rms} (mm) \\
 \midrule
 T1 In-air calibration, unchanged & $-5.7$ (4) & $-6.9$ (6) & $-10.2$ (6) & $-12.2$ (6) & $-14.1$ (1) & $-9.93$ & $-6.85$ & 9.86 \\
 T2 Pinax (air + refraction)      & 0.0 (4)    & $-2.1$ (6) & $-4.2$ (6)  & $-4.4$ (6)  & $-2.6$ (1)  & $-2.59$ & $-1.79$ & 4.99 \\
@@ -694,22 +694,22 @@ All five techniques measure the tags too small, at every distance except the clo
 Its error grows steadily with distance, from $-5.7$\,mm at 50\,cm to $-14.1$\,mm at 250\,cm, a median of 6.9\,\% of the tag size. 
 Pinax (T2) removes most of this error and is the most accurate at 50\,cm, but is slightly worse than the underwater calibrations beyond that.
 
-The underwater calibrations (T3--T5) are almost identical, differing by at most 0.4\,mm at any distance. 
+The underwater calibrations (T3 to T5) are almost identical, differing by at most 0.4\,mm at any distance. 
 Their error is about $-0.5$\,mm at 50\,cm and $-1.5$\,mm at 100\,cm, then roughly doubles to $-3.6$\,mm at 150 and 200\,cm. 
 The near-zero result at 250\,cm comes from a single tag and is less reliable. 
-Over all tags, the median error of T3--T5 is about $-2.2$\,mm, or 1.5\,\% of the tag size. The tag error at each distance is also 
+Over all tags, the median error of T3 to T5 is about $-2.2$\,mm, or 1.5\,\% of the tag size. The tag error at each distance is also 
 plotted in \autoref{fig:ch5.target} (\hyperref[app:target]{Appendix~E}). 
 
 T1 is the only technique that fails to produce accurate measurements.
 Pinax (T2) seems to perform nearly as well in the in-water tests here, but the AprilTags were centred for most of the frames thus not 
-showing the increasing outer errors. T3--T5 have relatively consistent results, with T3 (Brown-Conrady) marginally best, though within noise.
+showing the increasing outer errors. T3 to T5 have relatively consistent results, with T3 (Brown-Conrady) marginally best, though within noise.
 
 
 %=====================================================================
 \section{Conclusions}
 \label{subsec:ch5.calibration_compensation_conclusion}
 % Conclude that the standard is the best option, within noise looking acrcoss left and right cameras.
-Experiment 3 shows that, for the Aquagon optics, calibrating under water far outperforms an in-air calibration, 
+Experiment 3 shows that, for the Aquagon optics, calibrating underwater far outperforms an in-air calibration, 
 even when the in-air calibration is corrected for refraction with the Pinax model. 
 The underwater Brown-Conrady calibration had a held-out error of 0.29\,px, against 8.6\,px 
 for the in-air calibration and 1.9\,px for Pinax. In every test the error accumulated in the 
@@ -721,7 +721,7 @@ for this stage of the pipeline. It is the standard model and works directly with
  stereo rectification and triangulation. On the independent target the underwater models
   measured tags to within about 2\,mm (1.5\,\%). 
 
-A handheld calibration set was subsequently recorded under water using this method, covering the
+A handheld calibration set was subsequently recorded underwater using this method, covering the
  full image including the bottom region not reached in the tests. It gave reprojection errors 
  of 0.28 and 0.27\,px for the two cameras, 0.43\,px for the stereo pair, and a baseline of 150.6\,mm. 
  The resulting camera parameters are given in \autoref{tab:main_calibration} in \hyperref[app:main_calibration]{Appendix~E}.

@@ -148,6 +148,7 @@
 % Must go through \extrasbritish: babel resets hyperref's names at
 % \begin{document}, so a plain \renewcommand here has no effect.
 \addto\extrasbritish{%
+  \def\chapterautorefname{Chapter}%
   \def\sectionautorefname{Section}%
   \def\subsectionautorefname{Section}%
   \def\subsubsectionautorefname{Section}}
@@ -289,7 +290,7 @@
 %	DOCUMENT
 %---------------------------------------------------------------------
 % Fast preview: only these files are compiled. Delete this line for the full thesis.
-% \includeonly{0_documentproperties,1_intro,4b_dataset,5b_reconstruction,7_discussion,8_conclusions,9_furtherwork,A_gitrepo,B_ethics,C_topicdescription,D_ECSA,9_appendix}
+\includeonly{0_documentproperties,1_intro,2_review}
 \begin{document}
 %---------------------------------------------------------------------
 \include{0_documentproperties}
@@ -379,10 +380,6 @@
 %---------------------------------------------------------------------
 \include{4_ch4}
 %---------------------------------------------------------------------
-% Dataset
-%---------------------------------------------------------------------
-\include{4b_dataset}
-%---------------------------------------------------------------------
 % Chapter 5: Experimental design
 %---------------------------------------------------------------------
 \include{5_ch5}
@@ -395,9 +392,9 @@
 %---------------------------------------------------------------------
 \include{6_results}
 %---------------------------------------------------------------------
-% Chapter 7: Discussion
+% Chapter 7: Discussion (removed 2026-10-25: discussion is in each chapter's sections)
 %---------------------------------------------------------------------
-\include{7_discussion}
+% \include{7_discussion}
 %---------------------------------------------------------------------
 % Chapter 8: Conclusions
 %---------------------------------------------------------------------

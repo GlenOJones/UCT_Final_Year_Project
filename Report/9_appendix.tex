@@ -7,6 +7,36 @@
 \label{app:supplementary}
 
 %---------------------------------------------------------------------
+\section*{Software versions}
+\phantomsection
+\addcontentsline{toc}{section}{Software versions}
+\label{app:software}
+% Referenced from the System description chapter (sec:ch4.software).
+\begin{table}[H]
+    \centering
+    \newcommand{\repo}[2]{\href{#1}{\textcolor{blue}{#2}}}% blue links, this table only
+    \caption[Software used]{\textbf{Software used.} Libraries and tools used by the pipeline. Each name links to the project's source repository. The learnt matchers have no release numbers, so the commit and date of the code used are given (linked).}
+    \begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{3.2cm}>{\raggedright\arraybackslash}p{4.0cm}>{\raggedright\arraybackslash}X}
+    \toprule[2.25pt]
+    \textbf{Software} & \textbf{Version} & \textbf{Used for} \\
+    \midrule[1pt]
+    \repo{https://github.com/python/cpython}{Python} & 3.14.4 & All pipeline code \\
+    \repo{https://github.com/opencv/opencv-python}{OpenCV} & 5.0.0 (\texttt{opencv-python}) & Tag detection, calibration, rectification, \acrshort{sgbm} \\
+    \repo{https://github.com/numpy/numpy}{NumPy} & 2.5.3 & Array maths \\
+    \repo{https://github.com/scipy/scipy}{SciPy} & 1.18.1 & Nearest-neighbour search (KD-trees), least-squares model fitting \\
+    \repo{https://github.com/isl-org/Open3D}{Open3D} & 0.20.0 & Point clouds, \acrshort{icp}, \acrshort{tsdf} fusion \\
+    \repo{https://github.com/colmap/colmap}{COLMAP} & 4.3.0-dev, \repo{https://github.com/colmap/colmap/commit/f773e79}{\texttt{f773e79}} & Pose estimation and multi-view stereo \\
+    \repo{https://github.com/pytorch/pytorch}{PyTorch} & 2.14 (CUDA 13.0) & Running the learnt stereo matchers on the \acrshort{gpu} \\
+    \repo{https://github.com/NVlabs/FoundationStereo}{FoundationStereo} & \repo{https://github.com/NVlabs/FoundationStereo/commit/6e88068}{\texttt{6e88068}} (Dec 2025) & Learnt stereo matching (ViT-L weights) \\
+    \repo{https://github.com/qz-wei/AquaStereo}{AquaStereo} & \repo{https://github.com/qz-wei/AquaStereo/commit/6091725}{\texttt{6091725}} (Jul 2026) & Underwater learnt stereo matching (ViT-B weights) \\
+    \repo{https://github.com/FFmpeg/FFmpeg}{FFmpeg} & 8.0.1 & Decoding the raw YUYV camera video into frames \\
+    \repo{https://github.com/matplotlib/matplotlib}{Matplotlib} & 3.11.2 & Figures \\
+    \bottomrule[2.25pt]
+    \end{tabularx}
+    \label{table:ch4.software}
+\end{table}
+
+%---------------------------------------------------------------------
 \section*{Recording conditions}
 \phantomsection
 \addcontentsline{toc}{section}{Recording conditions}
@@ -26,7 +56,7 @@ weather and water conditions for every recording session used in this project.}
 \toprule
 \textbf{Date} & \textbf{Location} & \textbf{Datasets} & \textbf{Time} & \textbf{Weather / lighting} & \textbf{Pool conditions} \\
 \midrule
-TODO & ARU laboratory (air) & DS1 & TODO & Indoor, TODO & n/a \\
+TODO & \acrshort{aru} laboratory (air) & DS1 & TODO & Indoor, TODO & n/a \\
 TODO & Pool & TODO & TODO & TODO & TODO \\
 TODO & Pool & TODO & TODO & TODO & TODO \\
 TODO & Pool & DS3 & 13:00, 17:00 & Direct sun; overcast late afternoon & TODO \\
@@ -102,10 +132,10 @@ the list of splits is also saved in \texttt{run\_info.json} beside the results.
 \phantomsection
 \label{app:heldout:recordings}
 
-The underwater calibration data are eight recordings of the Kalibr AprilGrid (AprilTag 36h11, 35.36~mm tags,
+The underwater calibration data are eight recordings of the Kalibr AprilGrid (AprilTag 36h11, 35.36\,mm tags,
 $10\times7$), each a sweep of the board towards and away from the rig at one tilt. One stereo frame was extracted
 per nominal distance; the nominal distance in centimetres is the number in the file name
-(\texttt{c1\_Left\_100.png} is the left image at a nominal 100~cm). The corners were detected once by
+(\texttt{c1\_Left\_100.png} is the left image at a nominal 100\,cm). The corners were detected once by
 \texttt{Calibration.py} with the \texttt{water\_final} detector preset on the gray channel. Only the images and
 tags that run kept after its outlier rejection are used, so a camera can have fewer frames than its recording.
 The measured distance is from the camera to the board centre, from each image's board pose in that calibration.
@@ -121,21 +151,21 @@ tags in common).}
 \toprule
 Recording & Left frames (nominal cm) & Right frames (nominal cm) & Left distance (mm) & Pairs \\
 \midrule
-\texttt{Water\_C1\_frames} & 11 (50--150)          & 11 (50--150)          & 232--1221 & 11 \\
-\texttt{Water\_C3\_frames} & 11 (50--150)          & 11 (50--150)          & 262--1234 & 10 \\
-\texttt{Water\_C4\_frames} & 10 (50--140)          & 10 (50--140)          & 363--1252 & 10 \\
-\texttt{Water\_C5\_frames} & 10 (60--150)          & 11 (50--150)          & 484--1378 & 10 \\
-\texttt{Water\_C6\_frames} &  8 (70--140)          &  8 (70--140)          & 621--1318 &  7 \\
-\texttt{Water\_L1\_Frames} & 12 (40--150)          & 10 (60--150)          & 353--1367 & 10 \\
-\texttt{Water\_L3\_Frames} & 11 (50--150)          & 10 (60--150)          & 441--1377 & 10 \\
-\texttt{Water\_L5\_Frames} & 11 (50--150)          &  9 (70--150)          & 484--1416 &  9 \\
+\texttt{Water\_C1\_frames} & 11 (50-150)          & 11 (50-150)          & 232-1221 & 11 \\
+\texttt{Water\_C3\_frames} & 11 (50-150)          & 11 (50-150)          & 262-1234 & 10 \\
+\texttt{Water\_C4\_frames} & 10 (50-140)          & 10 (50-140)          & 363-1252 & 10 \\
+\texttt{Water\_C5\_frames} & 10 (60-150)          & 11 (50-150)          & 484-1378 & 10 \\
+\texttt{Water\_C6\_frames} &  8 (70-140)          &  8 (70-140)          & 621-1318 &  7 \\
+\texttt{Water\_L1\_Frames} & 12 (40-150)          & 10 (60-150)          & 353-1367 & 10 \\
+\texttt{Water\_L3\_Frames} & 11 (50-150)          & 10 (60-150)          & 441-1377 & 10 \\
+\texttt{Water\_L5\_Frames} & 11 (50-150)          &  9 (70-150)          & 484-1416 &  9 \\
 \midrule
-Total                      & 84                    & 80                    & 232--1416 & 77 \\
+Total                      & 84                    & 80                    & 232-1416 & 77 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Within each range in Table~\ref{tab:app:recordings} the frames are at every 10~cm. The images of
+Within each range in Table~\ref{tab:app:recordings} the frames are at every 10\,cm. The images of
 \texttt{Water\_L1\_Frames} are named \texttt{c1\_\ldots} on disk; they are a separate recording from
 \texttt{Water\_C1\_frames}. Altogether the left camera contributes 18\,772 board corners and the right camera
 18\,436.
@@ -189,9 +219,9 @@ $\pi$ is the technique's camera model. The residual of corner $i$ is $\mathbf{e}
   \mathrm{RMS}_S = \sqrt{\frac{1}{|S|}\sum_{i\in S} \lVert \mathbf{e}_i \rVert^2 }.
 \end{equation}
 $S$ is all held-out corners for the overall figure, or only those in one image zone or distance band
-(the zones are defined below; the distance bands are near, 200--800~mm, and far, 1000--1500~mm). Each metric is computed once per split, and the
-tables report the mean over the 28 splits with the 2.5--97.5 percentile range of the 28 values. Because the pose
-is fitted to the corners it is scored on, part of any model error is absorbed into it, so the held-out RMS is a
+(the zones are defined below; the distance bands are near, 200 to 800\,mm, and far, 1000 to 1500\,mm). Each metric is computed once per split, and the
+tables report the mean over the 28 splits with the 2.5 to 97.5 percentile range of the 28 values. Because the pose
+is fitted to the corners it is scored on, part of any model error is absorbed into it, so the held-out \gls{rms} is a
 lower bound on the error at an unknown pose.
 
 \subsection*{Normalised radius and image zones}
@@ -216,7 +246,7 @@ into three concentric zones:
 \end{equation}
 
 Table~\ref{tab:app:zones} gives the values for the underwater Brown-Conrady fit on all recordings. The other
-techniques' principal points are within 4~px of these, so their zone boundaries move by less than 4~px.
+techniques' principal points are within 4\,px of these, so their zone boundaries move by less than 4\,px.
 
 \begin{table}[H]
 \centering
@@ -268,7 +298,7 @@ T5 Brown-Conrady + axial shift & 0.285 & 0.266 & 0.311 & 0.458 & 0.317 & 0.258 &
 \begin{table}[H]
 \centering
 \caption{Held-out reprojection error of the right camera, in pixels: mean over the 28 splits, with the
-2.5--97.5 percentile range in brackets. Zones and bands are defined in \hyperref[app:heldout]{Appendix~E}; the last
+2.5 to 97.5 percentile range in brackets. Zones and bands are defined in \hyperref[app:heldout]{Appendix~E}; the last
 column is a ratio.}
 \label{tab:heldout_right}
 \resizebox{\linewidth}{!}{%
@@ -295,44 +325,44 @@ T5 Brown-Conrady + axial shift & 0.270 {\scriptsize[0.201, 0.361]} & 0.266 {\scr
 \centering
 \caption{Depth map generation per matcher, medians over the frames used (every fifth frame). Time is the matcher
 alone, in s/frame. Coverage is the share of the image with depth in the recording's depth range, in \%; points are
-those pixels merged into 1~mm voxels, in thousands.}
+those pixels merged into 1\,mm voxels, in thousands.}
 \label{tab:depth_matchers}
 \begin{tabular}{llrrr}
 \toprule
 Recording & Matcher & Time & Coverage & Points \\
 \midrule
-\multirow{4}{*}{S30 (side on), 69 frames} & SGBM             & 2.89 & 23.5 & 121 \\
-                                          & SGBM (tuned)     & 0.36 & 41.3 & 165 \\
+\multirow{4}{*}{S30 (side on), 69 frames} & \acrshort{sgbm}             & 2.89 & 23.5 & 121 \\
+                                          & \acrshort{sgbm} (tuned)     & 0.36 & 41.3 & 165 \\
                                           & AquaStereo       & 2.19 & 47.2 & 213 \\
                                           & FoundationStereo & 3.73 & 54.9 & 232 \\
 \midrule
-\multirow{4}{*}{Pyramid, shade, 31 frames} & SGBM             & 2.14 & 17.2 & 193 \\
-                                           & SGBM (tuned)     & 0.27 & 25.0 & 281 \\
+\multirow{4}{*}{Pyramid, shade, 31 frames} & \acrshort{sgbm}             & 2.14 & 17.2 & 193 \\
+                                           & \acrshort{sgbm} (tuned)     & 0.27 & 25.0 & 281 \\
                                            & AquaStereo       & 2.21 & 18.8 & 193 \\
                                            & FoundationStereo & 3.68 & 23.5 & 239 \\
 \midrule
-\multirow{4}{*}{Cubes, shade, 27 frames} & SGBM             & 2.09 & 15.5 & 166 \\
-                                         & SGBM (tuned)     & 0.27 & 27.2 & 258 \\
+\multirow{4}{*}{Cubes, shade, 27 frames} & \acrshort{sgbm}             & 2.09 & 15.5 & 166 \\
+                                         & \acrshort{sgbm} (tuned)     & 0.27 & 27.2 & 258 \\
                                          & AquaStereo       & 2.20 & 20.5 & 157 \\
                                          & FoundationStereo & 3.70 & 30.1 & 334 \\
 \midrule
-\multirow{4}{*}{Overhang, shade, 43 frames} & SGBM             & 2.09 & 14.7 & 214 \\
-                                            & SGBM (tuned)     & 0.27 & 19.2 & 277 \\
+\multirow{4}{*}{Overhang, shade, 43 frames} & \acrshort{sgbm}             & 2.09 & 14.7 & 214 \\
+                                            & \acrshort{sgbm} (tuned)     & 0.27 & 19.2 & 277 \\
                                             & AquaStereo       & 2.16 & 13.1 & 178 \\
                                             & FoundationStereo & 3.69 & 25.7 & 403 \\
 \midrule
-\multirow{4}{*}{Wave, shade, 47 frames} & SGBM             & 2.15 & 13.7 & 167 \\
-                                        & SGBM (tuned)     & 0.28 & 19.0 & 220 \\
+\multirow{4}{*}{Wave, shade, 47 frames} & \acrshort{sgbm}             & 2.15 & 13.7 & 167 \\
+                                        & \acrshort{sgbm} (tuned)     & 0.28 & 19.0 & 220 \\
                                         & AquaStereo       & 2.21 & 14.5 & 156 \\
                                         & FoundationStereo & 3.73 & 41.2 & 511 \\
 \midrule
-\multirow{4}{*}{Pyramid, sun, 56 frames} & SGBM             & 2.15 & 10.2 & 129 \\
-                                         & SGBM (tuned)     & 0.27 & 16.9 & 190 \\
+\multirow{4}{*}{Pyramid, sun, 56 frames} & \acrshort{sgbm}             & 2.15 & 10.2 & 129 \\
+                                         & \acrshort{sgbm} (tuned)     & 0.27 & 16.9 & 190 \\
                                          & AquaStereo       & 2.19 & 13.9 & 93 \\
                                          & FoundationStereo & 3.74 & 16.8 & 106 \\
 \midrule
-\multirow{4}{*}{Overhang, sun, 35 frames} & SGBM             & 2.12 & 9.4  & 91 \\
-                                          & SGBM (tuned)     & 0.28 & 17.4 & 162 \\
+\multirow{4}{*}{Overhang, sun, 35 frames} & \acrshort{sgbm}             & 2.12 & 9.4  & 91 \\
+                                          & \acrshort{sgbm} (tuned)     & 0.28 & 17.4 & 162 \\
                                           & AquaStereo       & 2.22 & 9.8  & 71 \\
                                           & FoundationStereo & 3.76 & 14.7 & 99 \\
 \bottomrule
@@ -372,15 +402,15 @@ Recording & Matcher & Time & Coverage & Points \\
 % Referenced from Chapter 5: triangulated scale bars on the held-out stereo pairs.
 \begin{table}[H]
 \centering
-\caption{Triangulated scale bars (250--450~mm) on held-out stereo pairs, in mm: mean over the 28 splits, with the
-2.5--97.5 percentile range in brackets. Bias is the mean signed length error, RMS the root-mean-square length
-error; \emph{far} restricts both to boards at 1000--1500~mm. Baseline is the length of the fitted stereo
+\caption{Triangulated scale bars (250 to 450\,mm) on held-out stereo pairs, in mm: mean over the 28 splits, with the
+2.5 to 97.5 percentile range in brackets. Bias is the mean signed length error, \acrshort{rms} the root-mean-square length
+error; \emph{far} restricts both to boards at 1000 to 1500\,mm. Baseline is the length of the fitted stereo
 translation.}
 \label{tab:scalebars}
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{lrrrrr}
 \toprule
-Technique & Bias & RMS & Far bias & Far RMS & Baseline \\
+Technique & Bias & \acrshort{rms} & Far bias & Far \acrshort{rms} & Baseline \\
 \midrule
 T1 In-air calibration, unchanged & $-29.51$ {\scriptsize[$-41.25$, $-20.81$]} & 35.01 {\scriptsize[23.98, 49.38]} & $-25.62$ {\scriptsize[$-37.32$, $-15.75$]} & 29.33 {\scriptsize[16.49, 43.81]} & 150.36 {\scriptsize[150.36, 150.36]} \\
 T2 Pinax (air + refraction) & 1.83 {\scriptsize[0.58, 4.22]} & 4.40 {\scriptsize[2.08, 8.37]} & 0.04 {\scriptsize[$-0.44$, 0.92]} & 2.72 {\scriptsize[1.57, 4.08]} & 150.37 {\scriptsize[150.00, 150.54]} \\
@@ -443,14 +473,14 @@ $k_3$ & $0.03460$ & $0.02578$ \\
 $p_1$ & $0.00082$ & $-0.00034$ \\
 $p_2$ & $0.00010$ & $0.00014$ \\
 \midrule
-RMS reprojection error (px) & 0.278 & 0.272 \\
+\acrshort{rms} reprojection error (px) & 0.278 & 0.272 \\
 Images used & 89 & 89 \\
 \midrule
 \multicolumn{3}{l}{\textit{Stereo extrinsics}} \\
 Translation $T$ (mm) & \multicolumn{2}{r}{$(-150.60,\ 0.69,\ -0.74)$} \\
 Baseline $|T|$ (mm) & \multicolumn{2}{r}{150.60} \\
 Rotation about $x, y, z$ (deg) & \multicolumn{2}{r}{$(-0.097,\ -1.034,\ 0.099)$} \\
-Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
+Stereo \acrshort{rms} reprojection error (px) & \multicolumn{2}{r}{0.434} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -465,9 +495,9 @@ Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
     \centering
     \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_1.png}
     \caption[Fusion accuracy on the pyramid]{\textbf{Fusion accuracy on the pyramid.} One row per fusion method.
-    Left: the object's scan points from above, coloured by signed distance to the fitted CAD model (positive
-    outside), with the CAD faces outlined. Right: scan points within $\pm$3~mm of sections through the apex along
-    the CAD model's $x$ and $y$ axes, with the CAD cross-sections.}
+    Left: the object's scan points from above, coloured by signed distance to the fitted \acrshort{cad} model (positive
+    outside), with the \acrshort{cad} faces outlined. Right: scan points within $\pm$3\,mm of sections through the apex along
+    the \acrshort{cad} model's $x$ and $y$ axes, with the \acrshort{cad} cross-sections.}
     \label{fig:app.fusion_accuracy_pyramid}
 \end{figure}
 
@@ -476,8 +506,8 @@ Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
     \includegraphics[width=\textwidth]{figs/Ch5/accuracy_PYRAMID_2X2.png}
     \caption[Fusion accuracy on the $2\times2$ pyramid]{\textbf{Fusion accuracy on the $2\times2$ pyramid.} Panels as
     in Figure~\ref{fig:app.fusion_accuracy_pyramid}. COLMAP reconstructs mainly the ridges and edges, leaving
-    the plain faces empty. TSDF with FoundationStereo covers almost the whole surface, sitting slightly outside
-    it, and SGBM leaves scattered points in the valleys.}
+    the plain faces empty. \acrshort{tsdf} with FoundationStereo covers almost the whole surface, sitting slightly outside
+    it, and \acrshort{sgbm} leaves scattered points in the valleys.}
     \label{fig:app.fusion_accuracy_pyramid2x2}
 \end{figure}
 
@@ -485,7 +515,7 @@ Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
     \centering
     \includegraphics[width=\textwidth]{figs/Ch5/accuracy_EGG_1PK.png}
     \caption[Fusion accuracy on the egg carton]{\textbf{Fusion accuracy on the egg carton.} Panels as in
-    Figure~\ref{fig:app.fusion_accuracy_pyramid}. COLMAP follows the designed surface most closely; the TSDF
+    Figure~\ref{fig:app.fusion_accuracy_pyramid}. COLMAP follows the designed surface most closely; the \acrshort{tsdf}
     reconstructions sit below it over the bumps.}
     \label{fig:app.fusion_accuracy_egg}
 \end{figure}
@@ -499,7 +529,7 @@ Stereo RMS reprojection error (px) & \multicolumn{2}{r}{0.434} \\
     \centering
     \includegraphics[width=\textwidth]{figs/Ch5/frame_count_all_oblique_grid.png}
     \caption[Frame-count reconstructions of every ice target]{\textbf{Frame-count reconstructions of every ice
-    target.} TSDF reconstructions of the four shaded ice targets with FoundationStereo depth, using every 1st,
+    target.} \acrshort{tsdf} reconstructions of the four shaded ice targets with FoundationStereo depth, using every 1st,
     2nd, 8th and 16th frame of each pass, shown from the same oblique view. Points are coloured by height towards
     the camera, with a separate colour scale for each target.}
     \label{fig:app.frame_count_oblique_all}
