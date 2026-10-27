@@ -290,7 +290,7 @@
 %	DOCUMENT
 %---------------------------------------------------------------------
 % Fast preview: only these files are compiled. Delete this line for the full thesis.
-\includeonly{0_documentproperties,1_intro,2_review}
+% \includeonly{0_documentproperties,1_intro,2_review}
 \begin{document}
 %---------------------------------------------------------------------
 \include{0_documentproperties}
@@ -403,9 +403,9 @@
 % Chapter 9: Recommendations
 %---------------------------------------------------------------------
 \include{9_furtherwork}
-%   Marks the last page of the body. Everything after this (appendices,
-%   bibliography) is excluded from the page count.
-\label{body:end}
+%   The last page of the body is marked by \label{body:end} at the end of
+%   9_furtherwork.tex. It cannot go here, because \include ends with a
+%   \clearpage and the label would land on the first appendix page.
 %---------------------------------------------------------------------
 % Appendices
 %---------------------------------------------------------------------

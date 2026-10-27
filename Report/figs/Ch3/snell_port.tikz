@@ -4,9 +4,9 @@
 	% port and media
 	\fill[black!8] (1.25,0.55) rectangle (2.05,-2.472);
 	\draw (1.25,0.55) -- (1.25,-2.472) (2.05,0.55) -- (2.05,-2.472);
-	\node at (0.825,0.35000000000000003) {air, $n_a$};
-	\node[above] at (1.65,0.55) {glass, $n_g$};
-	\node at (3.3249999999999997,0.35000000000000003) {water, $n_w$};
+	\node at (0.825,0.35000000000000003) {air, $n_\text{air}$};
+	\node[above] at (1.65,0.55) {glass, $n_\text{glass}$};
+	\node at (3.3249999999999997,0.35000000000000003) {water, $n_\text{water}$};
 	\draw[dashed,black!55] (-0.781,0) -- (4.6499999999999995,0) node[right,black] {port normal};
 	% angle wedges
 	\fill[black!14] (1.250,-0.875) -- ++(180.00:0.75) arc (180.00:145.00:0.75) -- cycle;
@@ -28,11 +28,11 @@
 	\draw[black!70,fill=white] (-0.481,0) circle (1.3pt);
 	% angle arcs and labels
 	\draw (1.250,-0.875) ++(180:0.75) arc (180:145.00:0.75);
-	\node at ($ (1.250,-0.875)+(162.50:1.0) $) {$\theta_a$};
+	\node at ($ (1.250,-0.875)+(162.50:1.0) $) {$\theta_\text{air}$};
 	\draw (1.250,-0.875) ++(0:0.55) arc (0:-22.48:0.55);
-	\node at ($ (1.250,-0.875)+(-10.24:0.68) $) {\footnotesize$\theta_g$};
+	\node at ($ (1.250,-0.875)+(-10.24:0.68) $) {\footnotesize$\theta_\text{glass}$};
 	\draw (2.050,-1.206) ++(0:0.95) arc (0:-25.49:0.95);
-	\node at ($ (2.050,-1.206)+(-12.74:1.2) $) {$\theta_w$};
+	\node at ($ (2.050,-1.206)+(-12.74:1.2) $) {$\theta_\text{water}$};
 	% dimensions
 	\draw[black!60] (0,-0.12) -- (0,-2.742);
 	\draw[<->,black!70] (0,-2.622) -- (1.25,-2.622) node[midway,below=-1pt] {$d_0$};

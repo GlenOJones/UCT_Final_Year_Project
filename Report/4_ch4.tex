@@ -18,7 +18,7 @@
 %   Ch3 = theory (why it works). Ch4 = implementation (how it was done here).
 %   Avoid rederiving equations from Ch3; cite the Ch3 section instead.
 %*********************************************************************
-\chapter{Methodolody}
+\chapter{Methodology}
 \label{ch:design}
 
 \section{System Description}
@@ -331,7 +331,7 @@ The 3D-printed targets were designed by Agoritsa Spirakis for a \acrshort{uct}
 project \cite{aggi_thesis}. The set used here contains two pyramid
 tiles and two sinusoidal tiles.
 \autoref{fig:ch5.printed_shapes} shows the four shapes and \autoref{fig:ch4.data_side} depicts these during data collection,
-described in \hyperref[subsec:ch5.recordings_tested]{Section~\ref*{subsec:ch5.recordings_tested}}. 
+described in \hyperref[sec:ch4.ds2]{Section~\ref*{sec:ch4.ds2}}. 
 These targets act as a ground truth as their exact geometries are known. The reconstructed
 point clouds are compared against them to measure accuracy.
 
@@ -421,9 +421,9 @@ emulate curved ice features.
 \subsection{Datasets}
 \label{sec:ch4.datasets}
 Data was recorded both in air, in the \gls{aru} laboratory, and water (swimming pool). The swiming pool recordings
-were completed over three days, in varying lighting conditions. The weather, pool conditions and time 
-of every recording used in this project are given in
-\hyperref[app:recording_conditions]{Appendix~E}. 
+were completed over three days, in varying lighting conditions. The time, weather and pool conditions of each recording are
+explained in the GitHub repository, together with the field notes taken during recording
+(\hyperref[app:gitrepo]{Appendix~\ref*{app:gitrepo}}). 
 
 All recordings were captured in 1600\,$\times$\,1200\,px, 30\,fps, \gls{mjpeg}. The choice of \gls{mjpeg} was to allow for more than 5\,fps for 
 continous capture aswell as due to an issue in setting the YUYV white balance when testing underwater. This is also the format supported by

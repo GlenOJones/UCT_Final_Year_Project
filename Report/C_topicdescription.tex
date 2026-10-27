@@ -24,11 +24,47 @@
 The original topic description used during the project selection process is
 included below. This topic has since been further refined, and the exact
 problem that was investigated is described in
-Section~\ref{sec:ch1.problemstatement}.
+Section~\ref{sec:ch1.problemStatement}.
 
 %---------------------------------------------------------------------
-%   Include YOUR topic description here. One \includepdf, with the page
-%   range of your topic in the topic list.
-%
-%   \includepdf[pages=2-5]{pdfs/topics.pdf}
+%   Subject of investigation, quoted from the EEE4022S topic list
+%   (RA Verrinder, 8 July 2026). Its references are listed below by hand,
+%   not through BibTeX, so they stay separate from the main bibliography.
 %---------------------------------------------------------------------
+\section*{Subject of investigation}
+\begin{quote}
+Building on Zhao et al.\ (2022) and the surface characterisation work of Spirakis (2021); Spirakis et al.\ (2023);
+Jones (2024), this project develops and validates a stereo-camera three-dimensional reconstruction pipeline on the
+UCT BlueROV2 platform, as a first step towards reconstructing the underside of Antarctic sea ice. The work is
+conducted in a controlled pool environment, where a submerged proxy target of known geometry stands in for the ice
+underside. External fiducial markers provide the camera pose reference, so that the reconstruction is decoupled from
+onboard navigation, and the recovered surface model is evaluated against the ground-truth geometry of the proxy. The
+focus is on the geometric reconstruction itself: stereo calibration, handling of the underwater optical path,
+multi-view fusion, and quantified reconstruction accuracy.
+\end{quote}
+
+\section*{References}
+\begin{list}{}{\setlength{\leftmargin}{1.5em}\setlength{\itemindent}{-1.5em}\setlength{\itemsep}{0.3em}}
+\item Blue Robotics. BlueROV2. [ONLINE], 2025. Accessed: 2025-07-11.
+  url: \url{https://bluerobotics.com/store/rov/bluerov2/}
+\item D. Jones. SHARC project: Ice floe size and shape characterisation from LiDAR scans. BSc(Eng) final year
+  project, Department of Electrical Engineering), University of Cape Town, 2024.
+  url: \url{https://tinyurl.com/djones2023}
+\item J. Landy, A. Komarov, and D. Barber. Numerical and experimental evaluation of terrestrial LiDAR for
+  parameterizing centimeter-scale sea ice surface roughness. \textit{IEEE Transactions on Geoscience and Remote
+  Sensing}, 53:4887--4898, 2015. doi: \href{https://doi.org/10.1109/TGRS.2015.2412034}{10.1109/TGRS.2015.2412034}
+\item J. Landy, A. Komarov, and D. Barber. Secondary-scale surface roughness parameterization using terrestrial
+  LiDAR. In \textit{IGARSS 2015-2015 IEEE International Geoscience and Remote Sensing Symposium}, pages
+  2068--2017. IEEE, 2023. doi: \href{https://doi.org/10.1109/igarss.2015.7326208}{10.1109/igarss.2015.7326208}
+\item A. Spirakis. Investigation into surface roughness characterisation using LiDAR and cameras. BSc(Eng) final
+  year project, Department of Electrical Engineering), University of Cape Town, 2021.
+  url: \url{https://tinyurl.com/spirakis2021}
+\item A. Spirakis, J. Hepworth, and R. Verrinder. 3D reconstruction of pancake sea ice using LiDAR and cameras. In
+  \textit{IGARSS 2023-2023 IEEE International Geoscience and Remote Sensing Symposium}, pages 60--63. IEEE, 2023.
+  doi: \href{https://doi.org/10.1109/igarss52108.2023.10282250}{10.1109/igarss52108.2023.10282250}
+\item M. Vichi. An indicator of sea ice variability for the Antarctic marginal ice zone. \textit{The Cryosphere},
+  16:4087--4106, 2022. doi: \href{https://doi.org/10.5194/tc-16-4087-2022}{10.5194/tc-16-4087-2022}
+\item L. Zhao, M. Zhou, and B. Loose. Towards under-ice sensing using a portable ROV. In \textit{OCEANS
+  2022-Hampton Roads}, pages 1--8. IEEE, 2022.
+  doi: \href{https://doi.org/10.1109/OCEANS47191.2022.9977140}{10.1109/OCEANS47191.2022.9977140}
+\end{list}

@@ -125,7 +125,7 @@ Zhang \cite{zhangFlexibleNewTechnique2000} and OpenCV write it as $s$.
 \subsection{Intrinsic parameters}
 \label{subsec:ch3.intrinsics}
 %---------------------------------------------------------------------
-\autoref{eq:ch3.persp} gives image positions in millimetres, measured from the principal point $(u_0, v_0)$. 
+\autoref{eq:ch3.persp} gives image positions in millimetres, measured from the principal point $(c_x, c_y)$.
 A digital image instead uses pixels $\mathbf{m} = [u, v]^T$, measured from the top-left corner. 
 The intrinsic matrix $\mathbf{K}$ converts the positions from the image plane in millimeters to pixel coordinates \cite{zhangFlexibleNewTechnique2000}:
 \begin{equation}
@@ -133,21 +133,21 @@ The intrinsic matrix $\mathbf{K}$ converts the positions from the image plane in
 	\qquad
 	\mathbf{K} =
 	\begin{bmatrix}
-		\alpha & \gamma & u_0 \\
-		0      & \beta  & v_0 \\
+		f_x & \gamma & c_x \\
+		0   & f_y    & c_y \\
 		0      & 0      & 1
 	\end{bmatrix},
 	\label{eq:ch3.K}
 \end{equation}
 where $\tilde{\mathbf{x}} = [x, y, 1]^T$ are the point's normalised coordinates. The intrinsic matrix parameters are:
 \begin{itemize}
-	\item $\alpha$ and $\beta$: the horizontal and vertical focal length in pixels, equal to $f$ multiplied by the number of pixels per millimetre;
-	\item $(u_0, v_0)$: the principal point in pixels, usually close to the image centre;
+	\item $f_x$ and $f_y$: the horizontal and vertical focal length in pixels, equal to $f$ multiplied by the number of pixels per millimetre;
+	\item $(c_x, c_y)$: the principal point in pixels, usually close to the image centre;
 	\item $\gamma$: the skew between the sensor axes. This is negligible for modern sensors 
 	and set to zero in OpenCV \cite{opencvCameraCalibration3D}.
 \end{itemize}
 
-OpenCV writes $\alpha$, $\beta$, $u_0$ and $v_0$ as $f_x$, $f_y$, $c_x$ and $c_y$. 
+This report uses the OpenCV notation. Zhang \cite{zhangFlexibleNewTechnique2000} writes these parameters as $\alpha$, $\beta$, $u_0$ and $v_0$.
 Since $\mathbf{K}$ is invertible, $\mathbf{K}^{-1}\tilde{\mathbf{m}}$ converts a pixel back into the direction of its ray. 
 
 
@@ -230,7 +230,7 @@ or inwards (\textit{pincushion}), as shown in \autoref{fig:ch3.radial_distortion
 A smaller \textit{tangential} distortion can occur when the lens is not perfectly centred or parallel to the sensor \cite{brownDecenteringDistortionLenses1966}.
 \begin{figure}[H]
 	\centering
-	\includegraphics[width=0.7\textwidth]{figs/Ch3/radial_distortion.pdf}
+	\includegraphics[width=0.6\textwidth]{figs/Ch3/radial_distortion.pdf}
 	\caption[Radial lens distortion]{\textbf{Radial lens distortion.} A square grid (a) undistorted, (b) with barrel distortion and (c) with pincushion distortion, from the first radial term of \autoref{eq:ch5.bc_x}. Dashed lines show the undistorted grid; the cross marks the principal point.}
 	\label{fig:ch3.radial_distortion}
 \end{figure}
@@ -274,14 +274,14 @@ Fiducial markers such as AprilTags instead encode a unique binary code in each t
  
 \begin{figure}[H]
 	\centering
-	\begin{subfigure}[t]{0.36\textwidth}
+	\begin{subfigure}[t]{0.31\textwidth}
 		\centering
 		\includegraphics[width=\linewidth]{figs/Ch3/checkerboard.png}
 		\caption{Checkerboard.}
 		\label{fig:ch3.checkerboard}
 	\end{subfigure}
 	\hspace{1.5em}
-	\begin{subfigure}[t]{0.36\textwidth}
+	\begin{subfigure}[t]{0.31\textwidth}
 		\centering
 		\includegraphics[width=\linewidth]{figs/Ch3/aprilgrid_36h11_10x7.pdf}
 		\caption{AprilGrid.}
@@ -338,28 +338,18 @@ It is refined together with both cameras' parameters by minimising the
 %---------------------------------------------------------------------
 Underwater cameras are sealed inside a waterproof housing and capture the underwater scene through either a dome or a flat port.
 With a flat port, light passes from water through
- glass into air, bending at each surface (\autoref{fig:ch3.snell_port}). The angle of this refractive bending
+ glass into air, bending at each surface. This is shown in \autoref{fig:ch3.snell_port} in \hyperref[app:snell_port]{Appendix~E}. The angle of this refractive bending
  is defined by Snell's law \cite{hechtOptics2017}:
 \begin{equation}
-	n_w \sin\theta_w = n_g \sin\theta_g = n_a \sin\theta_a ,
+	n_\text{water} \sin\theta_\text{water} = n_\text{glass} \sin\theta_\text{glass} = n_\text{air} \sin\theta_\text{air} ,
 	\label{eq:ch3.snell}
 \end{equation}
-where $n_w$, $n_g$ and $n_a$ are the refractive indices of water, glass and air, and $\theta$ is the angle to the port's normal.
+where $n_\text{water}$, $n_\text{glass}$ and $n_\text{air}$ are the refractive indices of water, glass and air, and $\theta$ is the angle to the port's normal.
  Since the two faces of the port are parallel, the glass does not change the final angle, so only water and air matter.
- With $n_w \approx 1.33$ and $n_a \approx 1.00$ \cite{hechtOptics2017}, their ratio is $n = n_w / n_a \approx 1.33$.
- For seawater, $n_w$ is slightly higher at about 1.34 \cite{quanEmpiricalEquationIndex1995}.
- Near the optical axis, $\sin\theta \approx \tan\theta$, so a ray arriving at angle $\theta_w$ reaches the camera
- at $\tan\theta_a \approx n \tan\theta_w$. The image is therefore magnified by approximately 1.33. 
- 
-% DIAGRAM ADAPTED FROM https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=6248073
-\begin{figure}[H]
-	\centering
-	\input{figs/Ch3/snell_port.tikz}
-	\caption[Refraction at a flat port]{\textbf{Refraction at a flat port.} 
-	A ray from the water bends at both surfaces of the port according to \autoref{eq:ch3.snell}, reaching the camera
-	 centre $O$ at a larger angle $\theta_a$ than it left the water at $\theta_w$. The water ray meets the port normal a distance $\Delta x$ behind $O$, so the camera is no longer central.}
-	\label{fig:ch3.snell_port}
-\end{figure}
+ With $n_\text{water} \approx 1.33$ and $n_\text{air} \approx 1.00$ \cite{hechtOptics2017}, their ratio is $n = n_\text{water} / n_\text{air} \approx 1.33$.
+ For seawater, $n_\text{water}$ is slightly higher at about 1.34 \cite{quanEmpiricalEquationIndex1995}.
+ Near the optical axis, $\sin\theta \approx \tan\theta$, so a ray arriving at angle $\theta_\text{water}$ reaches the camera
+ at $\tan\theta_\text{air} \approx n \tan\theta_\text{water}$. The image is therefore magnified by approximately 1.33.
 
 
 Refraction further invalidates the pinhole assumption. The refracted rays no longer pass through a single point, so that the camera is no longer central \cite{treibitzFlatRefractiveGeometry2012}. 

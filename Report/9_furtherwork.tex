@@ -5,55 +5,47 @@
 \label{ch:recommendations}
 %---------------------------------------------------------------------
 
-This report examined the full reconstruction pipeline and tested it underwater. Several further tests and
-features are recommended here as future work to be completed before the system is deployed.
-
+Before the system is deployed beneath pancake ice, the following further work and research is recommended
 
 \section{Testing on Full-Sized Ice Mock-ups}
-The upward-looking ice scans of \hyperref[sec:ch4.ds3]{DS3} showed how the system responds to varying
-lighting conditions and how well it reconstructs surfaces resembling ice, but they fall short of emulating a real
-deployment. The sharp corners of the blocks and the texture in the background provided matching points that will
-not be present beneath full-sized pancake ice. In a real scan, there will likely be regions where the whole field
-of view is filled with ice, with no edges to match. This may cause the pipeline to fail, as was the case with visual odometry
-beneath freshwater ice in previous under-ice work (\autoref{sec:ch2.imaging_challenges}). Before a costly and
-time-consuming expedition to the \gls{miz}, the system should therefore be tested on full-sized mock-ups that more
-closer resemble the underside of pancake ice.
+The upward-looking scans of \hyperref[sec:ch4.ds3]{DS3} tested the system under varying light on surfaces
+resembling ice, but the sharp block corners and textured background gave matching points that will not exist
+beneath full-sized pancake ice. Where the whole field of view is filled with ice, the pipeline may fail, as visual
+odometry did beneath freshwater ice in previous work (\autoref{sec:ch2.imaging_challenges}). The system should
+therefore be tested on full-sized mock-ups before a costly expedition to the \gls{miz}.
 
 
-\section{Filtering, Dehazing and Exposure Locking}
-On full-sized ice, the feature detection and matching may fail. Filtering and dehazing could help, for example
-\gls{clahe} to increase the local texture, provided it does not shift
-the original pixel locations. Manually setting the camera exposure for the dark underside of the ice may also
-improve results. Auto exposure adjusts to the whole scene, so it must cover both the dark ice and the bright sky,
-which strains the cameras' dynamic range. Lowering the exposure may reveal more detail on the ice. The sky would
-then be overexposed, but it holds no useful data. Further testing would be needed to confirm that the overexposed
-sky does not reduce the accuracy at the edges of the ice.
+\section{Adding Texture and Contrast}
+Several methods could give the matcher more to work with on uniform ice. Filtering such as \gls{clahe} could
+raise the local texture, provided it does not shift pixel locations. Locking the exposure for the dark ice,
+rather than auto exposure balancing ice and bright sky, may reveal more detail, although its effect on accuracy
+at the ice edges must be checked. Projecting a pattern, such as a grid of dots, onto the ice would add texture
+directly.
 
 
-\section{Distance Dependence and Optimal Range}
-Due to time constraints, the effect of distance on accuracy was not examined in this report, although the optimal
-distance from the ice is important for planning a deployment. \hyperref[sec:ch4.ds2]{DS2} contains the same
-side-on scans at distances of 20 to 60\,cm from the targets. Initial testing showed the best accuracy at around
-30\,cm, but further analysis is needed to confirm this. It would also be beneficial to measure how accuracy falls off
-with distance from the centre of the field of view.
+\section{Survey Planning and Synchronisation}
+The effect of distance on accuracy was not examined. \hyperref[sec:ch4.ds2]{DS2} holds side-on scans at 20 to
+60\,cm, and initial tests suggest the best accuracy at around 30\,cm, which should be confirmed along with the
+fall-off away from the image centre. All tests were single passes, so survey patterns for full-sized ice should be
+compared, and real-time \gls{vio} could automate the scans. The cameras should also be synchronised in hardware,
+as the \gls{rov} will move faster than in these slow scans.
 
 
-\section{Hardware Synchronisation}
-The two StellarHD cameras are not synchronised in hardware. This was acceptable for the slow scans in this report,
-but adapting the cameras for hardware synchronisation is advised before deployment, as the \gls{rov} will move faster under
-its own propulsion.
+\section{Combining Sonar and Optical Data}
+Multibeam sonar has mapped the underside of Antarctic sea ice over large areas at around 0.5\,m resolution
+(\autoref{sec:ch2.acoustic_platforms}) \cite{williamsThickDeformedAntarctic2015}. This is too coarse for
+pancake ice, but sonar does not depend on light, water clarity or texture. Turning the BlueROV2's scanning
+sonar upwards would give the overall floe shape, while the stereo cameras add fine detail and the sonar fills
+regions where matching fails.
 
+%*********************************************************************
+% END
+%   Marks the last page of the body for the automatic page count. Keep it
+%   in this file, before \include's \clearpage (see 0_main.tex).
+\label{body:end}
 
-\section{Survey Patterns and Automation}
-All tests in this report were single passes. Full-sized pancake ice will likely need multiple passes for complete
-coverage, so experimenting with the patterns followed beneath the ice could give better reconstructions.
-Furthermore, real-time processing with \gls{vio} could allow automated scanning of
-pancake ice, making scans faster and reducing time spent on deployment.
+%*********************************************************************
 
-
-\section{Active Texture Projection}
-Finally, active texture could be examined. Projecting a pattern, such as a grid of dots, onto the ice would add
-texture to low-texture surfaces and help the stereo matching.
 %*********************************************************************
 % END
 %*********************************************************************
