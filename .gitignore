@@ -5,6 +5,8 @@
 !/Report/
 !.gitignore
 !/src/
+# CAD files for the test rig and calibration board, linked from Report/4_ch4.tex.
+!/CAD/
 # results/ is generated output and is not tracked, except the files the report includes.
 # Each parent folder has to be re-included before a file inside it can be.
 !/results/

@@ -1,0 +1,4 @@
+Camera Slider Plate by walter on Thingiverse: https://www.thingiverse.com/thing:1096607
+
+Summary:
+Camera Slider for Openbuilds V-Slot aluminum extrusion, uses 4 mini delrin wheels.  An Arca-Swiss compatible plate can be used to attach the beam to a tripod.  There are some diaphragms in the model that should make support unnecessary, but they need to be removed before assembly.Scale may need to be adjusted to get the tolerances right.Slider Parts:OpenBuilds 20 x 20 V-Slot Extrusion4 - OpenBuilds Delrin Mini V Wheel Kit4 M5 x 20mm screws (for slider)Plate Parts:2 - M5 x 8 Socket Cap Screws2 - T-nuts

@@ -1,0 +1,4 @@
+2020 Aluminium Profile variable angle bracket T-nut by R4C3R on Thingiverse: https://www.thingiverse.com/thing:2942892
+
+Summary:
+This variable angle bracket fits standard 2020 extrusion profiles. It requires the core of one extrusion to be threaded with M5 thread. One part is mounted with a M5x10 flat head screw at the cross cut side of the extrusion. The other part is mounted on the long side of the extrusion, using a M5x10 flat head screw with a T-Nut. Both parts are joined together with an M5x25 pan head screw and a cap nut. A spacer is used in order to prevent overtightening the pan head screw.
