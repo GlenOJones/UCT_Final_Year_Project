@@ -116,8 +116,7 @@ barometer, \gls{adc} and \gls{pwm} outputs for the thrusters and lights
 %       FOV in air and in water (links to Ch3 "Calibrating underwater").
 The StellarHD cameras are fitted with \gls{dwe}'s Aquagon lenses, which are designed to counteract the effects of the underwater environment
 by correcting for distortion and chromatic aberration \cite{dweAquagon}.
-A flat port refracts light, narrowing the field of view and distorting the image
-(\autoref{subsec:ch3.underwater_calib}). Corrective optics address this by placing additional lens elements behind the port, so that the camera sees an undistorted
+A flat port refracts light, narrowing the field of view and distorting the image, as explained in \autoref{subsec:ch3.underwater_calib}. Corrective optics address this by placing additional lens elements behind the port, so that the camera sees an undistorted
 virtual image equivalent to the scene in air \cite{slaterAfocalViewportOptics2014}.
 The Aquagon lenses have seven elements, two aspherical and two \gls{ed}.
 These are fitted behind a sapphire front port. The manufacturer quotes distortion below 1.5\,\% in water \cite{dweStellarHDDatasheet}.
@@ -147,8 +146,8 @@ The key camera specifications are listed in \autoref{table:ch4.cameraspecs}.
     {\footnotesize\raggedright $^{*}$Value for the Aquagon lens's field of view in water.\par}
 \end{table}
 
-The StellarHD cameras support leader follower frame synchronisation, 
-however, the current setup does not have the required shared cabling.
+The StellarHD cameras support leader-follower frame synchronisation, 
+but the current setup does not have the required shared cabling.
 This frame synchronisation is only 
 supported at 60\,fps, limiting it to \gls{mjpeg}\footnote{Video stored as a sequence of individually JPEG-compressed frames.} recordings.
 In the current configuration, the two cameras can start with a time offset
@@ -189,8 +188,8 @@ Its specifications are listed in \autoref{table:ch4.laptopspecs}.
 %        confirm which environment the TSDF runs used.
 % CHECK: COLMAP version (4.3 mentioned in code comments) and the
 %        FoundationStereo / AquaStereo checkpoints + PyTorch/CUDA version.
-The software used in this project is split into two parts: the camera control and recording software that runs on the \gls{rov}
-(\autoref{subsec:ch4.recording}), and the Python pipeline that processes the recordings on the laptop (\autoref{subsec:ch4.postprocessing}).
+The software used in this project is split into two parts, the camera control and recording software that runs on the \gls{rov}
+and the Python pipeline that processes the recordings on the laptop. Both are described in \autoref{subsec:ch4.recording}.
 \subsection{Camera control and recording}
 \label{subsec:ch4.recording}
 A custom Python script (\texttt{stereo\_cam.py}) controls both StellarHD 
@@ -255,7 +254,7 @@ refer to the project's
     \label{fig:ch4.pipeline}
 \end{figure}
 
-The versions of the libraries and tools used are listed in the appendix (\autoref{app:software}).
+The versions of the libraries and tools used are listed in \hyperref[app:software]{Appendix~\ref*{app:software}}.
 
 %=====================================================================
 % SECTION: Dataset (moved from 4b_dataset.tex)
@@ -420,16 +419,16 @@ emulate curved ice features.
 %========================
 \subsection{Datasets}
 \label{sec:ch4.datasets}
-Data was recorded both in air, in the \gls{aru} laboratory, and water (swimming pool). The swiming pool recordings
+Data was recorded both in air, in the \gls{aru} laboratory, and water (swimming pool). The swimming pool recordings
 were completed over three days, in varying lighting conditions. The time, weather and pool conditions of each recording are
-explained in the GitHub repository, together with the field notes taken during recording
-(\hyperref[app:gitrepo]{Appendix~\ref*{app:gitrepo}}). 
+explained in the GitHub repository, together with the field notes taken during recording, linked in
+\hyperref[app:gitrepo]{Appendix~\ref*{app:gitrepo}}. 
 
 All recordings were captured in 1600\,$\times$\,1200\,px, 30\,fps, \gls{mjpeg}. The choice of \gls{mjpeg} was to allow for more than 5\,fps for 
-continous capture aswell as due to an issue in setting the YUYV white balance when testing underwater. This is also the format supported by
+continuous capture as well as due to an issue in setting the YUYV white balance when testing underwater. This is also the format supported by
 the camera synchronisation which will aid future work.
 
-The recordings used in this report are grouped into three datasets, DS11–DS3,
+The recordings used in this report are grouped into three datasets, DS1–DS3,
 shown in \autoref{fig:ch4.datasets} and described below. 
 
 \begin{figure}[htbp]
@@ -470,7 +469,7 @@ This test was repeated both in air in the \gls{aru} experimental space, and unde
 \subsubsection{DS2: Side Scans of 3D-Printed Targets}
 \label{sec:ch4.ds2}
 The 3D-printed targets were fixed to a flat board with AprilTags placed around them. The tags provided a
-ground-truth camera pose (\autoref{subsec:ch5.tag_poses}) and serve as reference points for separating the objects.
+ground-truth camera pose, as described in \autoref{subsec:ch5.tag_poses}, and serve as reference points for separating the objects.
 The \gls{rov} was rolled past the board, stopping every 10\,cm. This was repeated with the stereo cameras
 20, 30, 40, 50 and 60\,cm from the board.
 

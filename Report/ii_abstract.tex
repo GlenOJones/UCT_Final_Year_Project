@@ -37,28 +37,28 @@
 %---------------------------------------------------------------------
 % Write abstract here [350 words]
 %---------------------------------------------------------------------
-Antarctic sea ice plays a central role in the uptake of heat and carbon dioxide by the Southern Ocean, and much of
-this exchange takes place at the underside of the ice. The underside of pancake ice in the marginal ice zone has not
-been reconstructed in three dimensions, as satellites and above-ice methods cannot observe it and sonar is too coarse
-to resolve its centimetre-scale structure (\autoref{ch:review}). This project carried out a proof of concept for reconstructing an overhead
-underwater surface with the stereo cameras of a BlueROV2 remotely operated vehicle.
+Antarctic sea ice regulates the Southern Ocean's uptake of heat and carbon dioxide, much of it at the ice underside.
+In the marginal ice zone this underside has not yet been reconstructed optically, as satellites cannot observe it
+and sonar cannot resolve its centimetre-scale structure. This project investigated whether the stereo cameras of a
+BlueROV2 remotely operated vehicle can reconstruct an overhead underwater surface.
 
-A test rig, calibration board and set of targets were designed and built, and three datasets were recorded in a
-swimming pool (\autoref{ch:design}). Plastic pyramid and egg carton tiles printed to a known geometry served as ground truth, while
-painted foam blocks imitated features of the ice underside (\autoref{sec:ch4.targets}). Open-source methods were compared at each pipeline stage.
+A test rig, calibration board and set of targets were built, and three datasets were recorded in a swimming pool.
+Printed pyramid and egg carton tiles of known geometry served as ground truth, while painted foam blocks imitated
+features of the ice underside.
 
-For calibration (\autoref{ch:calibration}), merging the greyscale and colour channel detections and tuning the detector raised the underwater
-tag detection rate from 35 to 43\,\% (\autoref{subsec:ch5.optimising_detection}). Of five calibration approaches compared on repeated held-out splits, a
-Brown-Conrady model fitted to underwater images gave a held-out reprojection error of 0.29 pixels, compared with
-8.6 pixels for an in-air calibration, and measured tags on an independent target to within about 2\,mm (\autoref{subsec:ch5.results_analysis}).
+Merging greyscale and colour channel detections and tuning the detector raised the underwater tag detection rate
+from 35 to 43 per cent. Five calibration approaches were compared on repeated held-out splits. A Brown-Conrady
+model fitted to underwater images gave a held-out reprojection error of 0.29 pixels, against 8.6 pixels for an
+in-air calibration and 1.9 pixels for the Pinax refraction model, and measured tags on an independent target to
+within about 2~mm.
 
-Classical and learnt stereo matchers were then compared for depth (\autoref{ch:reconstruction}), along with four camera pose methods and three
-ways of fusing frames into a surface. The learnt
-FoundationStereo model gave the most complete depth maps and was the only matcher to keep the full ice shape in
-direct sunlight (\autoref{sec:ch5.depth_test}). COLMAP gave the most accurate poses in shade, with an absolute trajectory error of 6.8\,mm (\autoref{subsec:ch5.pose_results}). The
-final pipeline combines COLMAP poses, FoundationStereo depth and truncated signed distance function fusion, and
-reconstructed the printed pyramids with median errors of about 2\,mm (\autoref{subsec:ch5.fusion_results}). The learnt model smoothed over partly hidden
-curved surfaces, so reconstructions of real ice should be checked against a second method (\autoref{subsec:ch5.fusion_discussion}).
+Classical and learnt stereo matchers were then compared for depth, along with four camera pose methods and three
+ways of fusing frames into a surface. The learnt FoundationStereo matcher gave the most complete depth maps and was
+the only matcher to keep the full ice shape in direct sunlight. COLMAP gave the most accurate poses in shade, with
+an absolute trajectory error of 6.8~mm. The final pipeline combines COLMAP poses, FoundationStereo depth and
+truncated signed distance function fusion, and reconstructed the printed pyramids with median errors of about
+2~mm. The learnt model smoothed over partly hidden curved surfaces, so reconstructions of real ice should be checked
+against a second method.
 
-The project shows that the BlueROV2 cameras can reconstruct an overhead underwater surface with millimetre-scale
-accuracy, and provides a dataset and pipeline as a foundation for deployment beneath sea ice (\autoref{ch:conclusions} and \autoref{ch:recommendations}).
+The BlueROV2 cameras can therefore reconstruct an overhead underwater surface with millimetre-scale accuracy. The
+dataset and pipeline produced here provide a foundation for developing the platform for under ice deployment.

@@ -420,24 +420,6 @@
 \setcounter{section}{0}
 %---------------------------------------------------------------------
 
-\include{A_gitrepo}
-\include{B_ethics}
-%---------------------------------------------------------------------
-%   C: the original topic description, as issued during project selection.
-%      Required for a final year project report. Not usually included in a
-%      postgraduate thesis: comment it out if you are writing one.
-%
-%   D: the ECSA Graduate Attributes reflection table. Required for a final
-%      year project report, since ECSA accreditation depends on it. Not
-%      required for a postgraduate thesis.
-%---------------------------------------------------------------------
-\include{C_topicdescription}
-\include{D_ECSA}
-\include{9_appendix}
-%=====================================================================
-%	BACK MATTER
-%=====================================================================
-\backmatter
 %---------------------------------------------------------------------
 % Bibliography
 %---------------------------------------------------------------------
@@ -467,6 +449,27 @@
 \fi
 {\small \bibliography{thesis,FIXED}}
 \addcontentsline{toc}{chapter}{Bibliography}
+%   Placed first in the appendices (Glen, 2026-10-27).
+%---------------------------------------------------------------------
+
+\include{9_appendix}
+\include{A_gitrepo}
+\include{B_ethics}
+%---------------------------------------------------------------------
+%   C: the original topic description, as issued during project selection.
+%      Required for a final year project report. Not usually included in a
+%      postgraduate thesis: comment it out if you are writing one.
+%
+%   D: the ECSA Graduate Attributes reflection table. Required for a final
+%      year project report, since ECSA accreditation depends on it. Not
+%      required for a postgraduate thesis.
+%---------------------------------------------------------------------
+\include{C_topicdescription}
+\include{D_ECSA}
+%=====================================================================
+%	BACK MATTER
+%=====================================================================
+\backmatter
 %---------------------------------------------------------------------
 \end{document}
 %---------------------------------------------------------------------

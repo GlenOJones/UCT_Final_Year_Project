@@ -1,10 +1,10 @@
 
 %---------------------------------------------------------------------
-% Appendix D
+% Appendix E
 %---------------------------------------------------------------------
 
-\chapter*{Appendix D: ECSA Graduate Attributes}
-\addcontentsline{toc}{chapter}{Appendix D: ECSA Graduate Attributes}
+\chapter*{Appendix E: ECSA Graduate Attributes}
+\addcontentsline{toc}{chapter}{Appendix E: ECSA Graduate Attributes}
 %---------------------------------------------------------------------
 
 \section*{Project mapping to ECSA Graduate Attributes}
@@ -25,24 +25,26 @@ The table below provides a structured reflection on where each of the required \
 \endhead
 
 GA1 & \textit{Problem solving} &
-The lack of in situ data on the underside of sea ice in the Marginal Ice Zone is stated independently of any
-solution in \autoref{sec:ch1.problemStatement}. It is broken into achievable objectives in
+The problem of optical three-dimensional reconstruction of the underside of sea ice is explained in \autoref{sec:ch1.problemStatement}. It is broken into achievable objectives in
 \autoref{sec:ch1.projectobjectives}, with the scope, limitations and assumptions given in \autoref{sec:ch1.scope}.
-The problem was divided into sub-problems that were solved in turn: underwater stereo calibration
-(\autoref{ch:calibration}), followed by depth estimation, pose estimation and frame fusion
-(\autoref{ch:reconstruction}). Each was approached from the first principles of camera geometry, refraction and
+The problem was divided into sub-problems that were solved in turn. Underwater stereo calibration is covered
+in \autoref{ch:calibration}, followed by depth estimation, pose estimation and frame fusion
+in \autoref{ch:reconstruction}. Each was approached from the first principles of camera geometry, refraction and
 stereo matching developed in \autoref{ch:theory}, and the conclusions in
-\autoref{ch:conclusions} are supported by measured results. \\
+\autoref{ch:conclusions} are supported by measured results. This was a complex problem which the
+student was able to break down into manageable and testable stages. \\
+
 \cmidrule(lr){1-3}
 GA4 & \textit{Investigations, experiments and data analysis} &
-The literature review (\autoref{ch:review}) examines existing under-ice measurement and underwater three-dimensional
-reconstruction methods, and its critique (\autoref{sec:ch2.critique}) motivates the stereo approach taken. The test
+The literature review in \autoref{ch:review} examines existing under-ice measurement and underwater three-dimensional
+reconstruction methods, and its critique in \autoref{sec:ch2.critique} motivates the stereo approach taken. The test
 rig, 3D-printed targets, foam ice targets and recorded datasets are described in \autoref{sec:testplatform} and \autoref{sec:ch4.targets}. Calibration
 experiments on image channel selection, detector tuning and underwater compensation are given in
 \autoref{ch:calibration}. Depth, pose and fusion methods were each implemented and compared in
 \autoref{ch:reconstruction}. Performance was quantified with reprojection error, absolute trajectory error against
 AprilTag poses, and point-to-\acrshort{cad} error and coverage on objects of known geometry, which also verify that the code
-produces accurate results. All code is documented on GitHub (\autoref{sec:appA.first}). \\
+produces accurate results. A test suite was designed, data collected and rigorous post-processing testing completed.
+ All code is documented on GitHub, linked in \hyperref[app:gitrepo]{Appendix~\ref*{app:gitrepo}}. \\
 \cmidrule(lr){1-3}
 GA5 & \textit{Use of engineering tools} &
 The hardware (BlueROV2 Heavy, \acrshort{rpi} and stereo cameras) and the software tools are described in
@@ -52,19 +54,19 @@ and multi-view stereo, and PyTorch to run the FoundationStereo and AquaStereo mo
 the calibration board, Onshape for \acrshort{cad}, BlueOS and Docker to operate the \acrshort{rov}, Git and GitHub for version control,
 and \LaTeX{} and Zotero for the report. The limitations of each tool were identified through testing, for example
 the speckle noise of \acrshort{sgbm}, the reliance of COLMAP on texture, and the smoothing of partly hidden curves by
-FoundationStereo (\autoref{subsec:ch5.fusion_discussion}). \\
+FoundationStereo, discussed in \autoref{subsec:ch5.fusion_discussion}. \\
 \cmidrule(lr){1-3}
 GA6 & \textit{Professional and technical communication} &
 The report follows a logical structure, from the problem and literature through theory, system design, datasets
-and experiments to discussion, conclusions and recommendations (\autoref{sec:ch1.planofdevelopment}). All
+and experiments to discussion, conclusions and recommendations, as outlined in \autoref{sec:ch1.planofdevelopment}. All
 equations are typeset and numbered, all figures and tables are captioned and referred to in the text, and
 acronyms are defined on first use and listed in the glossary. Sources are cited in \acrshort{ieee} style, and cross-references
 are hyperlinked to help the reader navigate the document. \\
 \cmidrule(lr){1-3}
 GA8 & \textit{Individual and collaborative teamwork} &
-The project was completed individually, with the normal guidance of the supervisor, R.A. Verrinder, whose initial
-project proposal was used as a reference for the problem statement. The project received \acrshort{ebe} ethics approval
-(STU-EBE-2026-PSQ002570), given in Appendix~B. All assistance, including the use of
+The project was completed individually, with the guidance of the supervisor, R.A. Verrinder. The BlueROV hardware
+was shared between two students requiring collaboration in setup, usage and data collection. The project received \acrshort{ebe} ethics approval
+(STU-EBE-2026-PSQ002570), given in Appendix~C. All assistance, including the use of
 \acrshort{ai} tools, is acknowledged in the Acknowledgements. \\
 \cmidrule(lr){1-3}
 GA9 & \textit{Independent learning ability} &

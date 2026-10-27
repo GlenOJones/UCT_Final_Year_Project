@@ -9,7 +9,7 @@ This project carried out an initial proof of concept for underwater three-dimens
 the BlueROV2 platform. The aim was to generate a dataset and to analyse the surface reconstruction of
 known targets, as a first step towards reconstructing the underside of Antarctic sea ice.
 % Lit review summary
-The report began by reviewing the existing literature (\hyperref[ch:review]{Chapter~\ref*{ch:review}}). The role of the Southern Ocean
+The report began by reviewing the existing literature in \hyperref[ch:review]{Chapter~\ref*{ch:review}}. The role of the Southern Ocean
 and its sea ice in absorbing anthropogenic heat and CO\textsubscript{2} and in the ecosystem was examined, and the
 formation of pancake ice by wave action within the \gls{miz} was described. The shortcomings of satellite and
 above-ice observations showed the need to observe from below the ice. Previous sonar and optical measurements,
@@ -26,7 +26,7 @@ traced to USB bandwidth on the \gls{rpi} and fixed by upgrading from an \gls{rpi
 a significant product of the research, as it contains further recordings that future students can use.
 
 % Calibration summary, what was done, what was concluded
-The experimental work began with underwater stereo calibration (\hyperref[ch:calibration]{Chapter~\ref*{ch:calibration}}). Merging the
+The experimental work began with underwater stereo calibration in \hyperref[ch:calibration]{Chapter~\ref*{ch:calibration}}. Merging the
 greyscale and colour channel detections raised the AprilTag detection rate from 0.354 to 0.432, and tuning the
 OpenCV detector kept 75\,\% more tags. Five calibration approaches, two based on in-air calibration and three
 fitted to underwater images, were then tested on repeated train and held-out splits. Calibrating with underwater
@@ -36,7 +36,7 @@ Pinax, and it measured tags on an independent target to within about 2\,mm (1.5\
 that the Aquagon optics follow the single-viewpoint approximation, so the standard pinhole model could be used.
 
 % 3D Reconstruction
-Three-dimensional surfaces were then generated from the calibrated stereo pairs (\hyperref[ch:reconstruction]{Chapter~\ref*{ch:reconstruction}}).
+Three-dimensional surfaces were then generated from the calibrated stereo pairs in \hyperref[ch:reconstruction]{Chapter~\ref*{ch:reconstruction}}.
 For depth, the classical \gls{sgbm} matcher was compared with the learnt FoundationStereo and AquaStereo models.
 FoundationStereo gave the highest coverage in shade and was the only matcher to keep the full ice shape in direct
 sunlight. For pose, COLMAP was the most accurate in shade, but its poses jumped in sunlight, where only \gls{icp}

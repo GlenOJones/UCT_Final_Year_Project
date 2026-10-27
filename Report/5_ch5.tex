@@ -81,7 +81,7 @@ $(x_d, y_d)$ are the distorted coordinates.
 
 OpenCV implements this through \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga3207604e4b1a1758aa66acb6ed5aa65d}{\textcolor{blue}{\texttt{cv2.calibrateCamera}}},
 using Zhang's method \cite{zhangFlexibleNewTechnique2000} for an
-initial estimate. This is followed by Levenberg-Marquardt optimisation to refine all parameters \cite{CvCalibrateCameraAuroraVision}.
+initial estimate. This is followed by Levenberg-Marquardt optimisation to refine all parameters \cite{CvCalibrateCameraAuroraVisionLink}.
 
  % REF https://docs.adaptive-vision.com/studio/filters/CameraCalibrationAnd3DReconstruction/cvCalibrateCamera.html
 
@@ -105,7 +105,7 @@ OpenCV uses a simplified version in \href{https://docs.opencv.org/4.x/db/d58/gro
 \theta_d &= \theta\,(1 + k_1\theta^2 + k_2\theta^4 + k_3\theta^6 + k_4\theta^8) \\
 (x_d,\, y_d) &= \frac{\theta_d}{r}\,(x,\, y)
 \end{align}
-This gives the distortion coefficient vector $(k_1, k_2, k_3, k_4)$ \cite{OpenCVFisheyeCamera}.
+This gives the distortion coefficient vector $(k_1, k_2, k_3, k_4)$ \cite{OpenCVFisheyeCameraLink}.
 
 % Okay but this is now the distorted corridinates?
 % Stereo is fitted differentl
@@ -198,7 +198,7 @@ compare the results.
 % For these sets of tests, the cameras were set to auto exposure and to record 30fps in MJPG at maximum resolution, $1600$x$1200$
 % The cameras are set to auto exposure and record in MJPG. MJPG was chosen over YUYV for resons explaeined in section X.
 
-Experiments 1 to 3 use the calibration image dataset (\hyperref[sec:ch4.ds1]{\textcolor{blue}{DS1}}). \autoref{fig:ch5.air_vs_water} compares the in-air and
+Experiments 1 to 3 use the calibration image dataset DS1, described in \autoref{sec:ch4.ds1}. \autoref{fig:ch5.air_vs_water} compares the in-air and
 underwater sets. Refraction at the glass-water interface narrows the FOV underwater, and the
 board appears smaller in air at the same distance. Because the Aquagon lenses are designed for use
 underwater, the in-air images show  pincushion distortion along the straight edges of the board.
@@ -322,11 +322,12 @@ To avoid this, five metrics are used to evaluate the effectiveness of the calibr
 %Third: 
 
 % Intro to the colour comparison
+{\sloppy
 The first experiment compares how AprilGrid detection works for the different channels as OpenCV's ArUco  detector
  takes single-channel images. Five inputs were compared: greyscale 
  (converted using OpenCV's \href{https://docs.opencv.org/4.x/d8/d01/group__imgproc__color__conversions.html#ga397ae87e1288a81d2363b61574eb8cab}{\textcolor{blue}{\texttt{cvtColor}}}), 
 the camera's JPEG luma (Y), and the red, green and blue channels. Each run used OpenCV's default detector and calibration settings on the same set of calibration frames. Runs were compared on 
-tag detection rate and matched-tag \gls{rms} error (Mean and median).
+tag detection rate and matched-tag \gls{rms} error (Mean and median).\par}
 
 % TODO: Make this comparison a permanent python code. Rerun comparison and look at other metrics
 
@@ -343,7 +344,7 @@ A merge of the greyscale and colour channels is also tested, for the reasons giv
 
 %This is likely due to how the colour channels are reconstructed from YUYV data? is it  or is it just how its encoded? Eac hcolour is recovered from the lima plus zthe half-resolution chorma. .
 \autoref{tab:channel_summary} shows the comparison between the air and water detections. Plots comparing detection and distance from the camera are
-given in \hyperref[app:recall_distance]{Appendix~E}.
+given in \hyperref[app:recall_distance]{Appendix~\ref*{app:recall_distance}}.
 
 
 
@@ -390,8 +391,8 @@ the lowest (0.299). The left and right cameras differed in accuracy. Their media
 7\,\% of each other for every input except blue (17\,\%), but the right camera's \gls{rms} error was approximately
 70\,\% higher than the left's (49\,\% for blue). The likely cause is that in DS1, the board is only placed at
 the centre and left positions, which put it further from the right camera and left more of its tags
-occluded in the close up frames. This difference does not appear in air, whic is likely due to the
-wider field of view. This trend was consistent across all distances and is plotted in (\hyperref[app:recall_distance]{Appendix~E}).
+occluded in the close-up frames. This difference does not appear in air, which is likely due to the
+wider field of view. This trend was consistent across all distances and is plotted in \hyperref[app:recall_distance]{Appendix~\ref*{app:recall_distance}}.
 
 When looking at which tag detections were made for each channel, an interesting observation was made. Although they had a similar detection rate,
 not all the detections were of the same tags. \autoref{fig:ch5.channel_overlap} below shows which tags were detected by each channel. 
@@ -402,7 +403,7 @@ the greyscale and RGB channels separately and merging the detected tags. This im
     \centering
     \includegraphics[width=0.8 \textwidth]{figs/Ch5/fig_channel_overlap_L3.png}
     \caption[Tag detections per colour channel.]{\textbf{Tag detections per colour channel.}
-    Dots show which of gray, green and red found each tag (hollow means missed); black outlines mark tags found by all channels, purple by some, dashed by none.}
+    Dots show which of grey, green and red found each tag (hollow means missed); black outlines mark tags found by all channels, purple by some, dashed by none.}
 
     \label{fig:ch5.channel_overlap}
 \end{figure}
@@ -426,7 +427,7 @@ median, or if it had fewer than 10 tags.
 
 \subsection{Results and analysis}
 The final detector parameters can be 
-found in  \hyperref[app:detector_configs]{Appendix~E}. The improvements over the OpenCV default detector are given in
+found in  \hyperref[app:detector_configs]{Appendix~\ref*{app:detector_configs}}. The improvements over the OpenCV default detector are given in
 \autoref{tab:detector_sweep_result} below.
 
 \begin{table}[H]
@@ -459,8 +460,8 @@ rose slightly, likely due to the fact the tuned detector included more steep-ang
 % == ADDED CHOICE OF DISTANCE ERROR (EMily's 250cm is useful here)
 As explained in \autoref{subsec:ch3.underwater_calib}, refraction changes the effective focal length
 and FOV of an underwater camera, and can break the single-viewpoint (pinhole) assumption. A
-calibration made in air therefore does not necessarily carry for an underwater applicatoin
- underwater. This experiment compares five underwater
+calibration made in air therefore does not necessarily carry over to an underwater application.
+This experiment compares five underwater
 compensation techniques, described in \autoref{subsec:ch5.theory_calibration_techniques}, to determine
 how the lenses behave in water compared to air, which technique best compensates for the distortion, and
 whether the Aquagon lenses behave as a single-viewpoint camera.
@@ -490,7 +491,6 @@ The following five compensation techniques were tested:
     \item \textbf{T5:} Underwater Brown-Conrady calibration with axial shift: Testing single point assumption
 \end{enumerate}
 
-
 The same set of detection points was passed to the calibration code. This ensures the differences between the techniques come 
 from the different camera models, not the detections. 
 % Which exact sets of detections for the camera models and which exact for the held out. Which ones for in air calibration technique?
@@ -500,7 +500,7 @@ from the different camera models, not the detections.
 \label{sec:heldout}
 Each method was tested on recordings it was not trained on. Two of the eight underwater recordings were held
 out, the method was fitted on the remaining six, and it was then tested on the two held out. This was repeated
-for every possible pair, giving 28 splits (\hyperref[app:heldout]{Appendix~E}).
+for every possible pair, giving 28 splits, which are listed in \hyperref[app:heldout]{Appendix~\ref*{app:heldout}}.
 
 To test an image, the fitted intrinsics are kept fixed and only the board pose is fitted. The held-out error is
 the \gls{rms} distance between the detected corners and the corners reprojected by the model. The reported result is
@@ -515,10 +515,7 @@ the mean over the 28 splits.
 
 The analysis is split into \textbf{zones} based on how far each corner lies from the principal point, to analyse distortion and
 refraction, which both grow towards the edges of the image. The zones are defined using a normalised radius 
-from the centre of the sensor, with the method in \hyperref[app:heldout:zones]{Appendix~E}.
-$r = 0$ is at the
-optical centre and $r = 1$ at the farthest corner. 
-
+from the centre of the sensor, with the method in \hyperref[app:heldout:zones]{Appendix~\ref*{app:heldout:zones}}.
 %The image is divided into three zones: centre ($r < 0.33$), mid ($0.33 \le r < 0.66$) and outer ($r \ge 0.66$).
 
 The results are further split into \textbf{near} and \textbf{far} bands by board distance. Near covers boards at 200 to 800\,mm and far
@@ -530,10 +527,10 @@ further boards appear small and do not reach the outer zones.
 For each technique, the board corners in the held-out stereo pairs are triangulated using that technique's
 calibration of both cameras and the stereo extrinsics between them. The central models (T1-T4) use 
 \href{https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#gad3fc9a0c82b08df034234979960b778c}{\textcolor{blue}{\texttt{cv2.triangulatePoints}}}
- on the normalised rays; however, T5 cannot use this method as it does not have a single P matrix to describe it. 
+ on the normalised rays. T5 cannot use this method as it does not have a single P matrix to describe it. 
 T5 uses midpoint triangulation. Due to small errors in corner detection and calibration, the two rays pass close to each other without 
 intersecting. The midpoint triangulation method finds the shortest segment connecting the two and takes the midpoint as the three-dimensional point.
-As a check, with $a_1$ and $a_2$ set to zero (making T5 central), the midpoint method agreed with \texttt{cv2.triangulatePoints} to within $10^{-6}$\,mm.
+As a check, with $a_1$ and $a_2$ set to zero (making T5 central), the midpoint method agreed with \texttt{cv2.triangulatePoints} to within $10^{-6}$\,mm.\par
 
 %Each pair of AprilGrid corners are $250-400$mm  apart and are used as a "scale bar". Error is determined from the subtraction of true length and measured length 
 %from $3D$.
@@ -580,7 +577,7 @@ close to a straight line on the log scale, so the error grows exponentially with
  the Aquagon is a corrective lens with seven elements that is designed to remove the effects of refraction \cite{dweAquagon}.
 
 The underwater calibrations (T3 to T5) follow the same rising trend but much more weakly. They go from approximately 0.25\,px at 
-the centre to approx 0.7\,px at the edge, a factor of roughly three. All three stay below 0.5\,px up to $r \approx 0.8$. Kannala-Brandt 
+the centre to approximately 0.7\,px at the edge, a factor of roughly three. All three stay below 0.5\,px up to $r \approx 0.8$. Kannala-Brandt 
 slightly outperforms across all compared metrics. 
 % TODO - Switch acial shift to kannala brandt.
 % TODO - WHY ARE THESE RMS VALUES DIFFERENT FROM THE TAG DETECTION TESTS

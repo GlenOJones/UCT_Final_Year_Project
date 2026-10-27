@@ -5,9 +5,9 @@
 \label{ch:introduction}
 This report describes the research, design and testing of an underwater stereo camera system for the
 three-dimensional reconstruction of the underside of Antarctic sea ice. The system is developed as a proof of concept
-on a BlueROV2 and tested on targets in a swimming pool.
+on a BlueROV2 tested on targets in a swimming pool.
 
-This chapter first outlines the background to the project and why this research is important. It then states the
+This chapter outlines the background to the project and why this research is important. It then states the
 problem, the project objectives, and the scope, limitations and assumptions, and closes with the plan of development.
 
 %====================================================
@@ -48,7 +48,7 @@ It provides a habitat for sea-ice algae, which act as primary producers in the A
  \cite{gruberOceanicSinkAnthropogenic2019}. 
 
 
-Much of this exchange occurs at the underside of the ice, which forms the interface between the ice and the ocean. 
+Much of this exchange occurs at the underside of the ice, forming the interface between the ice and the ocean. 
 The shape of the underside determines the drag between the ice and the water and the area over which heat is exchanged. 
 It also provides a habitat for sea-ice algae, which act as the main primary producers when the open water is 
 least productive \cite{lizotteContributionsSeaIce2001}. Antarctic krill are concentrated in a narrow band 
@@ -56,9 +56,8 @@ beneath the ice edge \cite{brierleyAntarcticKrillSea2002}.
 Despite this, the underside of pancake ice remains largely unstudied. Satellites infer ice thickness from the 
 height of the ice above the waterline, and cannot observe the underside directly \cite{zygmuntowskaUncertaintiesArcticSea2014}. 
 While the upper surface of pancake ice has been reconstructed at centimetre resolution \cite{spirakis3DReconstructionPancake2023}, 
-no equivalent measurements exist for the underside, and models of the ice-ocean interface simplify the pancake geometry. 
-Direct, fine-scale observations of the underside of pancake ice are therefore needed to improve 
-understanding of heat exchange, carbon uptake and primary production in the region.
+no equivalent measurements exist for the underside.
+Direct, fine-scale observations of the underside of pancake ice are therefore needed to better understand heat exchange and carbon uptake in the region, and the habitat the ice provides.
 
 %  What about ecological factors? habitat for what? why important?
 % Conlcusion sentence.
@@ -68,10 +67,10 @@ understanding of heat exchange, carbon uptake and primary production in the regi
 \label{sec:ch1.problemStatement}
 %====================================================
 
-No three-dimensional reconstructions of the underside of Antarctic pancake ice have been conducted according to publically available data.
+No three-dimensional reconstructions of the underside of Antarctic pancake ice have been conducted according to publicly available data.
  Above-ice methods
 cannot see the underside, and multibeam sonar is too coarse to resolve its centimetre-scale structure. A calibrated
-stereo camera pair could capture this detail attatched to an ROV, as shown in \autoref{fig:ch1.rov_ice_setup}.
+stereo camera pair could capture this detail attached to an ROV, as shown in \autoref{fig:ch1.rov_ice_setup}.
 
 \begin{figure}[H]
 	\centering
@@ -95,29 +94,28 @@ methods are best suited to each stage of the pipeline.
 
 % NOt a fully fledged ready to deploy, but rather a proof of concept and analyse of how it might work
 The aim of this project is to research and carry out an initial proof of concept for three-dimensional stereo underwater reconstruction using the BlueROV2. 
-The first objective is to investigate different reconstruction implementations and select the most suitable one for the platform. 
+The first objective is to investigate different reconstruction implementations and select the most suitable methods for the platform. 
 The second is to design and build a test rig that allows stereo imagery to be collected in a controlled environment. The third is 
-to use this rig to generate a dataset of targets with known geometry, which allows the accuracy of the reconstruction to be quantified. 
+to use this rig to generate a dataset of targets with known geometry, allowing the accuracy of the reconstruction to be quantified. 
 The final objective is to discuss the performance of the system and recommend improvements towards under-ice deployment
 %====================================================
 \section{Scope, limitations and assumptions}
 \label{sec:ch1.scope}
 
-This project is a proof of concept for the three-dimensional reconstruction of the sea ice underside using stereo
-cameras. Other sensing methods, such as sonar and LiDAR, are outside its scope. Existing open-source methods for
+This project specifically looks at the use of camera optics. Other sensing methods, such as sonar and LiDAR, are outside its scope. Existing open-source methods for
 calibration, depth estimation, pose estimation and frame fusion are compared rather than new algorithms developed.
 All processing is done offline after recording, and real-time operation is not considered. Testing is limited to the
 laboratory and a swimming pool, and no deployment under real sea ice was carried out.
 
 % Limitation
-The project is limited to the existing BlueROV2 Heavy and its two StellarHD cameras, which are not synchronised in
-hardware. Conditions in the pool differ from those beneath sea ice. The water is fresh, without frazil
-crystals or other suspended particles, and the tests were carried out in natural daylight rather than the very low
-light found beneath pack ice. The mock ice targets also differ from real ice in texture, colour and translucency. 
 The project was limited to approximately 13 weeks, from 27 July to
 27 October. In this
 period, the necessary computer vision background and workings of the ROV had to be learnt, dataset generated, and pipeline
 coded and analysed. The testing did not include any full under-ice deployments.
+The project is limited to the existing BlueROV2 Heavy and its two StellarHD cameras, which are not synchronised in
+hardware. Conditions in the pool differ from those beneath sea ice. The water is fresh, without frazil
+crystals or other suspended particles, and the tests were carried out in natural daylight rather than the very low
+light found beneath pack ice. The mock ice targets also differ from real ice in texture, colour and translucency. 
 
 
 %Assumptions
@@ -125,8 +123,7 @@ It is assumed that the main features of the ice underside, such as overhangs, st
 can be represented by simple foam shapes based on the literature and the photographs in \autoref{sec:ch2.pancake_ice}.
 The targets are assumed to be stationary relative to the vehicle during a scan, and the cameras are assumed to remain
 rigidly mounted. The 3D-printed targets are assumed to match
-their design geometry closely enough to serve as ground truth.
-
+their design geometry closely enough to serve as ground truth. %fixes
 
 %====================================================
 \section{Plan of development}
@@ -143,8 +140,7 @@ and the fusion of many frames into a single surface. This theory forms the basis
 later chapters.
 
 \autoref{ch:design} then describes the methodology, including the hardware and software used, the design of the test
-rig and targets, and the datasets recorded. This sets out how the experiments in the following chapters were carried out.
-
+rig and targets, and the datasets recorded. 
 \autoref{ch:calibration} calibrates the stereo cameras for the underwater environment, since water and the camera
 housing change how light reaches the sensor. The AprilGrid detection is first optimised by choosing the image channel
 and tuning the detector settings, and five underwater compensation techniques are then compared against an in-air baseline.
