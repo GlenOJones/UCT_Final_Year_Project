@@ -1,14 +1,7 @@
 """Accuracy against coverage for every reconstruction of a session, from its summary.csv.
 
-Each method folder is one point: how much of the CAD surface it covers (x) against its median
-absolute error (y). Variants that only differ by the voting threshold (<method>_v<k>, points kept
-if at least k frames saw them) are joined into one curve, which is the trade-off the threshold
-controls: stricter voting, fewer but more accurate points.
-
     src/venv/bin/python src/04_Comparison/plot_summary.py --session Sep24
     src/venv/bin/python src/04_Comparison/plot_summary.py --session Sep24 --fit on_board
-
-Writes results/<session>/accuracy_vs_coverage_<fit>.png.
 """
 import argparse
 import csv
@@ -24,8 +17,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import project_paths as paths  # noqa: E402
 
-# Colour = method (fixed order, never cycled); line style = scan. Methods shown by default are the
-# main ones; one-off experiments (other RAFT weights, iteration counts) only with --all, in grey.
+# Colour = method, line style = scan. One-off experiments only with --all, in grey.
 MAIN_METHODS = ["sgbm", "colmap", "colmap_hq", "raft", "raft_s075"]
 COLOURS = ["#8a6d3b", "#2a78d6", "#945ecf", "#e8743b", "#19a979"]
 OTHER = "#b5b4af"

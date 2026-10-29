@@ -1,11 +1,4 @@
-"""Run one pipeline stage and record what it cost: wall time, CPU time, peak RAM and peak GPU memory.
-
-The command runs under /usr/bin/time -v (wall, user and system CPU seconds, the largest single process's peak
-RSS), inside a systemd-run scope with a memory cap when systemd-run exists. While it runs, a thread samples its
-process tree every interval: RSS summed over the tree (COLMAP and the matchers start helper processes), CPU %
-summed over the tree (100 = one core busy), and from nvidia-smi the GPU memory held by the tree's processes and
-the GPU's utilisation. The GPU memory of everything else (desktop, editor) is left out, so the peak is the stage's.
-"""
+"""Run one pipeline stage and record what it cost: wall time, CPU time, peak RAM and peak GPU memory."""
 import os
 import shutil
 import subprocess
@@ -50,7 +43,7 @@ def parse_time_v(path):
 
 
 def run(command, cwd, memory_max=None, interval=0.5, log_path=None):
-    """Run command (a list); returns the cost record, with "returncode". Output goes to log_path (and the console)."""
+    """Run command (a list); returns the cost record, with "returncode"."""
     timing = tempfile.NamedTemporaryFile(prefix="time_v_", suffix=".txt", delete=False).name
     full = ["/usr/bin/time", "-v", "-o", timing, *command]
     if memory_max and shutil.which("systemd-run"):

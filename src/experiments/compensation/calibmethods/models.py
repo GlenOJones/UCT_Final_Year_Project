@@ -1,24 +1,11 @@
-"""The camera models being compared, behind one interface so that fitting, posing, projecting and
-triangulating are written once and differ only where the model does.
+"""The camera models being compared, behind one interface so that fitting, posing, projecting and triangulating are
+written once and differ only where the model does.
 
     BrownConrady   pinhole + k1 k2 k3 radial, p1 p2 tangential       cv2.calibrateCamera
     KannalaBrandt  pinhole + k1..k4 on theta (no tangential terms)   cv2.fisheye.calibrate
     Pinax          in-air Brown-Conrady calibration + Snell refraction into water; nothing fitted in water
     BrownConradyAxial  Brown-Conrady whose rays cross the axis at dz(r) = a1 r^2 + a2 r^4 instead of one
                    centre: the nested non-single-viewpoint test (bundle adjustment from calibrateCamera)
-
-Both fits are Levenberg-Marquardt on pixel reprojection error over intrinsics and one board pose per
-image. They differ in initialisation: calibrateCamera starts from Zhang's closed-form estimate from
-the board homographies; fisheye.calibrate puts the principal point at the image centre, estimates the
-focal length by least squares from the homographies, and starts the distortion at zero.
-
-Held-out frames are posed with the intrinsics fixed, and the pose minimises PIXEL error for both models:
-    BrownConrady   cv2.solvePnP (SOLVEPNP_ITERATIVE: homography start, then LM on pixel error)
-    KannalaBrandt  cv2.fisheye.solvePnP for the start, then LM on pixel error (scipy least_squares).
-                   cv2.fisheye.solvePnP alone fits in undistorted normalised coordinates, which weights
-                   points differently from the Brown-Conrady pose and would make the two models'
-                   held-out errors incomparable.
-    Pinax          cv2.solvePnP on the refracted normalised rays for the start, then LM on pixel error.
 """
 import cv2
 import numpy as np
@@ -27,9 +14,7 @@ from scipy.optimize import least_squares
 
 from .refraction import refract_radial, unrefract_radial  # noqa: E402  (one definition of the physics)
 
-# Same termination for every fit, so neither model is stopped early relative to the other. The
-# pipeline (Calibration.py) uses calibrateCameraExtended's default (30 iterations); 100 lets both
-# solvers converge on the larger training sets without changing the result on the pipeline's own set.
+# Same termination for every fit.
 FIT_CRITERIA = (cv2.TERM_CRITERIA_COUNT + cv2.TERM_CRITERIA_EPS, 100, 1e-9)
 UNDISTORT_CRITERIA = (cv2.TERM_CRITERIA_COUNT + cv2.TERM_CRITERIA_EPS, 100, 1e-12)
 
@@ -71,8 +56,8 @@ class CameraModel:
         raise NotImplementedError
 
     def pose(self, obj, img):
-        """(rvec, tvec) of a board view with the intrinsics fixed, minimising pixel reprojection error:
-        the model's initial pose refined by Levenberg-Marquardt on pixel error."""
+        """(rvec, tvec) of a board view with the intrinsics fixed, minimising pixel reprojection error: the model's
+        initial pose refined by Levenberg-Marquardt on pixel error."""
         x0 = np.concatenate(self.initial_pose(obj, img))
         fit = least_squares(lambda x: (self.project(obj, x[:3], x[3:]) - img).ravel(), x0,
                             jac=lambda x: self.project_jac(obj, x[:3], x[3:])[1], method="lm",
@@ -140,10 +125,7 @@ class KannalaBrandt(CameraModel):
     def fit(self, frames, image_size, camera=None):
         obj = [f.obj.reshape(1, -1, 3).astype(np.float64) for f in frames]
         img = [f.img.reshape(1, -1, 2).astype(np.float64) for f in frames]
-        # RECOMPUTE_EXTRINSIC re-poses every board after each intrinsic step (OpenCV's recommended use);
-        # FIX_SKEW matches the Brown-Conrady model, which has no skew term. CHECK_COND is left off: it
-        # throws on any ill-conditioned view instead of fitting, and the views are already the pipeline's
-        # cleaned set.
+        # RECOMPUTE_EXTRINSIC re-poses the boards each step; FIX_SKEW matches Brown-Conrady.
         self.flags = cv2.CALIB_RECOMPUTE_EXTRINSIC | cv2.CALIB_FIX_SKEW
         self.fit_rms, self.K, D, _, _ = cv2.fisheye.calibrate(obj, img, image_size, None, None,
                                                               flags=self.flags, criteria=FIT_CRITERIA)
@@ -168,11 +150,7 @@ class KannalaBrandt(CameraModel):
         return rvec.ravel(), tvec.ravel()
 
     def stereo(self, pairs, right, image_size):
-        # cv2.fisheye.stereoCalibrate (OpenCV 5.0.0) fails with "number of matrix elements is not
-        # divisible" unless every pair has the same number of points, and ours cannot: a pair keeps the
-        # tags both cameras saw. So the same fit is done by stereo_lm, which minimises the same pixel error
-        # with the intrinsics fixed, and reproduces cv2.stereoCalibrate on Brown-Conrady to 1e-4 px
-        # (tests/test_models.py).
+        # cv2.fisheye.stereoCalibrate needs equal point counts per pair, so stereo_lm does the stereo fit.
         return stereo_lm(self, right, pairs)
 
 
@@ -183,9 +161,8 @@ def _mean_rotation(rotations):
 
 
 def stereo_lm(left, right, pairs):
-    """R, T (left to right) and RMS px over both cameras, intrinsics fixed: Levenberg-Marquardt-style
-    least squares on pixel error over R, T and one board pose per pair, as cv2.stereoCalibrate does with
-    CALIB_FIX_INTRINSIC. Started from each pair's separately posed boards."""
+    """R, T (left to right) and RMS px over both cameras, intrinsics fixed: Levenberg-Marquardt-style least squares on
+    pixel error over R, T and one board pose per pair, as cv2.stereoCalibrate does with CALIB_FIX_INTRINSIC."""
     poses_l = [left.pose(lf.obj, lf.img) for lf, _ in pairs]
     poses_r = [right.pose(rf.obj, rf.img) for _, rf in pairs]
     rel = [cv2.Rodrigues(rr)[0] @ cv2.Rodrigues(rl)[0].T for (rl, _), (rr, _) in zip(poses_l, poses_r)]
@@ -194,7 +171,7 @@ def stereo_lm(left, right, pairs):
     x0 = np.concatenate([cv2.Rodrigues(R0)[0].ravel(), T0] + [np.concatenate(p) for p in poses_l])
 
     def right_pose(x, k):
-        """Right camera's board pose for pair k and its derivatives w.r.t. (pair pose, (om, T))."""
+        """Right camera's board pose for pair k and its derivatives w.r.t."""
         rv, tv = x[6 + 6 * k: 9 + 6 * k], x[9 + 6 * k: 12 + 6 * k]
         r3, t3, dr3dr1, dr3dt1, dr3dr2, dr3dt2, dt3dr1, dt3dt1, dt3dr2, dt3dt2 = cv2.composeRT(rv, tv, x[:3], x[3:6])
         return (rv, tv, r3.ravel(), t3.ravel(),
@@ -235,21 +212,8 @@ def stereo_lm(left, right, pairs):
 
 
 class Pinax(CameraModel):
-    """Pinax (Luczynski, Pfingsthorn & Birk 2017): the camera's IN-AIR calibration plus Snell's law at a flat
-    interface, with nothing fitted to the underwater data.
-
-    A pixel is undistorted with the in-air Brown-Conrady model to recover its ray in air, and the ray is
-    refracted into water, sin(theta_air) = n_water sin(theta_water) (compensation.refract_radial); the glass
-    index cancels out of the direction. Projection runs the same chain backwards. The rays are taken to
-    leave from Pinax's single virtual centre on the optical axis. Where that centre sits (and how far real
-    rays miss it) depends on the lens-to-port distance d0 and port thickness d1, but only as a constant shift
-    along the axis that each board pose absorbs; the residual spread is not modelled. For a water-contact
-    lens d0 and d1 have no physical value, so this far-field form is the only one that can be applied.
-
-    The question it answers: does the in-air lens plus flat-interface physics predict the underwater image?
-    If the Aquagon behaved as an in-air lens behind a flat port it would, to the accuracy of the air
-    calibration. Its optics are designed for water, so differences, if any, will be largest off-axis.
-    """
+    """Pinax (Luczynski, Pfingsthorn & Birk 2017): the camera's IN-AIR calibration plus Snell's law at a flat interface,
+    with nothing fitted to the underwater data."""
     name = "Pinax"
     function = "in-air cv2.calibrateCamera + Snell refraction (compensation.refract_radial)"
     distortion_names = BrownConrady.distortion_names
@@ -322,27 +286,7 @@ class Pinax(CameraModel):
 
 
 class BrownConradyAxial(BrownConrady):
-    """Brown-Conrady with the single-viewpoint assumption relaxed along the optical axis (an axial camera).
-
-    Every model above sends all rays through one centre. Behind a refracting port the rays of different
-    field angles cross the axis at different points instead; for a port centred on the axis that spread is
-    symmetric, so a ray is fully described by its direction and where it crosses the axis. Here the
-    directions are Brown-Conrady's (undistorted normalised coordinates x, y of the ray (x, y, 1)) and the
-    crossing point is shifted along the axis by
-        dz(r) = a1 r^2 + a2 r^4   (mm, r = hypot(x, y) = tan of the ray's angle to the axis)
-    A constant term would only move the camera centre, which every board pose absorbs, so the shift is zero
-    on the axis. With a1 = a2 = 0 this IS BrownConrady, so the two are nested: if the fit puts dz near zero
-    and held-out error does not improve, the data are consistent with a single viewpoint. It is the fitted,
-    port-agnostic form of what the full Pinax ray trace predicts, needing no lens-to-port distance or port
-    thickness (which have no physical value for a water-contact lens such as the Aquagon).
-
-    A pixel shift from dz is about f dz r / Z: it changes with distance, which is what separates it from
-    radial distortion, so the fit relies on boards seen at several distances (0.2-1.45 m here).
-
-    Fitted by bundle adjustment (scipy least_squares, pixel error) over the 9 Brown-Conrady intrinsics,
-    a1, a2 and one pose per view, starting from cv2.calibrateCamera's fit with dz = 0. Projection has no
-    closed form: r solves r (Z - dz(r)) = hypot(X, Y), found by Newton's method from the pinhole r.
-    """
+    """Brown-Conrady with the single-viewpoint assumption relaxed along the optical axis (an axial camera)."""
     name = "Brown-Conrady + axial ray shift"
     function = "cv2.calibrateCamera, then bundle adjustment with dz(r) (scipy least_squares)"
     central = False
@@ -458,8 +402,8 @@ def read_air_calibration(path, camera):
 
 
 def stereo_fixed(left, right, pairs, R, T):
-    """RMS px of both cameras' corners with R, T held fixed and one board pose per pair fitted (LM), so
-    an extrinsic calibration that is not fitted to these pairs is still scored the way stereo_lm scores."""
+    """RMS px of both cameras' corners with R, T held fixed and one board pose per pair fitted (LM), so an extrinsic
+    calibration that is not fitted to these pairs is still scored the way stereo_lm scores."""
     rvec_rt = cv2.Rodrigues(np.asarray(R, np.float64))[0].ravel()
     T = np.asarray(T, np.float64).ravel()
     sq, n = 0.0, 0
@@ -476,13 +420,8 @@ def stereo_fixed(left, right, pairs, R, T):
 
 
 class AirDirect(BrownConrady):
-    """The in-air calibration used unchanged underwater: in-air K and D for each camera AND the in-air
-    stereo extrinsics. Nothing is fitted to the underwater data; only the board poses of the frames being
-    scored are, as for every model. This is what a rig calibrated on land and then submerged would use.
-
-    Near the axis a flat interface multiplies the focal length by n_water (~1.33), so the in-air model is
-    expected to be badly wrong: its job here is the floor every compensation method must beat.
-    """
+    """The in-air calibration used unchanged underwater: in-air K and D for each camera AND the in-air stereo
+    extrinsics."""
     name = "In-air calibration, unchanged"
     function = "in-air cv2.calibrateCamera + cv2.stereoCalibrate (Calibration.py), applied as is"
 
@@ -540,11 +479,7 @@ def with_params(model, p):
 
 
 def triangulate(left_model, right_model, R, T, left_img, right_img):
-    """3-D points (N, 3) in the left camera frame, mm, from matched pixel points in the two cameras.
-
-    Central models: cv2.triangulatePoints on the normalised rays, as before. If either model's rays leave
-    from different points (BrownConradyAxial), the midpoint of the shortest segment between the two rays.
-    """
+    """3-D points (N, 3) in the left camera frame, mm, from matched pixel points in the two cameras."""
     xl = left_model.normalise(left_img)
     xr = right_model.normalise(right_img)
     if getattr(left_model, "central", True) and getattr(right_model, "central", True):

@@ -1,31 +1,6 @@
 """Compare the fusion methods' clouds with the CAD models: an accuracy table and per-object figures.
 
-Reads only what run_fusion.py saved: each method's board-frame cloud (<work>/<method>/cloud_board.ply) and the
-run record (run_fusion.json). Each object is cropped to a box of +-crop_half_mm around its centre (config
-evaluation.objects) and scored by compare_to_cad.py against its STL, exactly as score_objects.py does for
-Sep30. The clouds are scored as fused (no postprocess_cloud.py), so what is compared is the fusion itself;
-compare_to_cad.py keeps the cluster of points that reaches highest above the board.
-
-compare_to_cad.py makes three fits (see its docstring). The table and figures use one, evaluation.report_fit
-(on_local_board: the board levelled around the object first, so the object's own error is measured rather than
-the board frame's); summary.csv has all three.
-
     src/venv/bin/python src/experiments/fusion/compare_fusion.py --config src/experiments/fusion/config.json
-
-A recording with no CAD objects (the ice) is compared on its top-down view instead: topdown.png shows every
-method's nearest-to-camera point per cell over the whole scan, on a 50 mm grid to read the ice region off; once
-evaluation.region is set, topdown_region.png, coverage.md/.csv and table_coverage.tex give each method's top-down
-coverage, the share of the region's cells with at least one point.
-
-Writes to results/<out_dir>/<recording>/ (recordings with CAD objects):
-    table_accuracy.tex           T1: per report object and method, coverage and error statistics (LaTeX)
-    summary.md, summary.csv       the same table as Markdown; every object, method and fit as CSV
-    accuracy_<object>.png         per report object: one row per method, signed distance to the CAD from above
-                                  and profiles through the apex (compare_to_cad.py's own panels)
-    profiles_<object>.png         per report object: every method's profile through the apex on one plot
-    coverage_by_face.png          coverage per face direction, one panel per report object, one bar per method
-    comparison/<method>/<object>/ compare_to_cad.py's outputs (metrics.json, error maps, distances.ply)
-    objects/<method>/<object>.ply the crops
 """
 import argparse
 import csv
@@ -248,9 +223,8 @@ def figures(cfg, p, results):
 
 
 def profile_figures(cfg, p, results):
-    """Per report object, every method's profile through the CAD apex on one plot: one panel along the CAD model's
-    x and one along its y. Each method's points are taken in its own fit's CAD frame, so the CAD line is the same for
-    all; the line per method is the median height per 1 mm bin of the +-3 mm slab, over its points drawn faintly."""
+    """Per report object, every method's profile through the CAD apex on one plot: one panel along the CAD model's x and
+    one along its y."""
     ev = cfg["evaluation"]
     fit = ev["report_fit"]
     by_key = {(job[0], job[1]): (job, metrics) for job, metrics in results}
@@ -298,10 +272,7 @@ def profile_figures(cfg, p, results):
 
 
 def coverage_by_direction(reference, points, T, radius):
-    """{board direction: (coverage, share of the visible CAD area)} for one fit. The visible CAD surface is sampled
-    as compare_to_cad.evaluate samples it (seeded, ~1 per mm^2), each sample takes the board direction its triangle
-    faces ('+x', '+y', '-x', '-y' or 'up'), and is covered if a scan point lies within `radius`, so the shares add
-    up to compare_to_cad.py's coverage."""
+    """{board direction: (coverage, share of the visible CAD area)} for one fit."""
     local = compare_to_cad.transform(np.linalg.inv(T), points)
     o3d.utility.random.seed(0)
     samples = reference.mesh.sample_points_uniformly(max(int(reference.mesh.get_surface_area()), 1000))
@@ -315,8 +286,8 @@ def coverage_by_direction(reference, points, T, radius):
 
 
 def coverage_figure(cfg, p, results):
-    """Coverage per face direction: one panel per report object, one bar per method for each direction the
-    object's faces point on the board (directions under 2% of its visible area left out)."""
+    """Coverage per face direction: one panel per report object, one bar per method for each direction the object's
+    faces point on the board (directions under 2% of its visible area left out)."""
     ev = cfg["evaluation"]
     fit = ev["report_fit"]
     by_key = {(job[0], job[1]): (job, metrics) for job, metrics in results}
@@ -359,15 +330,15 @@ def coverage_figure(cfg, p, results):
 
 # ====== TOP-DOWN VIEW AND COVERAGE (scans without CAD: the ice) ======
 def camera_side(p):
-    """+1 if the cameras sit on the board frame's +z side (S30: looking down on the board), -1 if on the -z side,
-    so 'height' can always be measured towards the camera and each cell keeps its point nearest the camera."""
+    """+1 if the cameras sit on the board frame's +z side (S30: looking down on the board), -1 if on the -z side, so
+    'height' can always be measured towards the camera and each cell keeps its point nearest the camera."""
     _, reference, _ = pose_files.read_trajectory(p["reference"])
     centres_z = [np.linalg.inv(T)[2, 3] for T in reference.values()]
     return 1.0 if np.median(centres_z) >= 0 else -1.0
 
 
 def height_map(xyz, x_range, y_range, cell):
-    """Per cell, the height (towards the camera) of the point nearest the camera; NaN where empty. Rows = y from top."""
+    """Per cell, the height (towards the camera) of the point nearest the camera; NaN where empty."""
     nx = int(np.ceil((x_range[1] - x_range[0]) / cell))
     ny = int(np.ceil((y_range[1] - y_range[0]) / cell))
     i = np.floor((xyz[:, 0] - x_range[0]) / cell).astype(int)
@@ -435,8 +406,8 @@ def topdown_figure(cfg, p, clouds, x_range, y_range, path, title, region=None, g
 
 
 def topdown_and_coverage(cfg, p):
-    """topdown.png (every method over the whole scan, a 50 mm grid to read the ice region off); with
-    evaluation.region set, also topdown_region.png and the top-down coverage table."""
+    """topdown.png (every method over the whole scan, a 50 mm grid to read the ice region off); with evaluation.region
+    set, also topdown_region.png and the top-down coverage table."""
     ev = cfg["evaluation"]
     side = camera_side(p)
     clouds = board_clouds(cfg, p, side)

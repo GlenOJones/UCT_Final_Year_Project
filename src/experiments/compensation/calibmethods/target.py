@@ -1,12 +1,4 @@
-"""Measurement of the separate WaterComparison target with every technique's stereo calibration.
-
-The target: AprilTag 36h11 tags (1-bit border), ids 6-11, outer black square printed at 145 mm, one
-stereo pair per distance label (50, 100, 150, 200, 250 cm). The tags are detected ONCE (single_viewpoint.py's
-detector: the calibration preset on CLAHE-enhanced gray, aruco CORNER_REFINE_CONTOUR), so every technique
-triangulates exactly the same pixels and differs only in its camera model and extrinsics. Each tag is
-triangulated (models.triangulate) and its four edges compared with the printed size; a tag's error is its
-median edge minus 145 mm, so a single misplaced corner (two bad edges) does not set it.
-"""
+"""Measurement of the separate WaterComparison target with every technique's stereo calibration."""
 import csv
 import os
 import sys
@@ -32,8 +24,7 @@ def detect(target_cfg, detection_cfg, project_path):
 
 
 def measure(fitted, detections, size_mm):
-    """Rows {label_cm, id, distance_mm, edges_mm, error_mm} per tag seen in both cameras, for one technique.
-    fitted: {"left", "right", "R", "T"} from evaluate.run_split(keep_models=True)."""
+    """Rows {label_cm, id, distance_mm, edges_mm, error_mm} per tag seen in both cameras, for one technique."""
     rows = []
     for label, L, R in detections:
         for t in sorted(set(L) & set(R)):

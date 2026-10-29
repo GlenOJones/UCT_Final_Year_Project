@@ -1,28 +1,7 @@
-"""Compare camera calibration methods on the underwater AprilGrid data, on held-out recordings only.
-
-Reads one Calibration.py run (its YAML and corners JSON) and, for every split that holds out
-`held_out_recordings` recordings, fits each technique in config.json on the rest and scores it on the
-held-out ones: reprojection residuals per corner, and lengths between stereo-triangulated corners.
-Nothing is detected here and the input files are only read.
-
-Normally run through reproduce.py, which first makes the Calibration.py runs the config lists under
-"pipeline_runs":
-    src/venv/bin/python src/experiments/reproduce.py compensation
-On its own, once those runs exist (from the project root):
-    src/venv/bin/python src/experiments/compensation/run_comparison.py
-    src/venv/bin/python src/experiments/compensation/run_comparison.py --config my_config.json --workers 8
-
-Writes to the config's output folder (default results/experiments/compensation/water_final/):
-    summary.md, summary.csv, comparisons.csv    every metric per technique and camera, and paired differences
-    params/<technique>.json                     fitted parameters per split, plus a fit on all recordings
-    points.npz, bars.npz                        the held-out residual and scale-bar rows everything is computed from
-    fig_heatmap, fig_radial, fig_distance, fig_scale, fig_summary  (.png and .pdf)
-    run_info.json                               inputs, settings, versions, splits
-"""
+"""Compare camera calibration methods on the underwater AprilGrid data, on held-out recordings only."""
 import os
 
-# One thread per worker: the splits run in parallel, and OpenCV/BLAS threads inside each worker only
-# fight over the same cores (one split took 60 s with them, 3.5 s without).
+# One thread per worker; the splits already run in parallel.
 for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_var, "1")
 
@@ -77,10 +56,7 @@ def run_all(run, split_list, techs, cfg, workers):
     if workers <= 1:
         _init_worker(run)
         return [_work(j) for j in jobs]
-    # Workers start from a fresh server process ("forkserver"), not a fork of this one: reproduce.py calls this
-    # after Calibration.py runs in the same process, and a fork taken while OpenCV's thread pool is alive
-    # inherits its locks with no thread to release them (all 28 workers hung on a futex, 12 Oct). The run is
-    # sent to each worker once, by the initializer.
+    # forkserver, not fork: a fork after OpenCV's thread pool starts can deadlock.
     with multiprocessing.get_context("forkserver").Pool(workers, initializer=_init_worker, initargs=(run,)) as pool:
         return pool.map(_work, jobs)
 
@@ -107,8 +83,7 @@ IN_AIR_MODELS = ("pinax", "air_direct")    # intrinsics from the in-air calibrat
 
 
 def measure_target(cfg, run, techs, fitted_models, out_dir):
-    """The WaterComparison tags triangulated with every technique fitted on all recordings (target.py).
-    Writes target.json and target_tags.csv (make_figures draws fig_target from them)."""
+    """The WaterComparison tags triangulated with every technique fitted on all recordings (target.py)."""
     tcfg = cfg["target"]
     size = tcfg["tag_size_mm"]
     detections = target.detect(tcfg, tcfg["detection"], project_path)
@@ -130,9 +105,8 @@ def measure_target(cfg, run, techs, fitted_models, out_dir):
 
 
 def parameter_covariance(cfg, run, techs, fitted_models, out_dir):
-    """Covariance and correlation of each fitted technique's intrinsics (covariance.py), on the frames it was
-    fitted on (all recordings). The in-air techniques fit nothing in water; their intrinsics come from the
-    in-air calibration, so its covariance is computed once, on the in-air run's own frames."""
+    """Covariance and correlation of each fitted technique's intrinsics (covariance.py), on the frames it was fitted on
+    (all recordings)."""
     doc = {}
     for t in techs:
         if t.model in IN_AIR_MODELS:
@@ -153,17 +127,15 @@ def parameter_covariance(cfg, run, techs, fitted_models, out_dir):
 
 
 def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
-    """Every figure, from the held-out rows, the per-split table, the all-recordings parameters and (when the
-    config asks for them) target.json and covariance.json. Fits nothing except the Pinax ray-mapping models,
-    which are closed-form reads of the calibrations."""
+    """Every figure, from the held-out rows, the per-split table, the all-recordings parameters and (when the config
+    asks for them) target.json and covariance.json."""
     fitted = [i for i, t in enumerate(techs) if t.model not in IN_AIR_MODELS]
     cameras = cfg.get("report_cameras", list(data.CAMERAS))   # which cameras the figures show
     plots.show_cameras(cameras)
     figures = {"heatmap": plots.heatmaps(points, techs, params_all, cfg, run.image_size,
                                          os.path.join(out_dir, "fig_heatmap"), log=len(fitted) < len(techs))}
     if len(fitted) < len(techs):
-        # Pinax's (and the unchanged in-air calibration's) errors are 10-40x the fitted models', so on a shared
-        # linear scale the fitted ones are all one colour: they also get a figure of their own.
+        # Pinax and in-air errors are much larger, so the fitted models also get their own figure.
         figures["heatmap_fitted"] = plots.heatmaps(points, techs, params_all, cfg, run.image_size,
                                                    os.path.join(out_dir, "fig_heatmap_fitted"), subset=fitted)
     left_out = set(cfg.get("radial_plot_exclude", []))          # e.g. close-range checks that overlap T3/T5
@@ -192,9 +164,7 @@ def make_figures(cfg, run, techs, points, bars, table, params_all, out_dir):
                           ref_tech.label, "Pinax", observed)
 
     if cfg.get("quiver_cells"):
-        # The in-air techniques (errors of pixels) and those fitted in water (tenths of a pixel) each get the
-        # arrow gain the config sets for them, in a figure of their own, so arrows at different gains are
-        # never side by side; without gains, one figure at one gain.
+        # In-air and in-water techniques get separate figures, each with its own arrow gain.
         g = cfg.get("quiver_gains", {})
         left_out = set(cfg.get("quiver_plot_exclude", []))      # e.g. close-range checks that look like T3/T5
         kept = [i for i, t in enumerate(techs) if t.key not in left_out]
@@ -241,8 +211,8 @@ def load_json(path):
 
 
 def saved_results(out_dir, techs):
-    """The per-split results (points, bars, stereo baseline) and the all-recordings parameters as a finished run
-    saved them, for --figures-only."""
+    """The per-split results (points, bars, stereo baseline) and the all-recordings parameters as a finished run saved
+    them, for --figures-only."""
     P, B = np.load(os.path.join(out_dir, "points.npz")), np.load(os.path.join(out_dir, "bars.npz"))
     if list(P["techniques"]) != [t.key for t in techs]:
         raise SystemExit("the saved run has different techniques from the config: rerun it")

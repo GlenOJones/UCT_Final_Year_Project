@@ -1,20 +1,4 @@
-"""Show, on real frames, which tags each channel found and where the channels overlap.
-
-Reads the corners files run_study.py saved (no detection is run here). Every board tag any of the
-chosen channels found is outlined, with one dot per channel inside it: filled if that channel found the
-tag, hollow if it did not. Solid outline: every channel found it. Purple outline: only some did, which is
-where the channels differ. Board tags no channel found are dashed, placed by the board pose fitted to the
-tags that were found (solvePnP with the run's own calibration).
-
-By default the frames shown are the ones where the channels disagree most.
-
-Use (from the project root):
-    src/venv/bin/python src/experiments/channels/plot_channel_overlap.py
-    (reproduce.py channels makes the report's version, with the arguments in config.json "figures")
-    ... --images right/Water_C5_frames/c5_Right_80.png left/Water_C1_frames/c1_Left_100.png
-    ... --images left/Water_L3_Frames/l3_Left_130.png --width 3.4 --name fig_channel_overlap_L3 --legend-right
-Writes fig_channel_overlap.{pdf,png} to the study's out_dir.
-"""
+"""Show, on real frames, which tags each channel found and where the channels overlap."""
 import argparse
 import json
 import os
@@ -72,8 +56,7 @@ def most_disagreeing(files, channels, n):
 
 
 def draw(ax, study, files, channels, key, scale=1.0, title=True):
-    """One frame; scale shrinks lines and text with the figure (1 = the 6.2 in default width).
-    Returns the frame's description lines; they become the axis title unless title=False."""
+    """One frame; scale shrinks lines and text with the figure (1 = the 6.2 in default width)."""
     camera, image = key.split("/", 1)
     medium = study["recall_medium"]
     per = {c: board_tags(files[c], camera, image) for c in channels}

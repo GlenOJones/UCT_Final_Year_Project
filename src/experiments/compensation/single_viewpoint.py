@@ -1,25 +1,4 @@
-"""Single-viewpoint test: does the standard OpenCV calibration keep its scale beyond its calibration range?
-
-The pinhole + Brown-Conrady model (cv2.calibrateCamera) assumes every ray passes through one point. Behind a
-port in water that is only approximately true, and a model fitted to boards at one range of distances can
-then drift in scale at others. The test: take the water_final underwater calibration (an ordinary
-Calibration.py run, read here, never refitted), measure the separate WaterComparison target at each of its
-distance labels (50-250 cm), and compare every triangulated tag edge with its printed 145 mm. A
-single-viewpoint system gives the same small error at every distance; growth with distance, especially
-past the farthest calibration board, is the drift the test looks for.
-
-Each tag is summarised by its MEDIAN edge: a single misplaced corner (seen on 12 Oct as one edge of
-164.6 mm beside three of 143-148 mm) spoils two edges and would drag a mean, but it is a detection
-fault, not a scale error. The edge-level statistics are also reported.
-
-The calibration range is taken from the run itself: each calibration image the run kept is posed with its
-own intrinsics (solvePnP on the board corners Calibration.py saved), giving the camera-to-board-centre
-distance of every board it was fitted on.
-
-Use (from the project root; needs the calibration that reproduce.py compensation makes):
-    src/venv/bin/python src/experiments/compensation/single_viewpoint.py [--config PATH]
-Writes <output>/{single_viewpoint.txt, single_viewpoint.json, tags.csv, fig_single_viewpoint.pdf/png}.
-"""
+"""Single-viewpoint test: does the standard OpenCV calibration keep its scale beyond its calibration range?"""
 import argparse
 import csv
 import json

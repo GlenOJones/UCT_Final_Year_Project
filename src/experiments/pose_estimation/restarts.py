@@ -1,22 +1,5 @@
 """Restarting a pose estimator later in a pass when the run from the first frame fails.
 
-A markerless estimator can fail from the first frame and never recover: ICP on depth that is mostly
-speckle loses frame 1 and, since lost frames are kept out of its local map, every frame after it; COLMAP
-can register frames in the wrong place. Whether a run failed is judged on the trajectory alone, with no
-reference, so the same rule applies with or without tags:
-
-  posed fraction   frames posed (not lost) / frames given; a run that poses less than min_posed_fraction failed
-  jumps            frame-to-frame camera steps above max_jump_mm (the rig cannot move that far between
-                   frames); a run with more than max_jump_fraction of its steps as jumps failed
-
-On failure, the estimator is run again on the same frames from a later start (every start_step frames, up
-to max_start_fraction of the pass), and the first start that passes is kept. Every attempt is recorded, and
-the failed full run is kept beside the restarted one: the restart is reported as a separate, labelled
-result, never in place of the run from frame 0.
-
-The inputs of a restarted run are the original ones from the start frame on, as symlinks, so nothing is
-recomputed or copied: frame pairs (left/, right/) for COLMAP, depth frames (frames/*.npz) for ICP.
-
     src/venv/bin/python -m unittest discover -s src/experiments/pose_estimation/tests -v
 """
 import json
@@ -32,8 +15,7 @@ def frame_number(name):
 
 
 def assess(names, poses, diagnostics, criteria):
-    """Whether a trajectory failed. names: frames given (in order); poses: {name: T_world_cam} of the frames
-    it posed; diagnostics: {name: {"lost": 0/1, ...}}. Returns a dict with the numbers and the verdict."""
+    """Whether a trajectory failed."""
     posed = [n for n in names if n in poses and not diagnostics.get(n, {}).get("lost", 0)]
     fraction = len(posed) / len(names) if names else 0.0
     centres = np.array([np.asarray(poses[n])[:3, 3] for n in posed]).reshape(-1, 3)
@@ -50,14 +32,14 @@ def assess(names, poses, diagnostics, criteria):
 
 
 def candidate_starts(n_frames, start_step, max_start_fraction):
-    """Later start frames to try, in order: start_step, 2*start_step, ... up to max_start_fraction of the pass."""
+    """Later start frames to try, in order: start_step, 2*start_step, ..."""
     last = int(n_frames * max_start_fraction)
     return list(range(start_step, last + 1, start_step))
 
 
 def link_subset(source_dir, target_dir, names, subfolders, copy_files=()):
-    """target_dir/<sub>/<name> -> source_dir/<sub>/<name> (symlinks) for every name and subfolder, plus copies
-    of copy_files (e.g. depth_frames.json). Replaces target_dir. Returns target_dir."""
+    """target_dir/<sub>/<name> -> source_dir/<sub>/<name> (symlinks) for every name and subfolder, plus copies of
+    copy_files (e.g. depth_frames.json)."""
     if os.path.lexists(target_dir):
         shutil.rmtree(target_dir)
     for sub in subfolders:
@@ -73,12 +55,7 @@ def link_subset(source_dir, target_dir, names, subfolders, copy_files=()):
 
 
 def run_with_restarts(names, run_from, read, criteria):
-    """Try the run from frame 0, then from later starts until one passes.
-
-    names: every frame given (in order); run_from(start) runs the estimator on names from frame `start` on
-    and returns its trajectory path; read(path) -> (poses, diagnostics). Returns (attempts, kept): attempts is
-    [{"start", "path", ...assess}] in the order run, kept the passing restart's attempt (None if the full run
-    passed or no start passed)."""
+    """Try the run from frame 0, then from later starts until one passes."""
     attempts = []
     for start in [0] + candidate_starts(len(names), criteria["start_step"], criteria["max_start_fraction"]):
         subset = [n for n in names if frame_number(n) >= start]

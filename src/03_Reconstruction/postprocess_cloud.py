@@ -1,18 +1,7 @@
 """Clean a reconstructed cloud and turn it into a surface mesh, with Open3D.
 
-Takes any cloud already in the board frame (dense_stereo.py's or colmap_mvs.py's) and:
-  1. crops it to the tag area plus a margin, from just behind the board to --z-max in front;
-  2. removes statistical outliers: points whose mean distance to their neighbours is far above the
-     typical one, which is what isolated wrong matches look like;
-  3. estimates normals where the cloud has none, pointing them towards the cameras (+z);
-  4. meshes it with screened Poisson reconstruction, then trims the triangles Poisson invented
-     where there were no points (low-density vertices) - otherwise the mesh balloons over the gaps.
-
     src/venv/bin/python src/03_Reconstruction/postprocess_cloud.py --session Sep24 --scan mjpg_pyr_lights_2 --method colmap
     src/venv/bin/python src/03_Reconstruction/postprocess_cloud.py --cloud path/to/cloud.ply --poses path/to/tag_poses.yaml --show
-
-Writes cloud_clean.ply, mesh.ply and a shaded render mesh.png beside the input. The clean cloud is what to align to
-the CAD model; the mesh is for looking at and for cloud-to-mesh distances the other way round.
 """
 import argparse
 import os
@@ -102,11 +91,7 @@ def mesh(cloud, box, args):
 
 
 def render(surface, path, z_range):
-    """Shaded image of the mesh, coloured by height, by casting rays on the CPU.
-
-    Open3D's OffscreenRenderer produced blank images on this machine (Filament on Vulkan, no
-    display), so the render is ray cast instead: it needs no GPU context and is exact.
-    """
+    """Shaded image of the mesh, coloured by height, by casting rays on the CPU."""
     from matplotlib.colors import LinearSegmentedColormap
     cmap = LinearSegmentedColormap.from_list("height", HEIGHT_RAMP)
     scene = o3d.t.geometry.RaycastingScene()

@@ -1,18 +1,10 @@
 """Render the fused point cloud from dense_stereo.py, to see what the reconstruction produced.
 
-Three views, all in the board frame from tag_poses.py (mm, z = height above the board):
-  - top-down height map, with the reference tags outlined;
-  - a thin slice through the tallest object, as a side profile, which is where the shape shows;
-  - an oblique 3D view.
-
     src/venv/bin/python src/03_Reconstruction/view_cloud.py --session Sep24 --scan mjpg_pyr_lights_2 --method colmap
     ... --file cloud.ply             # the raw fused cloud instead of cloud_clean.ply (or sparse.ply)
     ... --show                       # rotate it (matplotlib, sampled)
     ... --3d                         # Open3D window, every point
     src/venv/bin/python src/03_Reconstruction/view_cloud.py --cloud any.ply --poses tag_poses.yaml
-
-Writes <cloud>.png next to the PLY. For measuring or ICP against a CAD model, open the PLY in
-CloudCompare instead: it keeps the "views" field as a scalar you can filter on.
 """
 import argparse
 import os
@@ -57,9 +49,7 @@ def parse_args(argv=None):
 
 
 def read_ply(path):
-    """(xyz, views) from any point-cloud PLY. Only dense_stereo.py writes a "views" field; for
-    other clouds (COLMAP's, or a cleaned one from postprocess_cloud.py) every point counts as seen
-    once, so --min-views has no effect on them."""
+    """(xyz, views) from any point-cloud PLY."""
     import open3d as o3d
     xyz = np.asarray(o3d.io.read_point_cloud(path).points, np.float64)
     with open(path, "rb") as fh:

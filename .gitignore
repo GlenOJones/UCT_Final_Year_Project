@@ -2,7 +2,6 @@
 /*
 
 # Except these
-!/Report/
 !.gitignore
 !/src/
 # CAD files for the test rig and calibration board, linked from Report/4_ch4.tex.
@@ -32,3 +31,5 @@
 # Python virtual environments and caches
 venv/
 __pycache__/
+# Old scripts kept locally, not part of the pipeline.
+/src/archive/

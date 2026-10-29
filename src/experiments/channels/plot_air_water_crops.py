@@ -1,19 +1,4 @@
-"""Cropped examples of how underwater images differ from in-air ones, beyond magnification.
-
-Matched pairs (angle C1, right camera) at the same MEASURED distance, the board distance solved from each
-image (see the 8 Oct distance check). Since Water C1 was relabelled on 12 Oct, equal labels are matched pairs. Each crop covers the same block of
-board tags in both media, placed with the board pose (solvePnP on the saved detections, the run's own
-calibration), and both are shown at the same size so the magnification is taken out.
-
-Also: bubbles on the board, glints on the laminated sea reference target, and objects between camera
-and board.
-
-Use (from the project root, after run_study.py; reproduce.py channels runs it):
-    src/venv/bin/python src/experiments/channels/plot_air_water_crops.py
-Poses come from the study's gray runs. Writes <out_dir>/air_vs_water_crops/: one PNG per crop, fig_air_vs_water_crops.{pdf,png} and
-fig_single_tag_close_far.{pdf,png} (one tag and its border per matched image, real pixels; Air left, Water
-right, nothing labelled on it: its description is printed for the caption).
-"""
+"""Cropped examples of how underwater images differ from in-air ones, beyond magnification."""
 import argparse
 import json
 import os
@@ -88,8 +73,8 @@ def show(img):
 
 
 def single_tag_figure(study, out):
-    """Close-up and furthest matched pairs, one tag and its border each, enlarged with nearest-neighbour
-    scaling so the real pixels are visible."""
+    """Close-up and furthest matched pairs, one tag and its border each, enlarged with nearest-neighbour scaling so the
+    real pixels are visible."""
     fig, axes = plt.subplots(2, 2, figsize=(7.2, 7.4), constrained_layout=True)
     caption = [f"Tag {SINGLE_TAG} and its border, right camera, angle C1; same measured distance in air and water. "
                f"Top row: close-up pair, bottom row: furthest pair; enlarged with nearest-neighbour scaling."]

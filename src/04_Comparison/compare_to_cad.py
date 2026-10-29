@@ -1,43 +1,8 @@
 """Compare reconstructed point clouds with the object's CAD model (ground-truth STL).
 
-Reads the clouds 03_Reconstruction saved (board frame, mm, z = height above the board) and measures
-how far every point is from the CAD surface, after placing the CAD model where the object is.
-
     src/venv/bin/python src/04_Comparison/compare_to_cad.py --session Sep24 --scan mjpg_pyr_lights_2
     src/venv/bin/python src/04_Comparison/compare_to_cad.py --session Sep24 --scan mjpg_pyr2 --methods sgbm
     src/venv/bin/python src/04_Comparison/compare_to_cad.py any_cloud.ply --out-dir some/folder
-
-With --session/--scan it compares every method of that scan that has a cloud_clean.ply (or those
-named by --methods); a cloud given by path is compared on its own.
-
-Steps, for each cloud:
-  1. Reference: the STL, with duplicate vertices merged. Faces pointing down are dropped: they sit on
-     the board, and no camera can see them.
-  2. Object points: points above --min-height (lower ones are board), in the largest connected
-     cluster, which removes stray points floating over the board.
-  3. Alignment: robust point-to-plane ICP against the exact CAD triangles (not a sampled copy),
-     started from a set of rotations about z, keeping the best. Three fits are made:
-       on-board (default 3 DOF: x, y, yaw) - the object sits flat on the board, and the board frame
-           already fixes height and tilt. This is the absolute accuracy of the reconstruction: a
-           height or tilt error shows up in the distances instead of being fitted away.
-       on_local_board (3 DOF) - as on_board, but after levelling the board in a ring 10-40 mm around
-           the object. The tags that define the board frame are 150-250 mm away, and the board near
-           the object can sit a mm or two off their plane; this fit takes that frame error out, so
-           what remains is the error of the object's own reconstruction.
-       shape (6 DOF) - the best rigid fit, for the accuracy of the shape alone.
-  4. Metrics per fit: signed distance of every object point to the surface (positive = outside),
-     its bias, spread and percentiles; per face, how much of it the scan covers and the angle of a
-     plane fitted through its points against the design.
-
-Outputs in results/<session>/<scan>/comparison/<method>/:
-  metrics.json                 every number, for both fits
-  distances.ply                object points in the board frame with a "scalar_signed_distance"
-                               property (and colours); CloudCompare loads it as a scalar field
-  cad_aligned.ply              the CAD mesh moved into the board frame by the on-board fit
-  comparison.png               top-down error map, histogram and profiles through the apex
-  comparison_local_board.png   the same for the on_local_board fit
-and results/<session>/summary.csv, one row per scan, method and fit; a re-run replaces that
-scan and method's rows, so the table always holds the latest result of each.
 """
 import argparse
 import csv
@@ -67,9 +32,7 @@ ICP_START_DISTANCE = 20.0     # mm; residuals above this are ignored in the firs
 ICP_MAD_FACTOR = 3.0          # ...then above 3 robust standard deviations of the current residuals
 YAW_START_STEP = 15           # deg between the starting rotations tried about z
 
-# Below this coverage a fit is flagged unreliable. The quick COLMAP cloud covered 7% of the pyramid,
-# mostly its ridges, and its 6-DOF fit slid the pyramid 43 mm up them with a small residual: a low
-# RMS on so little surface says nothing about the reconstruction.
+# Below this coverage a fit is flagged unreliable.
 MIN_RELIABLE_COVERAGE = 0.15
 
 # Diverging map for signed distance: blue = inside the CAD surface, grey = on it, red = outside.
@@ -110,8 +73,8 @@ def parse_args(argv=None):
 
 # ====== REFERENCE ======
 class Reference:
-    """The CAD mesh, its visible faces grouped into facets, and a ray-casting scene for exact
-    closest-point queries against the visible triangles."""
+    """The CAD mesh, its visible faces grouped into facets, and a ray-casting scene for exact closest-point queries
+    against the visible triangles."""
 
     def __init__(self, path):
         mesh = o3d.io.read_triangle_mesh(path)
@@ -144,8 +107,8 @@ class Reference:
 
 
 def facet_labels(normals, tolerance_deg=5.0):
-    """Group triangles whose normals agree within tolerance: one label per flat face of the CAD model
-    (a pyramid's face may be split into several triangles)."""
+    """Group triangles whose normals agree within tolerance: one label per flat face of the CAD model (a pyramid's face
+    may be split into several triangles)."""
     labels = -np.ones(len(normals), int)
     directions = []
     for i, n in enumerate(normals):
@@ -161,9 +124,8 @@ def facet_labels(normals, tolerance_deg=5.0):
 
 # ====== OBJECT POINTS ======
 def object_points(xyz, min_height, object_height):
-    """Points above the board in the connected cluster that reaches highest: the one with the most
-    points above half the object's height. Choosing the largest cluster instead picked a streak of
-    board noise next to a tag in the sparse COLMAP cloud, not the pyramid."""
+    """Points above the board in the connected cluster that reaches highest: the one with the most points above half the
+    object's height."""
     raised = xyz[xyz[:, 2] > min_height]
     if len(raised) < 50:
         raise SystemExit(f"only {len(raised)} points above {min_height} mm: nothing to compare")
@@ -192,12 +154,7 @@ def transform(T, points):
 
 
 def icp(reference, points, T_ref, dof, min_height, margin):
-    """Robust point-to-plane ICP moving the REFERENCE onto the points (the scan stays in the board
-    frame). Linearised on the inverse motion: each point p, taken into the reference frame, must lie
-    on the plane of its closest CAD point, so the residual is n . (p' - q) and its derivative with
-    respect to a small motion (w, t) of p' is (p' x n, n). Points further out than 3 robust standard
-    deviations are ignored, which removes the stray points and the unseen parts of the scan.
-    Returns (T_board_ref, residual RMS of the inliers, inlier count)."""
+    """Robust point-to-plane ICP moving the REFERENCE onto the points (the scan stays in the board frame)."""
     T_ref_board = np.linalg.inv(T_ref)
     threshold = ICP_START_DISTANCE
     for _ in range(ICP_ITERATIONS):
@@ -231,13 +188,8 @@ def inside_footprint(reference, local, margin):
 
 
 def local_board_levelling(reference, xyz, T_board_ref):
-    """Transform C (board -> levelled) making the board AROUND the object z = 0, plus the ring's
-    height offset (mm) and tilt (deg) before levelling.
-
-    The board frame comes from the tags 150-250 mm away. On Sep24/mjpg_pyr_lights_2 the board just
-    around the pyramid read +1.5 mm (RAFT), +2.5 mm (SGBM) and -1.8 mm (COLMAP) in it: frame error
-    and board bow, not object error, yet the on_board fit counts it against the object. Levelling on
-    a ring of board around the object separates the two."""
+    """Transform C (board -> levelled) making the board AROUND the object z = 0, plus the ring's height offset (mm) and
+    tilt (deg) before levelling."""
     T_ref_board = np.linalg.inv(T_board_ref)
     local = transform(T_ref_board, xyz)
     low, high = reference.footprint
@@ -272,11 +224,7 @@ def off_square_deg(T):
 
 
 def align(reference, points, dof, min_height, margin, start=None, square_yaw=None):
-    """Best ICP result over starting yaws about the object's centre (or from `start`).
-
-    square_yaw (deg): the object is known to sit square on the board, so start only near 0/90/180/270 deg and keep
-    only fits within square_yaw of square. Repeating surfaces (the egg cartons) otherwise fit about as well at a
-    wrong yaw: on S30 the unconstrained fits landed 7-17 deg off square, where the pyramids land within 1 deg."""
+    """Best ICP result over starting yaws about the object's centre (or from `start`)."""
     if start is not None:
         return icp(reference, points, start, dof, min_height, margin)
     centre = np.median(points[:, :2], axis=0)
@@ -308,9 +256,7 @@ def evaluate(reference, points, T_board_ref, args):
     local = transform(T_ref_board, points)
     q, n, tri = reference.closest(local)
     signed = np.sign(np.sum((local - q) * n, axis=1)) * np.linalg.norm(local - q, axis=1)
-    # Scored only over the footprint. The first run (margin 15 mm) scored the board around the
-    # pyramid too: board read 3-5 mm high there, above --min-height, and as "distance to the
-    # pyramid" it put a +2.6 mm bias and a tail past +15 mm into the lights scan's numbers.
+    # Scored only over the footprint, not the board around it.
     keep = inside_footprint(reference, local, args.eval_margin)
     halo = int(np.sum(inside_footprint(reference, local, args.margin) & ~keep))
     local, signed, tri = local[keep], signed[keep], tri[keep]
@@ -331,8 +277,7 @@ def evaluate(reference, points, T_board_ref, args):
         "within_5mm": float(np.mean(a < 5)),
     }
 
-    # Coverage: sample the visible CAD surface ~1 per mm^2 and check for a scan point nearby.
-    # Seeded, so the same inputs always give the same coverage (unseeded it moved by ~1%).
+    # Coverage: sample the visible CAD surface ~1 per mm^2 (seeded) and check for a scan point nearby.
     o3d.utility.random.seed(0)
     samples = reference.mesh.sample_points_uniformly(max(int(reference.mesh.get_surface_area()), 1000))
     sample_xyz = np.asarray(samples.points)
@@ -351,8 +296,7 @@ def evaluate(reference, points, T_board_ref, args):
         if mine.sum() >= 30:
             entry["mean_signed_mm"] = float(np.mean(signed[mine]))
             entry["rms_mm"] = float(np.sqrt(np.mean(signed[mine] ** 2)))
-            # Plane through this facet's points; its tilt from the design face is a slope error
-            # that does not depend on how much of the face was covered.
+            # Plane through this facet's points; its tilt from the design face is the slope error.
             p = local[mine]
             # full_matrices=False: the default also builds the N x N U, ~7 GB for a 30k-point face.
             fitted = np.linalg.svd(p - p.mean(0), full_matrices=False)[2][2]
@@ -361,9 +305,7 @@ def evaluate(reference, points, T_board_ref, args):
         entry["board_direction"] = board_direction(T_board_ref[:3, :3] @ design)
         facets.append(entry)
     stats["coverage"] = float(np.mean(covered))
-    # Faces are labelled by where they point on the board, not by their index in the CAD file: fits
-    # rotate the CAD differently (a square pyramid fits equally at 90 deg steps), so the same index
-    # is a different physical face in different fits, and only the board direction compares.
+    # Faces are labelled by board direction, since fits can rotate a symmetric model.
     order = {d: i for i, d in enumerate(("+x", "+y", "-x", "-y"))}
     stats["facets"] = sorted(facets, key=lambda f: order.get(f["board_direction"], 9))
     return stats, local, signed, keep
@@ -428,9 +370,9 @@ def cad_apex(reference):
 
 
 def cad_section(reference, apex, axis, other):
-    """The CAD model's cross-section through the apex along its own `axis` (0 = x, 1 = y): (distance from the
-    apex, height), as the top of a dense surface sample per 0.5 mm bin, so it is right for any shape (not only a
-    single pyramid)."""
+    """The CAD model's cross-section through the apex along its own `axis` (0 = x, 1 = y): (distance from the apex,
+    height), as the top of a dense surface sample per 0.5 mm bin, so it is right for any shape (not only a single
+    pyramid)."""
     cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
     line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
     bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
@@ -440,8 +382,8 @@ def cad_section(reference, apex, axis, other):
 
 
 def draw_profiles(ax, reference, xyz_board, T_board_ref):
-    """Scan points in slabs of +-3 mm through the CAD apex, along the CAD model's own x and y axes, with the
-    model's cross-section on the same lines."""
+    """Scan points in slabs of +-3 mm through the CAD apex, along the CAD model's own x and y axes, with the model's
+    cross-section on the same lines."""
     local = transform(np.linalg.inv(T_board_ref), xyz_board)
     apex = cad_apex(reference)
     for axis, other, colour, style, label in ((0, 1, "#184f95", "-", "along CAD x"), (1, 0, "#8e2a1f", "--", "along CAD y")):

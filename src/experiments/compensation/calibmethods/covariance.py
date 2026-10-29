@@ -1,22 +1,6 @@
 """Covariance and correlation of a fitted model's intrinsic parameters.
 
-A calibration is a least-squares fit of the intrinsics p (m of them) and one board pose q_k (6 each) to
-the corner residuals r. Near the minimum, with independent pixel noise of equal variance sigma^2, the
-covariance of all the parameters is sigma^2 (J^T J)^-1, J being the Jacobian of r. The intrinsics' own
-block of that inverse is, without forming the whole matrix, the inverse of the Schur complement
-
     A = sum_k [ Jp_k^T Jp_k - Jp_k^T Jq_k (Jq_k^T Jq_k)^-1 Jq_k^T Jp_k ]
-
-(Jp_k, Jq_k: the derivatives of frame k's residuals by p and by its own pose), which accounts for every
-pose being estimated at the same time. sigma^2 is the residual sum of squares over the degrees of
-freedom, 2N - m - 6F. This is the same estimate OpenCV's calibrateCameraExtended reports as
-stdDeviationsIntrinsics (tests/test_models.py checks the two agree for Brown-Conrady).
-
-The correlation matrix C_ij = cov_ij / (sigma_i sigma_j) shows which parameters the data cannot tell
-apart: |C| near 1 means a change in one is almost exactly undone by the other.
-
-Jp is taken by central differences on the model's own projection (models.with_params), so the same
-code serves every model, including those whose projection has no analytic derivative.
 """
 import numpy as np
 
@@ -24,8 +8,8 @@ from . import models
 
 
 def intrinsic_covariance(model, frames):
-    """{"names", "values", "sigma", "cov", "corr", "dof", "sigma_px"} of the model's intrinsics, at its
-    current parameters, over the given frames (each posed with the intrinsics fixed)."""
+    """{"names", "values", "sigma", "cov", "corr", "dof", "sigma_px"} of the model's intrinsics, at its current
+    parameters, over the given frames (each posed with the intrinsics fixed)."""
     names, p0 = models.param_names(model), models.get_params(model)
     m = len(p0)
     steps = 1e-6 * np.maximum(1.0, np.abs(p0))

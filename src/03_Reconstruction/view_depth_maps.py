@@ -1,14 +1,7 @@
 """Look at COLMAP's PatchMatch depth maps, including while patch_match_stereo is still running.
 
-Each depth map is shown beside the undistorted image it belongs to, near = red, far = blue, no
-depth = black. The first pass writes <name>.photometric.bin (unfiltered, so noisy); the second
-writes <name>.geometric.bin (checked against the neighbouring views), and --type picks which.
-
     src/venv/bin/python src/03_Reconstruction/view_depth_maps.py --session Sep24 --scan mjpg_pyr_lights_2 --watch
     src/venv/bin/python src/03_Reconstruction/view_depth_maps.py --session Sep24 --scan mjpg_pyr2 --image left/0110.png
-
---watch shows the newest depth map and refreshes as new ones are written (q or Esc to quit).
-Without it, the chosen (or newest) map is saved as a PNG in the workspace's depth_previews/.
 """
 import argparse
 import glob
@@ -46,8 +39,8 @@ def parse_args(argv=None):
 
 
 def read_colmap_array(path):
-    """COLMAP's .bin depth/normal format: an ASCII "width&height&channels&" header, then float32
-    values stored column-major."""
+    """COLMAP's .bin depth/normal format: an ASCII "width&height&channels&" header, then float32 values stored
+    column-major."""
     with open(path, "rb") as fh:
         header = b""
         while header.count(b"&") < 3:

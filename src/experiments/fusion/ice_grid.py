@@ -1,14 +1,7 @@
 """One figure comparing the fusion methods on every ice scan: a row per scan, a column per method, each tile the
 top-down height map of that scan's ice box (evaluation.region in its config), seen from the camera side.
 
-Reads what run_fusion.py saved (<work>/<method>/cloud_board.ply) through compare_fusion.py's own functions, so the
-tiles match each scan's topdown_region.png. Each row has its own colour scale, fitted to the ice in its box: the
-10th to 99.5th percentile of every method's heights there, which leaves out the mounting pole and background that
-sit far behind the ice and would otherwise flatten its few centimetres of relief into one colour.
-
     src/venv/bin/python src/experiments/fusion/ice_grid.py
-
-Writes results/experiments/fusion/ice_grid.png.
 """
 import argparse
 import os
@@ -29,16 +22,14 @@ CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_wave.json",
 TITLES = {"ice_pyramid_shade_pyr1_pass4": "Pyramid", "ice_cubes_shade_cub2": "Cubes", "ice_wave_shade_wave1": "Wave",
           "ice_overhang_shade_hang1": "Overhang"}
 HEIGHT_PERCENTILES = (10, 99.5)
-# Rows shown before their scan has been fused: (row title, config whose data stands in). The stand-in is marked
-# "placeholder" in every tile; replace the entry with the scan's own config once it exists.
-PLACEHOLDERS = []   # the overhang placeholder was replaced by its own run on 19 Oct
+# Rows shown before their scan is fused: (title, stand-in config), marked as placeholder.
+PLACEHOLDERS = []
 FONT = {"title": 20, "row": 20, "label": 14, "ticks": 12, "note": 12}
 
 
 def place_row_labels(fig, axes, labels, fontsize, strip=0.04):
-    """Row names on one vertical line, each centred on its row: the layout is kept out of a strip of this width at
-    the figure's left, and the names are centred in it. Panels holding narrower images are drawn inset, so axis
-    labels would not line up; the names are placed after the layout is final (then frozen)."""
+    """Row names on one vertical line, each centred on its row: the layout is kept out of a strip of this width at the
+    figure's left, and the names are centred in it."""
     fig.get_layout_engine().set(rect=(strip, 0, 1 - strip, 1))
     fig.canvas.draw()
     fig.set_layout_engine("none")
@@ -69,8 +60,7 @@ def main(argv=None):
         x0, x1, y0, y1 = ev["region"]
         clouds = compare_fusion.board_clouds(cfg, p, compare_fusion.camera_side(p))
         inside = {m: c[(c[:, 0] >= x0) & (c[:, 0] < x1) & (c[:, 1] >= y0) & (c[:, 1] < y1)] for m, c in clouds.items()}
-        # evaluation.grid_height_range_mm overrides the percentiles where the pole or background fills too much of
-        # the box for them to find the ice (the wave).
+        # grid_height_range_mm overrides the percentiles where needed (the wave).
         low, high = ev.get("grid_height_range_mm") or np.percentile(
             np.concatenate([c[:, 2] for c in inside.values()]), HEIGHT_PERCENTILES)
         image = None

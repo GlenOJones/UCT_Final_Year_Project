@@ -1,16 +1,11 @@
 """Web-sized copies of the fusion clouds for the GitHub Pages viewer (docs/viewer/index.html).
 
-The clouds the fusion experiment reports are too big to put on GitHub (up to 460 MB each). This crops each to the
-object, thins it to one point per voxel (default 1.5 mm), and writes a small binary PLY (float32 xyz + uint8 colour).
-
     S30  : results/experiments/fusion/3DPrintFinal_s30/objects/<method>/<object>.ply  (already one object each)
     Ice  : <work>/<scan>/<method>/cloud_board.ply cut to evaluation.region and to the ice's height band,
            with z flipped to 'height towards the camera' as in the figures.
 
     src/venv/bin/python src/experiments/fusion/export_web_clouds.py
     src/venv/bin/python src/experiments/fusion/export_web_clouds.py --voxel 2.5     # smaller files
-
-Writes docs/viewer/clouds/<scan>/<method>.ply and docs/viewer/clouds/manifest.json.
 """
 import argparse
 import json
@@ -51,7 +46,7 @@ def thin(xyz, rgb, voxel):
 
 
 def write_ply(path, xyz, rgb):
-    """Binary little-endian PLY, 15 bytes a point. The viewer centres it."""
+    """Binary little-endian PLY, 15 bytes a point."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     vertices = np.empty(len(xyz), dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("r", "u1"), ("g", "u1"), ("b", "u1")])
     vertices["x"], vertices["y"], vertices["z"] = xyz[:, 0], xyz[:, 1], xyz[:, 2]

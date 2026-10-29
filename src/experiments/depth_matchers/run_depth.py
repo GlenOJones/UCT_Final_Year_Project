@@ -1,9 +1,5 @@
 """The pipeline runs of the depth experiment: depth_frames.py once per recording and matcher.
 
-Each run is the ordinary pipeline script, started with the interpreter its matcher needs (FoundationStereo and
-AquaStereo have their own environments), every setting taken from config.json, and --save-disparity on so the
-figures can be drawn from what it saved:
-
     work/<work_dir>/<recording>/<matcher>/depth_frames.json    settings, per-frame time, pixels and points
     work/<work_dir>/<recording>/<matcher>/frames/              points per frame (1 mm voxels, camera frame)
     work/<work_dir>/<recording>/<matcher>/disparity/           disparity per frame, uint16 PNG, 1/16 px
@@ -13,9 +9,6 @@ figures can be drawn from what it saved:
     src/venv/bin/python src/experiments/depth_matchers/run_depth.py --recordings ice_pyramid_shade_pyr1_pass4 --matchers sgbm
     src/venv/bin/python src/experiments/depth_matchers/run_depth.py --frames data/3DRecon/Ice/Wave/Shade/wave1_frames_pass2_720mm \
         --depth-min 400 --depth-max 1400 --out-dir results/experiments/depth_wave --work-dir work/experiments/depth_wave
-
-Then analyse_depth.py, with the same options, makes the table and figures. With --skip-existing, a run whose
-depth_frames.json exists is not repeated.
 """
 import argparse
 import os
@@ -33,7 +26,7 @@ DEPTH_FRAMES = os.path.join("src", "03_Reconstruction", "depth_frames.py")
 
 
 def run_one(cfg, recording, matcher, skip_existing):
-    """depth_frames.py for one recording and matcher. Returns a record for the manifest."""
+    """depth_frames.py for one recording and matcher."""
     spec = cfg["matchers"][matcher]
     out = depth_config.depth_dir(cfg, recording, matcher)
     argv = ["--frames-dir", common.project_path(recording["frames"]),

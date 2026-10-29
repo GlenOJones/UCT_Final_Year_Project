@@ -1,14 +1,4 @@
-"""Validation for detector_presets.json.
-
-Calibration.py reads the JSON and builds its own detector from it; this module's only job is to say
-whether what was read is usable. Keeping the checks here means a bad preset file fails once, at load,
-with a message naming the offending key, instead of surfacing later as a detector that silently
-finds half the tags.
-
-Use:
-    from detector_config import validate
-    config = validate(json.load(open(PRESETS_FILE)), PRESETS_FILE)
-"""
+"""Validation for detector_presets.json."""
 import cv2
 
 # Keys starting with "_" are documentation (_why, _comment), not detector parameters.
@@ -24,11 +14,7 @@ def parameters(body):
 
 
 def check_parameters(body, where, path):
-    """Every key must name a cv2.aruco.DetectorParameters attribute and every value must be settable.
-
-    A typo is otherwise silent: setting adaptiveThreshWinSizeMaxx on a plain Python object just adds
-    an attribute OpenCV never reads, so the preset appears to do nothing.
-    """
+    """Every key must name a cv2.aruco.DetectorParameters attribute and every value must be settable."""
     defaults = cv2.aruco.DetectorParameters()
     for key, value in parameters(body).items():
         if not hasattr(defaults, key):
@@ -40,10 +26,7 @@ def check_parameters(body, where, path):
 
 
 def validate(config, path):
-    """Raise SystemExit unless config (the parsed detector_presets.json) is usable.
-
-    Returns the config unchanged, so it can be used inline around json.load().
-    """
+    """Raise SystemExit unless config (the parsed detector_presets.json) is usable."""
     if not isinstance(config, dict):
         raise SystemExit(f"{path}: top level must be a JSON object, not {type(config).__name__}")
 
@@ -67,9 +50,7 @@ def validate(config, path):
     if config["default"] not in presets:
         raise SystemExit(f"{path}: default {config['default']!r} is not one of {', '.join(presets)}")
 
-    # board_params describe the printed target rather than the tuning, so overriding one is allowed
-    # but nearly always a mistake: markerBorderBits at its default halves the tags found, and nothing
-    # raises when it does. Warn once here rather than on every use of the preset.
+    # board_params describe the printed target, so warn if a preset overrides one.
     for name, body in presets.items():
         for key in parameters(body).keys() & parameters(config["board_params"]).keys():
             print(f"  WARNING: {path}: preset {name!r} overrides board parameter {key} "

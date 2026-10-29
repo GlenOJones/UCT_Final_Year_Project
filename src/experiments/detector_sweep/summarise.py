@@ -1,21 +1,4 @@
-"""Compare the detector presets from their calibrations: what each detects and how well it then fits.
-
-Reads the Calibration.py runs reproduce.py made for config.json "presets" (one per medium and preset, same
-channel and calibration settings), so the preset is the only thing that differs. Nothing is detected here.
-
-Per medium and preset:
-    tags            distinct board tags per image, summed over both cameras' images (what the sweep maximises)
-    usable          images with at least min_tags distinct board tags
-    bad rate        false ids + duplicate ids, as a share of all detections
-    kept            images left after outlier rejection, left / right
-    RMS common      RMS of the per-image errors over only the images every preset's run kept, left / right:
-                    the like-for-like fit quality (see compare_calibrations.py for why headline RMS is not)
-    stereo RMS      and the pairs it was fitted on
-
-Use (from the project root; reproduce.py detector_sweep makes the calibrations and runs this):
-    src/venv/bin/python src/experiments/detector_sweep/summarise.py
-Writes <out_dir>/presets/summary.{json,md}.
-"""
+"""Compare the detector presets from their calibrations: what each detects and how well it then fits."""
 import argparse
 import json
 import os

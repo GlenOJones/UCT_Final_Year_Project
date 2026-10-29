@@ -1,16 +1,4 @@
-"""What every experiment shares: making pipeline runs, and recording what the results came from.
-
-An experiment never re-implements the pipeline. Its calibrations are ordinary Calibration.py runs, made by
-calling Calibration.calibrate() with arguments built here, and its analysis reads what those runs saved.
-
-Two rules keep a result repeatable:
-  1. Every pipeline setting is stated in the experiment's config. calibration_argv() refuses a settings
-     block that leaves one out, so changing a default in Calibration.py (the standard pipeline) never
-     silently changes an experiment.
-  2. The code that made a result is a git commit. require_clean() refuses to run while src/ has
-     uncommitted changes (unless allow_dirty), and write_manifest() records the commit, library
-     versions, configs, the resolved detector presets and a digest of every input folder.
-"""
+"""What every experiment shares: making pipeline runs, and recording what the results came from."""
 import datetime
 import hashlib
 import json
@@ -28,7 +16,7 @@ PROJECT_ROOT = os.path.dirname(SRC_DIR)
 sys.path.insert(0, os.path.join(SRC_DIR, "01_Calibration"))
 import Calibration  # noqa: E402
 
-# The settings block every pipeline run in an experiment must spell out in full (see rule 1 above).
+# The settings block every pipeline run in an experiment must spell out in full.
 CALIBRATION_KEYS = ("detector", "preset", "channel", "reject", "min_tags", "min_common_tags", "detection_images")
 
 
@@ -71,7 +59,7 @@ def calibration_paths(settings, frames_dir, out_dir):
 
 
 def calibrate(settings, frames_dir, out_dir, skip_existing=False):
-    """Make one pipeline run (or keep it, with skip_existing). Returns a record for the manifest."""
+    """Make one pipeline run (or keep it, with skip_existing)."""
     argv = calibration_argv(settings, frames_dir, out_dir)
     yaml_path, corners_path = calibration_paths(settings, frames_dir, out_dir)
     record = {"yaml": rel(yaml_path), "argv": [rel(a) if os.path.isabs(a) else a for a in argv]}
@@ -118,12 +106,7 @@ def folder_digest(folder):
 
 
 def write_manifest(out_dir, experiment, configs, inputs, presets, runs, extra=None):
-    """manifest.json in out_dir: what these results were made from. If two manifests match, their outputs
-    should match too (only timestamps differ).
-
-    configs: config files used; inputs: data folders read; presets: detector preset names used (their
-    resolved settings are recorded, since detector_presets.json can change); runs: pipeline run records.
-    """
+    """manifest.json in out_dir: what these results were made from."""
     all_presets = Calibration.load_presets()
     manifest = {
         "experiment": experiment,

@@ -1,21 +1,4 @@
-"""Fit every technique on one split's training recordings and score it on the held-out recordings.
-
-Two kinds of evidence come out, both from held-out data only:
-
-  points  one row per held-out board corner per camera: where it was detected, its residual against the
-          board reprojected from that frame's own pose (fitted with the technique's intrinsics fixed), its
-          normalised radius from the technique's principal point, and its depth. Every pixel metric and
-          figure is computed from these rows (metrics.py), so they cannot disagree with each other.
-  bars    one row per held-out stereo pair: board corners triangulated with the technique's two cameras
-          and stereo extrinsics, and the distance between every two corners whose true separation lies
-          in the scale-bar band, compared with the board's geometry. Each pair is summarised as its mean
-          (signed) and RMS length error, because the thousands of bars inside one pair share a single
-          board pose and are not independent measurements.
-
-A per-frame pose is fitted to the same corners it is scored on, so it absorbs part of any model error
-(6 pose parameters per frame). The held-out reprojection error is therefore a lower bound on the error a
-model makes when the pose is not known; the bars, which use no board pose at all, do not have this bias.
-"""
+"""Fit every technique on one split's training recordings and score it on the held-out recordings."""
 import cv2
 import numpy as np
 from scipy.spatial.distance import pdist
@@ -64,8 +47,8 @@ def scale_bars(left, right, R, T, pairs, pair_index, band_mm):
 
 
 def run_split(run, split, techniques, cfg, keep_models=False):
-    """Everything one split contributes: {"params", "points", "bars", "notes"}, plus "models" (the fitted
-    cameras and stereo extrinsics per technique) when keep_models."""
+    """Everything one split contributes: {"params", "points", "bars", "notes"}, plus "models" (the fitted cameras and
+    stereo extrinsics per technique) when keep_models."""
     image_size = run.image_size
     frame_index = {c: {f.name: k for k, f in enumerate(run.frames[c])} for c in data.CAMERAS}
     all_pairs = run.stereo_pairs()

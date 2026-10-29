@@ -1,24 +1,7 @@
 """Fuse saved frames into one surface by taking, per x-y cell, the MEDIAN of the frames' heights.
 
-dense_stereo.py fuses by voxel union: every voxel enough frames hit is kept. That is right when the
-frames agree, but on Oct1/cub2 they do not. Each frame is clean on its own (0.6 mm scatter on a stud
-top), yet frames disagree on the stud heights by ~4 mm (p10-p90), and systematically with viewing
-angle (frames from further off the normal put the studs higher): a view-dependent depth bias such as
-the flat-port refraction a pinhole calibration leaves in. Rigid re-alignment (refine_frames.py) cannot
-remove it, and a voxel union stacks every frame's version into a band several mm thick.
-
-Here each frame contributes one height per cell (the median of its points in the cell), and the
-output height is the median over the frames that saw the cell: one consensus surface, the middle of
-the band, with the spread across frames kept as a per-cell quality measure. Every view looks at the
-surface from one side (here: the board side), so a height field over the board's x-y holds it; walls
-steeper than the cell size are represented only by the jump between neighbouring cells.
-
     src/venv/bin/python src/03_Reconstruction/median_fuse.py --session Oct1 --scan cub2_all \
         --frames raft_s075_frames raft_s075_frames_odd --corrections raft_s075_frames_refined --out raft_median
-
-Writes <out>/cloud_clean.ply (one point per cell, coloured by grey), spread.ply (the same points
-coloured by the frames' spread in that cell), mesh.ply (the grid triangulated, cells joined where
-their heights differ by less than --max-step mm) and fuse.json.
 """
 import argparse
 import glob

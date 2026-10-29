@@ -1,18 +1,6 @@
 """AquaStereo (Wei, Liang, You and Fu, ECCV 2026) as a matcher for dense_stereo.py.
 
-A learned stereo network built for underwater images: trained on underwater stereo pairs rendered by
-a depth-conditioned diffusion model (so the binocular geometry stays exact), with features from a
-frozen DINOv2 encoder and an X3D video backbone, and self-distilled from a teacher trained in air.
-It predicts disparity from one rectified pair, iteratively refined like RAFT-Stereo, from a cost
-volume that covers up to 768 px of disparity (plenty for this rig's ~250-350 px at full size).
-
-Needs PyTorch and timm, kept out of the main venv: run dense_stereo.py with envs/aquastereo (see
-external/README.md for the setup):
-
     envs/aquastereo/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2 --matcher aquastereo
-
-The network code and the checkpoints are in external/AquaStereo. The left-right check, scaling and
-output convention are shared with RAFT-Stereo (StereoNetMatcher in raft_matcher.py).
 """
 import os
 import sys
@@ -35,13 +23,7 @@ MODEL_ARGS = dict(hidden_dims=[128] * 3, corr_levels=2, corr_radius=4, n_downsam
 
 
 def load_checkpoint(model, path):
-    """Load an AquaStereo checkpoint into a bare (unwrapped) model, strictly.
-
-    Mirrors read_checkpoint_metadata / load_checkpoint_for_eval in AquaStereo's evaluate_stereo.py,
-    which cannot be imported here without its dataset loaders' dependencies (imageio,
-    scikit-image, ...). Weight names lose their "module."/"model." wrappers, and the learned
-    perception frames are resized to this model's shape as the original does. Returns the
-    checkpoint's saved training arguments."""
+    """Load an AquaStereo checkpoint into a bare (unwrapped) model, strictly."""
     import torch
     import torch.nn.functional as F
     checkpoint = torch.load(path, map_location="cpu", weights_only=False)
@@ -84,8 +66,7 @@ class AquaStereoMatcher(StereoNetMatcher):
         saved = torch.load(checkpoint, map_location="cpu", weights_only=False)
         saved = dict(saved.get("args") or {}) if isinstance(saved, dict) else {}
         args = {**MODEL_ARGS, **{k: v for k, v in saved.items() if k in MODEL_ARGS}}
-        # restore_ckpt tells the encoder to take DINOv2 and X3D from the checkpoint rather than
-        # from separate pretraining files.
+        # Load DINOv2 and X3D from the checkpoint.
         args = SimpleNamespace(**args, vit_size=model, restore_ckpt=checkpoint,
                                mixed_precision=precision != "float32", precision_dtype=precision)
         network = AquaStereo(args)

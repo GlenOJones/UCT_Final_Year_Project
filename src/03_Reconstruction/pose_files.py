@@ -1,16 +1,7 @@
 """Reading and writing camera trajectories: one rig pose per frame pair, from any pose estimator.
 
-tag_poses.py poses every frame in the BOARD frame its reference tags define. The markerless estimators
-(icp_poses.py, colmap_poses.py) have no board, so they pose every frame in a WORLD frame of their own:
-the left camera of the first frame they could pose. Both write the same per-frame entry, so whatever
-reads poses can take either:
-
     frames:
        - { name: 0123.png, T_cam_world: 4x4 }      X_cam = T_cam_world @ [X_world, 1], mm
-
-plus per-frame diagnostics the estimator chose to keep (fit residual, ICP fitness, ...). A frame the
-estimator could not pose is listed without T_cam_world. read_trajectory() also accepts tag_poses.py's
-YAML, whose key is T_cam_board.
 """
 import datetime
 import os
@@ -22,8 +13,7 @@ from stereo_rig import rel
 
 
 def write_trajectory(path, script, world, metadata, frames, comment=None):
-    """frames: [{"name": str, "T_cam_world": 4x4 or None, <diagnostic>: float, ...}], in frame order.
-    metadata: flat {key: str/float/int} written under metadata (frames_dir, calibration, settings)."""
+    """frames: [{"name": str, "T_cam_world": 4x4 or None, <diagnostic>: float, ...}], in frame order."""
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     fs.writeComment("=====================================================================")
@@ -57,8 +47,8 @@ def write_trajectory(path, script, world, metadata, frames, comment=None):
 
 
 def read_trajectory(path):
-    """(metadata {key: str or float}, {frame name: T_cam_world}, {frame name: {diagnostic: float}}) from a
-    trajectory file or from tag_poses.py's YAML (T_cam_board). Frames with no pose are left out of the poses."""
+    """(metadata {key: str or float}, {frame name: T_cam_world}, {frame name: {diagnostic: float}}) from a trajectory
+    file or from tag_poses.py's YAML (T_cam_board)."""
     if not os.path.exists(path):
         raise SystemExit(f"no poses at {rel(path)}")
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)

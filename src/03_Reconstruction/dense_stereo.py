@@ -1,26 +1,7 @@
 """Dense point cloud of a scan: stereo matching on every posed frame pair, fused in the board frame.
 
-Each frame pair is rectified with the transforms saved by Calibration.py, matched with semi-global
-block matching (SGBM), and the disparity turned into 3D points in the left camera frame. The pose
-from tag_poses.py then moves those points into the board frame, where every frame lands in the same
-place and they can be merged.
-
-Merging is on a voxel grid. Each voxel keeps the mean of the points that fell in it and the number
-of FRAMES that put a point there. Keeping only voxels seen from several frames is the main noise
-filter: a wrong match lands somewhere different in each frame, while a real surface keeps coming
-back to the same place as the rig slides past.
-
-Only a box around the tags is kept: the tag area plus a margin, from slightly behind the board to
---z-max in front of it. The same box also sets each frame's disparity search range, so SGBM does
-not spend time on depths that would be cropped anyway.
-
     src/venv/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2
     src/venv/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr2 --step 5 --debug-every 1
-
-Reads the scan's poses/tag_poses.yaml and writes results/<session>/<scan>/sgbm/cloud.ply (binary
-PLY: x, y, z in mm in the board frame,
-grey as RGB, and "views", the number of frames that saw each point). CloudCompare and MeshLab open
-it directly; view_cloud.py renders it.
 """
 import argparse
 import os
@@ -35,14 +16,7 @@ from stereo_rig import PROJECT_ROOT, invert, load_rig, rel, transform  # noqa: E
 import project_paths as paths  # noqa: E402
 
 # ====== SGBM ======
-# Matching is on grey: the frames are the single-channel luma (Y) plane that extract_stereo_frames.py
-# --gray saves; the scene is achromatic and the MJPG chroma is half resolution, so colour would add
-# little. Every SGBM setting is an argument (add_matcher_arguments); the defaults were set on Sep24/mjpg_pyr2
-# frame 0110 (board plain wood, pyramid matte black):
-#   MODE_HH (8 paths) instead of 3WAY removes the horizontal streaking on the low-texture board
-#   block 9 / uniqueness 5 finds ~1.7x the pyramid points of block 5 / uniqueness 10
-#   CLAHE before matching does NOT help: it adds speckle at wrong depths all over the board
-# src/experiments/depth_matchers/tune_sgbm.py searches them against the tag planes.
+# SGBM on the luma plane. Defaults from Sep24/mjpg_pyr2, tuned by experiments/depth_matchers/tune_sgbm.py.
 SGBM_MODES = {"hh": cv2.STEREO_SGBM_MODE_HH, "sgbm": cv2.STEREO_SGBM_MODE_SGBM,
               "3way": cv2.STEREO_SGBM_MODE_SGBM_3WAY, "hh4": cv2.STEREO_SGBM_MODE_HH4}
 
@@ -95,15 +69,12 @@ def parse_args(argv=None):
     ap = argparse.ArgumentParser(description="Fuse per-frame stereo depth into one point cloud.")
     paths.add_scan_arguments(ap)
     add_matcher_arguments(ap)
-    # The method name is the output folder, so a variant run (other block size, say) can be kept
-    # beside the default as e.g. --method sgbm_block5.
+    # The method name is the output folder name.
     ap.add_argument("--method", default=None, help="output folder name (default: the matcher's name)")
     ap.add_argument("--step", type=int, default=1, help="use every Nth posed frame (default 1)")
     ap.add_argument("--step-offset", type=int, default=0,
                     help="start --step at this frame, e.g. --step 2 --step-offset 1 for the frames --step 2 skips")
-    # Frame selection for free-moving scans (Oct1/cub2: 1855 posed frames at 490-950 mm, 438 of
-    # them posed from a single tag). Depth error grows with the square of range, and a one-tag pose
-    # pins rotation with only four corners 50 mm apart, so near, multi-tag frames are worth more.
+    # Frame selection for free-moving scans: prefer near, multi-tag frames.
     ap.add_argument("--min-tags", type=int, default=1, help="use only frames posed from at least this many tags (default 1)")
     ap.add_argument("--max-range", type=float, default=None,
                     help="mm; use only frames whose camera is within this distance of --focus (default: all)")
@@ -129,8 +100,8 @@ def parse_args(argv=None):
 
 # ====== INPUTS ======
 def load_poses(path):
-    """Poses YAML from tag_poses.py -> (metadata dict, tag corners (N, 3) in the board frame,
-    [(name, T_cam_board, number of tags it was posed from)] for the frames that have a pose)."""
+    """Poses YAML from tag_poses.py -> (metadata dict, tag corners (N, 3) in the board frame, [(name, T_cam_board,
+    number of tags it was posed from)] for the frames that have a pose)."""
     if not os.path.exists(path):
         raise SystemExit(f"no poses at {rel(path)} - run src/03_Reconstruction/tag_poses.py first")
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
@@ -173,8 +144,8 @@ def crop_box(tag_corners, args):
 
 # ====== STEREO ======
 class Rectifier:
-    """Rectification maps for the pair, built once, and the geometry needed to go back from
-    rectified-left coordinates to the left camera frame."""
+    """Rectification maps for the pair, built once, and the geometry needed to go back from rectified-left coordinates
+    to the left camera frame."""
 
     def __init__(self, rig):
         self.rig = rig
@@ -182,8 +153,7 @@ class Rectifier:
                      for camera, R, P in (("left", rig.R1, rig.P1), ("right", rig.R2, rig.P2))}
         self.focal = float(rig.P1[0, 0])
         self.baseline = float(-rig.P2[0, 3] / rig.P2[0, 0])
-        # Points from reprojectImageTo3D are in the rectified left frame; R1 rotated the camera
-        # into it, so R1 transposed rotates them back.
+        # Rectified left frame back to the left camera frame.
         self.T_cam_rect = np.eye(4)
         self.T_cam_rect[:3, :3] = rig.R1.T
 
@@ -203,14 +173,7 @@ class Rectifier:
 
 
 def match(left, right, minimum, count, sgbm):
-    """SGBM disparity (px, float, full resolution) of a rectified pair; pixels with no match are below minimum.
-
-    sgbm: the SGBM arguments of add_matcher_arguments (block_size, uniqueness, sgbm_mode, p1, ...).
-
-    SGBM leaves the first minimum + count columns unmatched, which with the ~230 + ~200 px search
-    this rig needs is a quarter of the image. Padding both images on the left by that much moves
-    the dead band into the padding, and it is cropped off again afterwards.
-    """
+    """SGBM disparity (px, float, full resolution) of a rectified pair; pixels with no match are below minimum."""
     scale = sgbm.sgbm_scale
     if scale != 1.0:
         # Match a smaller pair, with the search scaled to match, and bring the disparity back to full size.
@@ -232,8 +195,7 @@ def match(left, right, minimum, count, sgbm):
         disp12MaxDiff=sgbm.disp12_max_diff, preFilterCap=sgbm.prefilter_cap, uniquenessRatio=sgbm.uniqueness,
         speckleWindowSize=sgbm.speckle_window, speckleRange=sgbm.speckle_range, mode=SGBM_MODES[sgbm.sgbm_mode])
     disparity = matcher.compute(*padded)[:, pad:].astype(np.float32) / 16.0
-    # A left pixel whose match would lie left of the right image's edge can only have matched the
-    # padding, so it is not a measurement.
+    # A match left of the right image's edge is padding.
     disparity[disparity > np.arange(left.shape[1], dtype=np.float32)] = minimum - 1
     if sgbm.median_filter:
         # Median of the matched pixels only: unmatched ones would drag edges towards minimum - 1.
@@ -244,15 +206,13 @@ def match(left, right, minimum, count, sgbm):
 
 
 def frame_points(rectifier, left_path, right_path, T_cam_board, low, high, args, network=None):
-    """Board-frame points and grey values for one pair, cropped to the box. Also returns the
-    rectified left image and disparity for debugging."""
+    """Board-frame points and grey values for one pair, cropped to the box."""
     left, right = rectifier.rectify("left", left_path), rectifier.rectify("right", right_path)
     minimum, count = rectifier.disparity_range(T_cam_board, low, high)
     if network is None:
         disparity = match(left, right, minimum, count, args)
     else:
-        # A learned matcher searches every disparity by itself; the box's range only decides what
-        # is kept.
+        # Learned matchers search every disparity; the range only decides what is kept.
         disparity = network.disparity(left, right)
         disparity[disparity < minimum] = minimum - 1
     valid = disparity >= minimum   # unmatched pixels are minimum - 1, as SGBM marks them

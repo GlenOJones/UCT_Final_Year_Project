@@ -1,46 +1,4 @@
-"""Search detector_presets.json parameter space for the settings that find the most tags.
-
-Answers one question: which cv2.aruco.DetectorParameters find the most AprilGrid tags on a set of
-frames? Nothing here re-implements detection. The script builds a Presets object in memory and hands
-it to Calibration.py's own make_detector() and detect_tags(), so what is measured is exactly what a
-calibration run would see, and Calibration.py itself is untouched.
-
-The search is coordinate descent from OpenCV's default thresholding (the opencv_default preset, see
-START_PRESET): one axis at a time, every candidate value
-tried with the rest held at the current best, keeping whichever value finds the most tags, repeated
-until a round changes nothing. That is far cheaper than the full grid (thousands of combinations)
-and, because the axes mostly act independently, it lands in the same place.
-
-Score is the number of DISTINCT board tags found, summed over the images: per image, how many of
-the ids 0..69 were seen at least once. Counting raw detections instead is what an earlier version
-of this script did, and the search exploited it - minMarkerDistanceRate=0 turns off the merging of
-overlapping candidates, so one physical tag is reported many times over, and the score went from
-4439 to 52822 on 208 images that can only carry 208 * 70 = 14560 tags. A detection that repeats an
-id already found in the same image adds nothing to a calibration, so it is not counted.
-
-Two kinds of detection are counted separately as evidence that the decoder has been loosened too
-far, and a candidate producing more than --max-bad-rate of them is never selected however many tags
-it finds:
-    duplicates  the same id twice in one image; at least one of the two is misplaced
-    false ids   an id outside 0..69, which the 36h11 dictionary contains but this board cannot
-Neither corrupts the fit directly (matchImagePoints keeps the first of a repeated id and ignores
-ids the board lacks), but both rise exactly when the decoder starts misreading tags it did see -
-a tag read as the wrong id lands in the fit at the wrong board position and is invisible otherwise.
-
-More tags is still not the same as a better calibration: run Calibration.py with the winning preset
-and compare the reprojection error against the preset you started from.
-
-Every evaluation is cached to <out-dir>/<frames>_evaluations.jsonl as it finishes, so
-a sweep that is interrupted, or one re-run after SWEEP_AXES grows, only computes what is new. Pass
---fresh to throw that cache away.
-
-Normally run through reproduce.py, which also checks the result against detector_presets.json and
-calibrates with every preset (settings in config.json here):
-    src/venv/bin/python src/experiments/reproduce.py detector_sweep
-On its own (from the project root):
-    src/venv/bin/python src/experiments/detector_sweep/sweep_detector.py --frames-dir data/Calibration/FinalComparison/Water
-    src/venv/bin/python src/experiments/detector_sweep/sweep_detector.py --frames-dir ... --save-preset best
-"""
+"""Search detector_presets.json parameter space for the settings that find the most tags."""
 import argparse
 import contextlib
 import io
@@ -58,50 +16,31 @@ from detector_config import validate  # noqa: E402
 
 PROJECT_ROOT = calib.PROJECT_ROOT
 
-# Candidate values per axis, in the order the axes are searched: thresholding first (it decides
-# which shapes exist at all), then contour filtering, then bit decoding. Each list contains the
-# value 'wide' already uses, so a round can always choose to change nothing.
-#
-# The board parameters markerBorderBits and errorCorrectionRate are deliberately absent. They
-# describe the printed Kalibr target rather than the tuning, detector_presets.json sets them once
-# for every preset, and letting a search move them is how a preset ends up finding zero tags.
+# Candidate values per axis, in search order. Board parameters are not swept.
 SWEEP_AXES = {
-    # Size of the local window used to threshold the image, swept from min to max in steps. Small
-    # windows suit tags that fill the frame, large ones distant tags; the sweep is the cost.
+    # Local threshold window: min, max, step.
     "adaptiveThreshWinSizeMin": [3, 5, 7, 9, 13],
     "adaptiveThreshWinSizeMax": [23, 33, 43, 53, 63, 83],
     "adaptiveThreshWinSizeStep": [2, 4, 5, 8, 10, 14],
-    # Subtracted from the local mean. Do not expect 0 to win: these tags are low-contrast rather
-    # than dark, and 0 collapses detection (see the note in detector_presets.json).
+    # Subtracted from the local mean.
     "adaptiveThreshConstant": [3, 5, 7, 9, 12],
-    # A candidate whose greyscale spread is below this is thresholded by Otsu instead. The default
-    # 5.0 throws away low-contrast underwater tags.
+    # Below this spread a candidate is thresholded by Otsu.
     "minOtsuStdDev": [0.0, 1.0, 2.0, 3.0, 5.0],
-    # Contour perimeter as a fraction of the larger image side: the floor sets how small a tag can
-    # be before it is ignored, which matters for the far end of the board.
-    #
-    # 0.005 and 0.01 are deliberately not offered. Once the thresholding axes have widened (a
-    # dense sweep to winSizeMax=83), a floor that low admits an enormous pool of tiny contours:
-    # on the 18 Sep set one evaluation at 0.005 took 2054 s against 18 s at 0.03, and was then
-    # refused anyway for a 1.16% bad rate. The whole axis was worth +3 tags for ~37 minutes.
+    # Contour perimeter as a fraction of the image side (0.005 and 0.01 were too slow).
     "minMarkerPerimeterRate": [0.02, 0.03],
     "maxMarkerPerimeterRate": [4.0, 8.0],
-    # How far a contour may sit from a true quadrilateral. Blur and water distortion round the
-    # corners off, so a looser value can recover tags that are genuinely there.
+    # How far a contour may be from a quadrilateral.
     "polygonalApproxAccuracyRate": [0.01, 0.03, 0.05, 0.08],
     "minCornerDistanceRate": [0.0, 0.05, 0.1],
     "minMarkerDistanceRate": [0.0, 0.05, 0.1],
-    # Resolution the tag is un-warped to before its bits are read, and how much of each cell's edge
-    # is ignored when deciding the bit. More pixels per cell helps small, soft tags.
+    # Un-warp resolution per cell and the ignored cell margin.
     "perspectiveRemovePixelPerCell": [4, 8, 12, 16],
     "perspectiveRemoveIgnoredMarginPerCell": [0.13, 0.2, 0.33],
     # Fraction of border bits allowed to be wrong before the candidate is thrown out.
     "maxErroneousBitsInBorderRate": [0.35, 0.5, 0.75],
 }
 
-# The search always starts from OpenCV's own thresholding, so its result owes nothing to earlier hand
-# tuning. On the 8 Oct underwater set, sweeps started from 'opencv_default' and from 'wide' ended on
-# identical settings (10424 tags, 187 usable images), so the start does not steer the answer here.
+# The search starts from OpenCV's defaults.
 START_PRESET = "opencv_default"
 
 # The board carries ids 0..69; anything else the 36h11 dictionary reports is a false positive.
@@ -167,11 +106,7 @@ def parse_args(argv=None):
 
 
 def make_run(frames_dir, settings, board_params, image_size, board, min_tags):
-    """A Calibration.Run configured with one candidate's settings.
-
-    The single-preset Presets built here is what keeps the search honest: make_detector() applies
-    the same board_params overlay and the same forced cornerRefinementMethod that a real run gets.
-    """
+    """A Calibration.Run configured with one candidate's settings."""
     presets = calib.Presets(path="<sweep>", default="candidate",
                             board_params=board_params, presets={"candidate": dict(settings)})
     return calib.Run(frames_dir=frames_dir, detector_name="aruco", preset="candidate", out_dir="<unused>",
@@ -183,12 +118,7 @@ def make_run(frames_dir, settings, board_params, image_size, board, min_tags):
 
 
 def detected_ids(settings, ctx):
-    """Every image's detected ids (a list per image, both cameras) with these settings.
-
-    In-process this is Calibration.detect_tags itself. With a worker pool each image is detected in
-    a separate process by the same Presets.make_detector() the pipeline uses; corners are not refined
-    there, since refinement moves corners but never changes which ids were found.
-    """
+    """Every image's detected ids (a list per image, both cameras) with these settings."""
     if ctx.pool is None:
         out = []
         for camera in calib.CAMERAS:
@@ -221,12 +151,7 @@ def _detect_ids(job):
 
 
 def evaluate(settings, ctx):
-    """Detect with these settings over both cameras and score the result.
-
-    detect_tags() prints a line per camera, which would bury the search output, so its stdout is
-    captured. Results are memoised because coordinate descent revisits the current best on every
-    round and each evaluation re-reads every frame.
-    """
+    """Detect with these settings over both cameras and score the result."""
     frozen = tuple(sorted(settings.items()))
     if frozen in ctx.seen:
         return ctx.seen[frozen]
@@ -249,22 +174,15 @@ def evaluate(settings, ctx):
 
 
 # ====== EVALUATION CACHE ======
-# One evaluation re-reads every frame and can take anything from 4 s to half an hour, so losing a
-# run's work to a stopped process is expensive. Each result is appended as it is produced, and a
-# later run reloads them, which makes the sweep resumable and makes widening SWEEP_AXES cheap:
-# only the genuinely new combinations are computed.
+# Results are appended as they are computed, so a stopped sweep can resume.
 def cache_header(ctx_frames_dir, min_tags, board_params):
-    """What a cached score depends on besides the settings themselves.
-
-    A cache built on other frames, another min_tags or other board parameters describes a different
-    question, so it is refused rather than silently mixed in.
-    """
+    """What a cached score depends on besides the settings themselves."""
     return {"frames_dir": calib.rel(ctx_frames_dir), "min_tags": min_tags,
             "board_params": dict(sorted(board_params.items()))}
 
 
 def load_cache(path, header):
-    """Read the cache written by earlier runs. Returns {frozen settings: Score}, empty if unusable."""
+    """Read the cache written by earlier runs."""
     if not os.path.exists(path):
         return {}
     with open(path, encoding="utf-8") as fh:
@@ -297,7 +215,7 @@ def start_cache(path, header, fresh):
 
 
 def append_cache(path, settings, score):
-    """Record one evaluation. Flushed immediately: the point is to survive a killed process."""
+    """Record one evaluation."""
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps({"settings": dict(sorted(settings.items())),
                              "score": score.__dict__}) + "\n")
@@ -318,7 +236,7 @@ class Context:
 
 
 def search(ctx, settings, rounds):
-    """Coordinate descent over SWEEP_AXES. Returns (best settings, best score, trial log)."""
+    """Coordinate descent over SWEEP_AXES."""
     best = dict(settings)
     best_score = evaluate(best, ctx)
     print(f"start: {best_score}   {describe(best)}\n")
@@ -335,8 +253,7 @@ def search(ctx, settings, rounds):
                 candidate = {**best, axis: value}
                 score = evaluate(candidate, ctx)
                 trials.append({"settings": candidate, "score": score.__dict__, "axis": axis})
-                # A candidate over the ceiling is printed, so the sweep still shows what it did,
-                # but it cannot win: past that point extra tags are being bought with misreads.
+                # Over the bad-rate ceiling: printed, but cannot win.
                 rejected = score.bad_rate > ctx.max_bad_rate
                 better = not rejected and score.key > round_best_score.key
                 mark = "REJECTED" if rejected else ("*" if better else "")
@@ -368,12 +285,7 @@ def preset_json(name, settings, start, score):
 
 
 def save_preset(name, body):
-    """Add a preset to detector_presets.json in place, then re-validate the file.
-
-    json.dump loses the file's hand-written layout but keeps its "_comment" keys, since those are
-    ordinary members of the object. Validating afterwards means a mistake here fails now rather
-    than on the next calibration run.
-    """
+    """Add a preset to detector_presets.json in place, then re-validate the file."""
     path = calib.PRESETS_FILE
     with open(path, encoding="utf-8") as fh:
         config = json.load(fh)
@@ -402,7 +314,7 @@ def write_log(out_dir, frames_dir, start, max_bad_rate, best, best_score, trials
 
 
 def main(argv=None):
-    """Run the search. Returns (best settings, best Score, path of the search log)."""
+    """Run the search."""
     args = parse_args(argv)
     presets = calib.load_presets()
     start = START_PRESET
@@ -430,8 +342,7 @@ def main(argv=None):
     ctx = Context(frames_dir=args.frames_dir, board_params=presets.board_params,
                   image_size=image_size, board=calib.build_board(), min_tags=args.min_tags,
                   max_bad_rate=args.max_bad_rate, cache_path=cache_path, seen=seen, pool=pool)
-    # The starting point is the preset's own tuning only; board_params are merged in by
-    # make_detector(), so putting them in the search state as well would let a round move them.
+    # Start from the preset's tuning only; make_detector() adds board_params.
     try:
         best, best_score, trials = search(ctx, presets.presets[start], args.rounds)
     finally:

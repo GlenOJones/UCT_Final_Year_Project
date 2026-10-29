@@ -1,5 +1,5 @@
-"""Where every input and output of the project lives. All scripts take their paths from here, so the
-layout is defined once and cannot drift.
+"""Where every input and output of the project lives. All scripts take their paths from here, so the layout is defined
+once and cannot drift.
 
     data/<kind>/<session>/<scan>/            a recording: left.mkv, right.mkv, *_timestamps.csv
                                  frames/     extracted pairs: left/, right/, pairs.csv (inputs)
@@ -20,8 +20,6 @@ layout is defined once and cannot drift.
     results/analysis/<name>/                 older studies that span sessions
     work/<session>/<scan>/<method>/          bulky intermediate files (COLMAP workspaces): safe to
                                              delete once the results above exist
-
-A session is a day of recording (Sep24, 18_Sep); a scan is one recording within it (mjpg_pyr2).
 """
 import glob
 import os
@@ -32,8 +30,7 @@ RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
 WORK_DIR = os.path.join(PROJECT_ROOT, "work")
 ANALYSIS_DIR = os.path.join(RESULTS_DIR, "analysis")
 
-# Fixed file names inside a method folder: the folder says which scan and method, the name says
-# which product.
+# Fixed file names inside a method folder.
 CLOUD = "cloud.ply"
 CLOUD_CLEAN = "cloud_clean.ply"
 MESH = "mesh.ply"
@@ -56,8 +53,7 @@ def recording_dir(session, scan):
 
 
 def frames_dir(session, scan):
-    """Extracted frame pairs of a scan: <recording>/frames/{left,right}/ (extract_stereo_frames.py's
-    default output)."""
+    """Extracted frame pairs of a scan: <recording>/frames/{left,right}/ (extract_stereo_frames.py's default output)."""
     return os.path.join(recording_dir(session, scan), "frames")
 
 
@@ -101,8 +97,7 @@ def work_dir(session, scan, method):
 
 
 def locate(path):
-    """(session, scan, method) of a file under results/<session>/<scan>/<method>/, else None.
-    Lets a script given just a cloud path find the scan's poses and where its outputs go."""
+    """(session, scan, method) of a file under results/<session>/<scan>/<method>/, else None."""
     parts = os.path.relpath(os.path.abspath(path), RESULTS_DIR).split(os.sep)
     if len(parts) >= 4 and not parts[0].startswith("..") and parts[0] != "analysis":
         return parts[0], parts[1], parts[2]
@@ -124,8 +119,8 @@ def require_scan(args, parser):
 
 
 def add_cloud_arguments(parser, method="sgbm", default_file=CLOUD):
-    """For scripts that work on one saved cloud: pick it by --session/--scan/--method (and --file),
-    or give its path with --cloud. --poses is only needed for a cloud outside results/."""
+    """For scripts that work on one saved cloud: pick it by --session/--scan/--method (and --file), or give its path
+    with --cloud."""
     add_scan_arguments(parser, method=method)
     parser.add_argument("--file", default=default_file,
                         help=f"which file in the method folder (default {default_file})")

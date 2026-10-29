@@ -1,14 +1,6 @@
-"""Build the pose-estimation report (PDF) from a finished run. Nothing is estimated here: every number comes from
-the files run_poses.py, evaluate_poses.py and plot_detections.py wrote, so the report can be rebuilt at any time
-and always matches the results beside it.
+"""Build the pose-estimation report (PDF) from a finished run.
 
     src/venv/bin/python src/experiments/pose_estimation/make_report.py [--config PATH] [--recording NAME]
-
-Reads results/<out_dir>/<recording>/{tag_poses.yaml, poses/*.yaml, evaluation/*} and the work folder's depth and
-mask records; writes results/<out_dir>/<recording>/report/pose_estimation_report.{tex,pdf} and its figures. The
-discussion is hand-written (report_discussion.tex beside this script), because what the numbers mean is a
-judgement, not a computation; it names the evaluation run it was written for, and the report flags it if the
-run is newer.
 """
 import argparse
 import json

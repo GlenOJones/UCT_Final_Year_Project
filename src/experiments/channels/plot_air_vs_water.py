@@ -1,17 +1,4 @@
-"""One air frame beside one water frame, with the tags the study's detector found outlined.
-
-The figure shows only the frames, unlabelled, in the order the config lists them (Air left, Water right);
-the description is printed for the report's caption: the board's distance from the camera (solvePnP on the saved detections, with that medium's own
-calibration), the camera's horizontal field of view from the same calibration, how many board tags were
-found and their mean side in pixels. Nothing is detected here: the tags are the ones the study's run saved
-in its corners file.
-
-The frames, camera, channel and title come from config.json "figures" -> "air_vs_water".
-
-Use (from the project root, after run_study.py; reproduce.py channels runs it):
-    src/venv/bin/python src/experiments/channels/plot_air_vs_water.py
-Writes <out_dir>/<name>.{pdf,png} for every figure listed.
-"""
+"""One air frame beside one water frame, with the tags the study's detector found outlined."""
 import argparse
 import json
 import os

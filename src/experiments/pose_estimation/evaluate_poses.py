@@ -1,28 +1,6 @@
 """Score every markerless trajectory of the pose experiment against the tag poses of the same frames.
 
-Each estimator poses the frames in a world frame of its own, so it is first brought into the board frame by
-ONE rigid fit over all the frames both posed (camera centres plus a point --align-lever mm along each camera
-axis, so orientation counts too: the centres of a straight pass alone leave the roll about the track free).
-Then, per estimator:
-
-  registration   frames posed (not lost) / frames given to it
-  ATE            absolute trajectory error after that fit: camera-centre distance (mm) and orientation (deg)
-                 to the tag pose, per frame. Drift shows up here as error growing along the track.
-  RPE            relative pose error over every pair of frames rpe_distance_mm of reference travel apart:
-                 how wrong the estimated motion between them is (mm and % of the distance, deg). Needs no
-                 alignment, so it is the cleanest measure of local accuracy.
-  scale          best-fit similarity scale estimate -> tags (1 = metric agreement), and the end-to-end
-                 travel ratio
-  runtime        seconds the estimator took (and, for ICP, the depth it needed)
-
-The tag poses are the reference, not the truth: their own layout-fit residual (median ~0.3 mm here) is a floor
-below which differences mean nothing. The 'tags' row scores the reference against itself as a check of this
-script (it must come out as zero).
-
     src/venv/bin/python src/experiments/pose_estimation/evaluate_poses.py --config src/experiments/pose_estimation/config.json
-
-Writes, per recording, results/<out_dir>/<recording>/evaluation/: summary.md, summary.csv, metrics.json,
-trajectories.png (paths, ATE along the track, RPE).
 """
 import argparse
 import csv
@@ -72,7 +50,7 @@ def stats(values):
 
 
 def evaluate(reference, estimate, diagnostics, names, cfg):
-    """Metrics of one trajectory. reference/estimate: {name: T_cam_board / T_cam_world}; names: frames given."""
+    """Metrics of one trajectory."""
     lever, distance = cfg["evaluation"]["align_lever_mm"], cfg["evaluation"]["rpe_distance_mm"]
     posed = [n for n in names if n in estimate and not diagnostics.get(n, {}).get("lost", 0)]
     common_names = [n for n in names if n in posed and n in reference]

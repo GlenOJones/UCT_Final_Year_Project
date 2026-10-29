@@ -1,35 +1,6 @@
 """The pipeline runs of the fusion comparison: full COLMAP, and TSDF on each depth source, at the same poses.
 
-All three reconstructions start from the pose comparison's outputs for the recording (reproduce.py
-pose_comparison): its COLMAP SfM model and the trajectory written from it, its tag masks, and its
-per-frame FoundationStereo and tuned-SGBM depth. Nothing is re-matched or re-posed here, so the methods
-differ only in how depth is made and fused:
-
-  colmap     COLMAP's own dense pipeline on that SfM model: image_undistorter, PatchMatch stereo with
-             geometric consistency, stereo_fusion (colmap_mvs.py's stage functions and defaults). COLMAP
-             cannot take poses from outside, so the poses the TSDF runs use are the ones this model made:
-             the same poses for all three. The tag masks are undistorted with the images and passed to
-             stereo_fusion, so tag pixels are dropped as they were from the depth frames.
-  tsdf_*     tsdf_fuse.py on one depth source at those poses, under a memory cap (systemd-run).
-
-Every method uses the same frames: every frame_step'th posed frame. For evaluation only, every cloud is then
-moved into the board frame by one rigid fit of the COLMAP trajectory onto the tag poses (camera centres plus
-lever points along each camera axis, as evaluate_poses.py does), so the CAD models can be placed on it.
-
     src/venv/bin/python src/experiments/fusion/run_fusion.py --config src/experiments/fusion/config.json
-
-Writes, under work/<work_dir>/<recording>/:
-    poses_used.yaml               the COLMAP trajectory cut to the frames used
-    colmap/                       COLMAP dense workspace (dense/fused.ply: SfM model frame)
-    tsdf_<source>/                tsdf_fuse.py output (cloud.ply, mesh.ply: COLMAP world frame)
-    <method>/cloud_board.ply      each method's cloud in the board frame (and mesh_board.ply for TSDF)
-and under results/<out_dir>/<recording>/: alignment.json (the board fit and its residuals) and
-run_fusion.json (frames, timings, point counts). With colmap.keep_depth_maps false, COLMAP's depth maps
-(dense/stereo, ~58 MB per image) are deleted once fused.ply exists, after a preview of a few of them
-(photometric beside geometric pass) is saved as results/<out_dir>/<recording>/colmap_depth_maps.png.
-
-With skip_existing, a reconstruction whose output exists is not run again; the board-frame copies are
-always remade (seconds).
 """
 import argparse
 import json
@@ -120,8 +91,8 @@ def link(source, target):
 
 
 def undistort_masks(ws, masks, names, c):
-    """The tag masks in the undistorted images' geometry, where stereo_fusion reads them: undistorted by
-    COLMAP itself, from the same model and image list, linked as dense/masks/<camera>/<image>.png."""
+    """The tag masks in the undistorted images' geometry, where stereo_fusion reads them: undistorted by COLMAP itself,
+    from the same model and image list, linked as dense/masks/<camera>/<image>.png."""
     staged = os.path.join(ws, "mask_images")
     for camera in CAMERAS:
         os.makedirs(os.path.join(staged, camera), exist_ok=True)
@@ -142,8 +113,7 @@ def undistort_masks(ws, masks, names, c):
 
 
 def run_colmap(cfg, p, names, skip_existing):
-    """COLMAP dense on the SfM model the poses came from. The SfM workspace is only read: its images and
-    model are linked into a workspace of this experiment's own."""
+    """COLMAP dense on the SfM model the poses came from."""
     ws, c = p["colmap"], cfg["colmap"]
     fused = os.path.join(ws, "dense", "fused.ply")
     if skip_existing and os.path.exists(fused):
@@ -155,8 +125,7 @@ def run_colmap(cfg, p, names, skip_existing):
                     for f in (os.listdir(os.path.join(depth_maps, camera))
                               if os.path.isdir(os.path.join(depth_maps, camera)) else []))
     if skip_existing and geometric == 2 * len(names):
-        # PatchMatch finished but fusion did not (17 Oct: stereo_fusion ran out of memory at its last step): fuse the
-        # depth maps that exist rather than redo hours of PatchMatch. The undistort stage would delete them.
+        # PatchMatch finished but fusion did not: fuse the existing depth maps.
         print(f"\n=== colmap: all {geometric} geometric depth maps exist; stereo fusion only", flush=True)
         mask_path = os.path.join(ws, "dense", "masks") if c["mask_fusion"] else None
         start = time.time()
@@ -200,8 +169,8 @@ def read_colmap_array(path):
 
 def export_depth_previews(cfg, p, names):
     """Before the depth maps are deleted: for a few left images, the undistorted image beside its photometric and
-    geometric depth maps (one colour range per row), so the report keeps a picture of what PatchMatch made and of
-    what the geometric pass removed. -> results/<recording>/colmap_depth_maps.png"""
+    geometric depth maps (one colour range per row), so the report keeps a picture of what PatchMatch made and of what
+    the geometric pass removed."""
     import cv2
     import matplotlib
     matplotlib.use("Agg")
@@ -241,8 +210,8 @@ def export_depth_previews(cfg, p, names):
 
 
 def release_depth_maps(cfg, p, names):
-    """keep_depth_maps false: once fused.ply exists, save the previews and delete dense/stereo (the depth, normal
-    and consistency maps, ~58 MB per image), which fusion was their only use for."""
+    """keep_depth_maps false: once fused.ply exists, save the previews and delete dense/stereo (the depth, normal and
+    consistency maps, ~58 MB per image), which fusion was their only use for."""
     stereo = os.path.join(p["colmap"], "dense", "stereo")
     if cfg["colmap"]["keep_depth_maps"] or not os.path.isdir(stereo):
         return
@@ -255,8 +224,8 @@ def release_depth_maps(cfg, p, names):
 
 
 def colmap_world_from_model(p, poses):
-    """T_world_model taking COLMAP's model frame into the trajectory's world frame, from the left images'
-    poses in the undistorted model; their spread checks that model and trajectory agree."""
+    """T_world_model taking COLMAP's model frame into the trajectory's world frame, from the left images' poses in the
+    undistorted model; their spread checks that model and trajectory agree."""
     ws = p["colmap"]
     model = colmap_mvs.read_model_images(ws, os.path.join(ws, "dense", "sparse"))
     names = [n for n in sorted(poses) if f"left/{n}" in model]

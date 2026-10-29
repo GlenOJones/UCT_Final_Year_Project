@@ -1,8 +1,6 @@
 """The settings of the depth experiment, from config.json and the command line, shared by run_depth.py and
 analyse_depth.py so the two always agree on which recordings, matchers and folders a run used.
 
-Command-line options, all optional, override the config:
-
     --recordings NAME...      only these recordings of the config
     --frames DIR              a recording not in the config (with --depth-min/--depth-max; --calibration and
                               --name default to the first recording's calibration and the folder name)

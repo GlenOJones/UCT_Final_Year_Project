@@ -1,24 +1,7 @@
-"""The frame-count sweep over every ice object: reads each recording's scores.json (analyse_frame_count.py) and
-averages over the recordings at each step N (every N'th frame).
-
-The passes differ in length (131 to 231 frames), so a step keeps a different number of frames per object; the
-average is taken per step, i.e. per frame spacing along the pass, and the frame counts are given as a range.
-Time depends on the number of frames rather than on the spacing, so it is plotted against frames used, every
-recording's runs pooled, with a straight-line fit giving seconds per frame.
+"""The frame-count sweep over every ice object: reads each recording's scores.json (analyse_frame_count.py) and averages
+over the recordings at each step N (every N'th frame).
 
     src/venv/bin/python src/experiments/frame_count/aggregate_frame_count.py [--configs ...]
-
-Writes, under results/<out_dir>/all_ice/:
-    summary.csv / summary.md      per step: mean and range over the recordings of every measure
-    table_frame_count_all.tex     the report table (LaTeX)
-    stage_costs.md / table_stage_costs.tex   per stage over every run of every object: time per frame (straight-
-                                  line fit), peak RAM, peak GPU memory, mean CPU (cores busy) and GPU utilisation
-    pose_vs_step.png              frames posed and ATE median against step, a line per object and their mean
-    quality_vs_step.png           coverage and completeness against step, a line per object and their mean
-    time_vs_frames.png            total time against frames used, every run, with a fit per depth source
-    memory_by_stage.png           peak RAM and GPU memory per stage, the largest over the recordings
-    oblique_grid.png              a row per object, a column per step: FoundationStereo's cloud from one oblique
-                                  view; each row has its own colour range and extent (set from its all-frames cloud)
 """
 import argparse
 import csv

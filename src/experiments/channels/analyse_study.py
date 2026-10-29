@@ -1,36 +1,4 @@
-"""Compare the image channels of the channel selection study, from the runs run_study.py saved.
-
-Three metrics, each answering one question:
-
-  1. Detection: recall against distance, with the false-id rate (calibration frames)
-     Does the detector find the board's tags in this channel, and out to what range? Recall is the
-     number of DISTINCT board ids found in an image divided by the 70 on the board. It is plotted per
-     board angle (scan) of each medium, against the frame's distance label (pairs.csv): pooling the
-     angles would mix in how much of the board each angle shows, which is larger than any channel effect. The false-id and duplicate rates are the share of all
-     detections that are ids not on the board, or a board id reported twice in one image: a channel
-     that only gains tags by misreading them shows up here. Read from each run's YAML.
-
-  2. Accuracy: triangulated tag size (held-out test target, Water only)
-     Is the calibration made from this channel any better? Each channel's Water calibration
-     triangulates the test target's tags, detected in that same channel, in stereo pairs never used
-     for calibration. A tag's four edges are compared with the printed size (tag_size_mm in
-     study.json), against the measured depth. Only tags every channel found in both cameras of a pair
-     are compared, so all channels are judged on the same tags. Without a printed size the edge
-     lengths are still reported: how much they drift with depth needs no ground truth.
-
-  3. Corner precision: RMS reprojection error on the common set (calibration frames)
-     Per camera, over only the images every channel's calibration used. A channel that rescues hard
-     frames is otherwise penalised for their larger errors (see compare_calibrations.py).
-
-Everything comes from run_study.py's outputs except the test target's detections, which use
-Calibration.py's own load_image(), detector preset and corner refinement, so they match the pipeline.
-
-Use (from the project root, after run_study.py; reproduce.py channels runs both):
-    src/venv/bin/python src/experiments/channels/analyse_study.py
-    src/venv/bin/python src/experiments/channels/analyse_study.py --study src/experiments/channels/variants/wide.json
-Writes results.json, fig_recall_by_angle_<medium>.{pdf,png}, fig_recall_mean_<medium>.{pdf,png}, fig_tag_size_vs_depth.{pdf,png} and
-table_*.tex (booktabs, for \\input in the report) to the study's out_dir.
-"""
+"""Compare the image channels of the channel selection study, from the runs run_study.py saved."""
 import argparse
 import csv
 import json
@@ -58,9 +26,7 @@ from stereo_rig import load_rig  # noqa: E402
 CAMERAS = Calibration.CAMERAS
 N_TAGS = Calibration.N_TAGS
 
-# Each channel keeps one colour, marker and line style in every figure. Colour is a natural label
-# (r red, ...), and the marker and line style keep the channels apart in greyscale print and for
-# colour-blind readers.
+# Each channel keeps one colour, marker and line style in every figure.
 STYLE = {
     "gray": dict(color="#7a7a7a", marker="o", linestyle="-"),
     "y":    dict(color="#1a1a1a", marker="s", linestyle="--"),
@@ -162,8 +128,7 @@ def detection(study, runs):
                 "by_angle": {angle: {f"{lab:g}": float(np.mean(v)) for lab, v in sorted(a.items())}
                              for angle, a in sorted(by_angle.items(), key=lambda t: angle_key(t[0]))},
             }
-        # Paired against the first channel (the reference): the same image in both, so how much of the
-        # board each angle and distance shows cancels, and only the channel's own effect is left.
+        # Paired against the reference channel on the same images.
         ref = out[medium][study["channels"][0]]["per_image"]
         for channel in study["channels"]:
             diff = [out[medium][channel]["per_image"][k] - ref[k] for k in ref]
@@ -193,12 +158,7 @@ def reprojection(study, runs):
 
 # ====== MATCHED-TAG RMS ======
 def matched_tags(study):
-    """Corner RMS (px) per channel over the tags EVERY channel detected in the same image.
-
-    Each channel is judged with its own calibration and a robust (RANSAC) pose per image, on exactly
-    the same tags, so a channel is neither rewarded for dropping hard tags nor penalised for finding
-    them. Uses every saved detection, so outlier rejection (if any) cannot flatter it.
-    """
+    """Corner RMS (px) per channel over the tags EVERY channel detected in the same image."""
     holder = SimpleNamespace(board=Calibration.build_board())
     out = {}
     for medium in study["media"]:
@@ -309,8 +269,8 @@ def tag_size(study):
 
 # ====== FIGURES ======
 def fig_recall(study, det, rep, medium, path, matched=None):
-    """One panel per board angle of one medium: recall against distance, one line per channel, and a
-    table of the summary numbers per channel in the spare cells."""
+    """One panel per board angle of one medium: recall against distance, one line per channel, and a table of the
+    summary numbers per channel in the spare cells."""
     channels = study["channels"]
     names = study.get("angle_names", {})
     angles = list(det[medium][channels[0]]["by_angle"])
@@ -371,8 +331,8 @@ def fig_recall(study, det, rep, medium, path, matched=None):
 
 
 def fig_recall_mean(study, det, medium, path):
-    """Mean recall over every image of one medium (all angles, both cameras) against distance, one
-    line per channel; each channel's mean over all images is in its legend entry."""
+    """Mean recall over every image of one medium (all angles, both cameras) against distance, one line per channel;
+    each channel's mean over all images is in its legend entry."""
     fig, ax = plt.subplots(figsize=(6.0, 3.8), constrained_layout=True)
     for c in study["channels"]:
         d = det[medium][c]
@@ -394,9 +354,8 @@ def fig_recall_mean(study, det, medium, path):
 
 
 def fig_recall_media(study, det, path):
-    """One panel per medium, side by side in study.json's order: mean tag detection fraction against
-    distance, one line per channel. Each point is the mean over every image at that distance (all angles,
-    both cameras); each channel's mean over all images is in its legend entry."""
+    """One panel per medium, side by side in study.json's order: mean tag detection fraction against distance, one line
+    per channel."""
     media = list(study["media"])
     fig, axes = plt.subplots(1, len(media), figsize=(5.2 * len(media), 3.9), sharey=True, constrained_layout=True)
     for ax, medium in zip(np.atleast_1d(axes), media):
@@ -418,8 +377,8 @@ def fig_recall_media(study, det, path):
 
 
 def channel_summary_table(study, det, matched, out_dir):
-    """Detection rate, false detections and matched-tag RMS / median per medium and channel, as a
-    booktabs table and as plain text."""
+    """Detection rate, false detections and matched-tag RMS / median per medium and channel, as a booktabs table and as
+    plain text."""
     head = ["Medium", "Input", "Detection rate", r"False det. (\%)", "Matched-tag RMS L/R (px)",
             "Matched-tag median L/R (px)"]
     rows, text = [], []

@@ -1,21 +1,7 @@
 """Masks that hide the reference tags from the markerless pose estimators.
 
-Ice has no tags, so a markerless estimator tested on a tag board must not see them: they are the
-strongest, most repeatable texture in the image and would flatter feature matching (COLMAP) and
-coloured ICP. Every tag is masked out, together with the white paper square it is printed on, in
-every image where it is known to be:
-
-  - where the detector finds it in that image (both cameras), and
-  - where the tag layout from tag_poses.py projects it in every frame that has a tag pose, which also
-    covers tags too cut off at the image edge, or too blurred, to be detected.
-
-Frames with no tag pose and no detected tag get no mask. The count is printed, since a tag the
-detector missed in an unposed frame stays visible.
-
     src/venv/bin/python src/experiments/pose_estimation/make_tag_masks.py --frames-dir data/3DRecon/3DPrintFinal/30_frames_range \
         --poses results/experiments/pose_estimation/3DPrintFinal_s30/tag_poses.yaml --out-dir .../tag_masks --step 5
-
-Writes <out-dir>/{left,right}/<frame name>: 8-bit PNG, 255 = use, 0 = ignore.
 """
 import argparse
 import json

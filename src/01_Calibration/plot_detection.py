@@ -1,16 +1,6 @@
 """How well the AprilGrid was detected, from the detection section Calibration.py writes.
 
-Reads one or more calibration YAMLs and, for each, draws:
-  - tags found in every image through the recording, left and right camera, with the --min-tags
-    threshold below which an image is not used;
-  - the distribution of tags found per image;
-  - the board as its 10 x 7 grid of tags, each coloured by the share of images it was found in.
-    A pattern here (an edge, a corner, a band) points at a cause: the image periphery, glare,
-    caustics, or the board leaving the frame.
-
     src/venv/bin/python src/01_Calibration/plot_detection.py results/30Sep/calibration/c1_wide_stereo.yaml
-
-Writes <yaml without _stereo.yaml>_detection.png next to each YAML.
 """
 import argparse
 import os

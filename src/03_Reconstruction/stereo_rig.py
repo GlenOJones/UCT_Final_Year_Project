@@ -1,13 +1,4 @@
-"""Shared pieces of the stereo reconstruction: the calibrated rig, triangulation and rigid fits.
-
-tag_poses.py and dense_stereo.py both work from the calibration YAML that
-src/01_Calibration/Calibration.py writes. Keeping the loading and the geometry here means the two
-stages cannot disagree about what the rig looks like or which way a transform points.
-
-Transform naming: T_a_b is a 4x4 matrix that maps a point in frame b into frame a,
-    X_a = T_a_b @ X_b
-so T_cam_board takes board coordinates into the left camera, and inverting it gives T_board_cam.
-"""
+"""Shared pieces of the stereo reconstruction: the calibrated rig, triangulation and rigid fits."""
 import os
 from dataclasses import dataclass
 
@@ -24,7 +15,7 @@ CAMERAS = ("left", "right")
 
 @dataclass
 class StereoRig:
-    """The calibrated pair, as read from Calibration.py's YAML. Units are mm and px."""
+    """The calibrated pair, as read from Calibration.py's YAML."""
     path: str
     image_size: tuple      # (width, height)
     K: dict                # camera -> 3x3
@@ -42,11 +33,7 @@ class StereoRig:
         return float(np.linalg.norm(self.T))
 
     def triangulate(self, left_px, right_px):
-        """3D points in the LEFT camera frame (mm) from matching raw (distorted) pixel positions.
-
-        Points are undistorted to normalised coordinates first, so the projection matrices are
-        just [I|0] and [R|T] and no rectification is involved.
-        """
+        """3D points in the LEFT camera frame (mm) from matching raw (distorted) pixel positions."""
         left = cv2.undistortPoints(np.asarray(left_px, np.float64).reshape(-1, 1, 2), self.K["left"], self.D["left"])
         right = cv2.undistortPoints(np.asarray(right_px, np.float64).reshape(-1, 1, 2), self.K["right"], self.D["right"])
         X = cv2.triangulatePoints(np.hstack([np.eye(3), np.zeros((3, 1))]), np.hstack([self.R, self.T]),
@@ -88,11 +75,7 @@ def load_rig(calibration_path):
 
 
 def find_frame_pairs(frames_dir):
-    """(name, left_path, right_path) for every PNG present in both left/ and right/ of a recording.
-
-    extract_stereo_frames.py writes a timestamp-matched pair under the same filename in each folder,
-    so matching on the filename is matching on the pair.
-    """
+    """(name, left_path, right_path) for every PNG present in both left/ and right/ of a recording."""
     names = {camera: sorted(os.listdir(os.path.join(frames_dir, camera)))
              for camera in CAMERAS if os.path.isdir(os.path.join(frames_dir, camera))}
     if len(names) < 2:
@@ -105,12 +88,7 @@ def find_frame_pairs(frames_dir):
 
 # ====== RIGID GEOMETRY ======
 def rigid_fit(source, target):
-    """Least-squares rotation and translation (Kabsch) taking source points onto target points.
-
-    Returns (T, rms): T is the 4x4 with target = T @ source, rms the residual in the points' units.
-    No scale is fitted: both point sets are already metric, and a scale here would hide exactly the
-    calibration scale error the residual is meant to show.
-    """
+    """Least-squares rotation and translation (Kabsch) taking source points onto target points."""
     source, target = np.asarray(source, np.float64), np.asarray(target, np.float64)
     source_mean, target_mean = source.mean(0), target.mean(0)
     U, _, Vt = np.linalg.svd((source - source_mean).T @ (target - target_mean))
@@ -136,9 +114,6 @@ def invert(T):
 
 
 def mean_rotation(rotations):
-    """Rotation closest (Frobenius) to the element-wise mean of several rotations.
-
-    Good enough for averaging many noisy estimates of the same rotation, which is all it is used for.
-    """
+    """Rotation closest (Frobenius) to the element-wise mean of several rotations."""
     U, _, Vt = np.linalg.svd(np.mean(rotations, axis=0))
     return U @ np.diag([1, 1, np.sign(np.linalg.det(U @ Vt))]) @ Vt

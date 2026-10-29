@@ -1,13 +1,5 @@
 """Compare reconstructions of the same scan, from the clouds the pipeline saved.
 
-All inputs are board-frame clouds (dense_stereo.py, colmap_mvs.py, or their _clean versions from
-postprocess_cloud.py). For each one it reports, on the same crop box:
-  - points on the OBJECT: in the box, more than --object-height above the board, within
-    --object-radius of the object's centre;
-  - board NOISE: RMS height of the points on the board around the tags. The board is z = 0 by
-    construction, so this is the spread of a surface that should be flat (plus any real warp);
-  - how far each cloud is from the first one (nearest-neighbour distance, median and p90).
-
     src/venv/bin/python src/03_Reconstruction/compare_clouds.py \
         results/Sep24/mjpg_pyr_lights_2/sgbm/cloud_clean.ply results/Sep24/mjpg_pyr_lights_2/colmap/cloud_clean.ply
 """
@@ -45,8 +37,7 @@ def main():
     args = parse_args()
     tags = read_tags(args.poses)
     corners = np.vstack(list(tags.values()))
-    # Board points used for the noise figure: within 30 mm of a tag's centre, i.e. on or right
-    # around the tags, where every method has texture and the surface is known to be the board.
+    # Board points within 30 mm of a tag centre.
     tag_centres = np.array([c.mean(0) for c in tags.values()])
 
     clouds = {path: o3d.io.read_point_cloud(path) for path in args.clouds}

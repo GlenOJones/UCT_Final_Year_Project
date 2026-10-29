@@ -1,23 +1,11 @@
 """Tune dense_stereo.py's SGBM settings against the tag planes, on frames the depth comparison does not use.
 
-Every candidate setting is run through the pipeline's own per-frame code (depth_frames.frame_points, the same
-call depth_frames.py makes, with the same depth range and disparity search), and its disparity is scored in the
-tag regions of each frame against the plane of that tag (board_truth.py):
-
     precision   of the region pixels the matcher gave depth, the share within tolerance_px of the plane
     recall      of all region pixels, the share with depth within tolerance_px
     F1          their harmonic mean; the objective is the mean F1 over the scenes in tune_config.json
 
-The search is coordinate descent from the current defaults: each setting in turn is tried at every candidate
-value with the others held, and the best is kept if it gains at least min_gain. Rounds repeat until one changes
-nothing (or rounds runs out). Frames are matched in parallel (workers); the seconds per frame of the default and
-the winner are then measured again one frame at a time, since parallel runs slow each other down.
-
     src/venv/bin/python src/experiments/depth_matchers/tune_sgbm.py
     src/venv/bin/python src/experiments/depth_matchers/tune_sgbm.py --resume      # keep evaluations already logged
-
-Writes to <out_dir>/: evaluations.csv (every setting tried, per-scene scores), tuning.json (default, winner,
-the search path, timing, and the depth_frames.py arguments of the winner for config.json).
 """
 import argparse
 import csv
@@ -68,8 +56,8 @@ def valid(settings):
 
 # ====== GROUND TRUTH ======
 def build_truth(cfg, rectifier):
-    """[(set name, frame name, left path, right path, truth path)] for every tuning frame with a usable tag, the
-    truth cached as .npz in the work folder (tag detection is the slow part and never changes)."""
+    """[(set name, frame name, left path, right path, truth path)] for every tuning frame with a usable tag, the truth
+    cached as .npz in the work folder (tag detection is the slow part and never changes)."""
     detector = tag_poses.make_detector()
     frames = []
     for spec in cfg["sets"]:

@@ -1,8 +1,5 @@
-"""Zone splitting, corner-to-centre ratios, binned profiles, grid statistics and the paired noise test,
-checked on synthetic residuals whose errors are known exactly.
-
-Run from the project root:
-    src/venv/bin/python -m unittest discover -s src/experiments/compensation/tests -v
+"""Zone splitting, corner-to-centre ratios, binned profiles, grid statistics and the paired noise test, checked on
+synthetic residuals whose errors are known exactly.
 """
 import os
 import sys

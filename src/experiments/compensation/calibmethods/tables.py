@@ -1,8 +1,4 @@
-"""Per-split metrics, their intervals, the paired model comparisons, and the summary tables.
-
-The tables report each metric as mean [2.5-97.5 percentile] over the splits (see stats.py), and each
-pair of techniques as the paired difference with a flag where it is within noise.
-"""
+"""Per-split metrics, their intervals, the paired model comparisons, and the summary tables."""
 import csv
 import itertools
 
@@ -45,9 +41,7 @@ def camera_metrics(p, cfg):
            "mid_to_centre": z["mid_to_centre"], "outer_to_centre": z["outer_to_centre"],
            "rms_near": metrics.rms(du[near], dv[near]), "rms_far": metrics.rms(du[far], dv[far]),
            "n_points": len(p), "n_centre": z["centre"]["n"], "n_mid": z["mid"]["n"], "n_outer": z["outer"]["n"]}
-    # Far boards only fill the middle of the image, where every model fits best, so far / near over all
-    # points partly compares radii rather than distances. Restricted to the centre zone, both bands are
-    # measured at the same radii and the ratio isolates distance.
+    # Centre zone only, so near and far are compared at the same radii.
     centre = metrics.zone_of(r, cfg["zone_radii"]) == 0
     out["rms_near_centre"] = metrics.rms(du[near & centre], dv[near & centre])
     out["rms_far_centre"] = metrics.rms(du[far & centre], dv[far & centre])

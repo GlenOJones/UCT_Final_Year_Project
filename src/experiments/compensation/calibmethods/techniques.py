@@ -8,8 +8,6 @@
               grows with distance.
     pinax     the in-air calibration plus flat-interface refraction (models.Pinax); it uses no underwater
               training frames for the intrinsics, only for the stereo extrinsics like the others.
-
-They are defined in config.json, so a band or a model can change without touching the code.
 """
 from dataclasses import dataclass
 

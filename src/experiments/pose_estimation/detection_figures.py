@@ -1,30 +1,6 @@
 """Where each pose method gets its grip: per-frame counts for the comparison table, and images for the report.
 
-Grip, per frame and per method (what the method actually holds on to):
-
-  AprilGrid   tag corners triangulated in that frame (4 per tag seen by both cameras, after the reprojection gate)
-  COLMAP      SIFT keypoints in the left image that the final model triangulated
-  ICP         depth points (at --icp_voxel_mm, ICP's finest scale) whose surface normal n resists a slide along
-              the direction of travel d, |n . d| > slide_threshold. A flat board parallel to the motion scores 0
-              everywhere; object walls and edges facing along the track score near 1. The total point count is
-              kept too.
-
-d is the pass's main direction of travel from the tag poses, or, on a recording without tags, from COLMAP's
-trajectory (a direction needs no scale), turned into each frame's camera frame by that frame's rotation.
-
-Images, for `frames` frames spread evenly along each pass, every method drawn on the same left image:
-  AprilGrid   the tags it detected, corners marked (it sees the unmasked image)
-  COLMAP      SIFT keypoints, triangulated (used) vs detected only
-  ICP         its finest-scale depth points, matched to the map at the saved pose (used) vs not
-The markerless panels hatch the masked tags in red; the dashed gold line is the board outline from the tag layout.
-
     src/venv/bin/python src/experiments/pose_estimation/detection_figures.py --config src/experiments/pose_estimation/config_comparison.json
-
-Writes results/<out_dir>/<recording>/detections/:
-  grip.json                         per method: grip per frame, its median, and the frames drawn
-  <frame>_<method>.png              one panel per method and frame, to arrange as wanted
-  <frame>_all.png                   the methods side by side for that frame
-  grid.png                          frames (rows) x methods (columns)
 """
 import argparse
 import json
@@ -70,8 +46,7 @@ def tags_per_frame(path):
 
 
 def travel_directions(names, rotations_source):
-    """{name: unit direction of travel in that frame's left camera}. rotations_source: {name: T_cam_world} of the
-    frames some method posed; frames it did not pose borrow the nearest posed frame's rotation."""
+    """{name: unit direction of travel in that frame's left camera}."""
     posed = [n for n in names if n in rotations_source]
     centres = np.array([invert(rotations_source[n])[:3, 3] for n in posed])
     track = np.linalg.svd(centres - centres.mean(0))[2][0]
@@ -91,11 +66,9 @@ def icp_points(depth_dir, name, det):
 
 
 def icp_matched(depth_dir, poses_path, name):
-    """(points, matched, fitness, min_fitness) for one frame as icp_poses.py registered it: its finest-scale points (camera frame) and
-    which of them had a map point within the search distance at the saved pose, i.e. the points behind ICP's
-    fitness. The map is rebuilt the way icp_poses.py built it: the last map_frames posed frames before this one,
-    each at its saved pose, merged and thinned. matched is None for a lost frame (its fitness fell below
-    min_fitness, so its pose was dropped); all True for the first."""
+    """(points, matched, fitness, min_fitness) for one frame as icp_poses.py registered it: its finest-scale points
+    (camera frame) and which of them had a map point within the search distance at the saved pose, i.e. the points
+    behind ICP's fitness."""
     meta, poses, diag = pose_files.read_trajectory(poses_path)
     voxel = float(str(meta["scales_mm"]).split()[-1])
     distance = meta["max_distance_voxels"] * voxel
@@ -130,8 +103,7 @@ def median(values):
 
 
 # ====== DRAWING ======
-# Line widths, marker areas and font sizes (points). SINGLE is for one 7-inch panel; GRID for the side-by-side
-# figures, laid out at the report's text width (GRID_WIDTH_IN) so they go in at 1:1 and the text stays readable.
+# Line widths, marker areas and font sizes (pt). SINGLE: one panel; GRID: side by side at text width.
 SINGLE = {"line": 1.2, "corner": 14, "tag_font": 8, "note_font": 12, "legend_font": 7, "title_font": 10,
           "unused": 1.5, "used": 3, "icp": 0.4}
 GRID = {"line": 0.7, "corner": 4, "tag_font": 6.5, "note_font": 8, "legend_font": 5.5, "title_font": 8,
@@ -142,7 +114,7 @@ COLOURS = {"aprilgrid": "tab:green", "colmap": "tab:blue", "icp": "tab:purple"}
 
 
 def draw_panel(ax, image, panel, mask=None, board_px=None, style=SINGLE):
-    """One method's panel on ax. panel: {"kind", "title", ...data}."""
+    """One method's panel on ax."""
     ax.imshow(image)
     if mask is not None and panel["kind"] != "aprilgrid":
         ax.contourf(mask == 0, levels=[0.5, 1], colors="none", hatches=["////"])
@@ -200,8 +172,7 @@ def save_single(path, image, panel, mask, board_px, dpi):
 
 
 def save_grid(path, rows, dpi):
-    """rows: [(image, mask, board_px, [panels], row label)]. GRID_WIDTH_IN wide, no figure title (the report's caption
-    says what it shows), panels edge to edge. Row labels only when there is more than one row."""
+    """rows: [(image, mask, board_px, [panels], row label)]."""
     import matplotlib.pyplot as plt
     h, w = rows[0][0].shape[:2]
     cols = len(rows[0][3])

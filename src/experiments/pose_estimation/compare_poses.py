@@ -1,37 +1,6 @@
 """The pose comparison table: AprilGrid, COLMAP and ICP on each depth source, on every recording of the config.
 
-Reads only what run_poses.py and detection_figures.py saved. Per method and recording:
-
-  frames posed   frames it posed (ICP: not lost) / frames it was given (every frame_step'th pair)
-  ATE            after ONE rigid fit onto the AprilGrid poses: camera-centre error RMSE and max (mm), orientation
-                 RMSE (deg). Recordings without tags have no reference, so no ATE.
-  RPE            error of the motion over every rpe_distance_mm of reference travel: median (% and deg)
-  runtime        seconds per frame for the pose step, and separately for the depth maps ICP needs
-  grip           median per frame of what the method holds on to (see detection_figures.py)
-
-AprilGrid is the reference, so its ATE/RPE are zero by definition and are not shown; its runtime is tag_poses.py
-over every frame of the recording (detection, triangulation, layout fit). The scoring itself is
-evaluate_poses.evaluate, the same as experiment 4.
-
     src/venv/bin/python src/experiments/pose_estimation/compare_poses.py --config src/experiments/pose_estimation/config_comparison.json
-
-Writes results/<out_dir>/: summary.md (table + the mode each method ran in), summary.csv, summary.tex; and per
-recording <recording>/evaluation/: metrics.json, trajectories.png (experiment 4's two-panel figure), and as
-single figures for the report:
-
-  paths.png  the camera paths in a TRACK frame: along the pass (the paths' main direction), across it, and out
-             of the plane of travel, with the across/out-of-plane axes exaggerated so the methods separate (at
-             true scale they lie on top of each other). With tags: every method after one rigid fit onto
-             AprilGrid, which is drawn too. Without tags (sun) there is no reference, so the figure shows only
-             how the methods agree, not which is right: the smoothest path (smallest p95 frame-to-frame step)
-             is the anchor and every other path is rigidly fitted onto it over the frames where the two agree
-             (iteratively: frames within 3x the median distance, at least 15 mm), so a method that is badly
-             wrong over part of the pass does not drag the fit. Frame-to-frame steps above 40 mm, impossible
-             for the trolley (~6 mm a frame), are drawn as dotted jumps.
-  path_2d.png  the same paths from above (along vs across track) at TRUE scale, start and end marked.
-  ate.png    (tagged recordings only) ATE per frame along the reference travel.
-
-and per cfg["combined_paths"] entry, results/<out_dir>/<file>: those recordings' top views side by side at one scale.
 """
 import argparse
 import csv
@@ -162,8 +131,8 @@ def p95_step(poses):
 
 
 def track_axes(centres):
-    """(origin, 3x3 rows: along, across, out of plane) of a pass: the centres' principal directions, along
-    pointing from the first centre to the last."""
+    """(origin, 3x3 rows: along, across, out of plane) of a pass: the centres' principal directions, along pointing from
+    the first centre to the last."""
     origin = centres.mean(0)
     axes = np.linalg.svd(centres - origin)[2]
     if (centres[-1] - centres[0]) @ axes[0] < 0:
@@ -176,9 +145,7 @@ JUMP_MM = 40.0   # a frame-to-frame step the trolley cannot make (~6 mm a frame)
 
 
 def aligned_paths(cfg, recording):
-    """Every method's camera centres in one frame, as the path figures draw them (see the module docstring):
-    {"aligned": {method: {frame: centre}}, "reference": centres or None, "reference_label", "how", "labels",
-    "to_track": centres -> (along, across, out of plane) mm, "start": along-track offset of the first frame}."""
+    """Every method's camera centres in one frame, as the path figures draw them."""
     p = recording_paths(cfg, recording)
     lever = cfg["evaluation"]["align_lever_mm"]
     paths = {}
@@ -236,8 +203,7 @@ def aligned_paths(cfg, recording):
 
 
 def draw_top_view(ax, data, legend=True, mark=8, lw=1.2):
-    """The paths of aligned_paths() from above at true scale, jumps dotted, start (o) and end (square) marked.
-    mark: start/end marker size and lw: path width (points), smaller for the report-width figure."""
+    """The paths of aligned_paths() from above at true scale, jumps dotted, start (o) and end (square) marked."""
     to_track, start = data["to_track"], data["start"]
     if data["reference"] is not None:
         ref = to_track(data["reference"])
@@ -271,7 +237,7 @@ def draw_top_view(ax, data, legend=True, mark=8, lw=1.2):
 
 
 def trajectory_figures(cfg, recording, out_dir):
-    """paths.png, path_2d.png (and ate.png with tags) from the saved trajectories; see the module docstring."""
+    """paths.png, path_2d.png (and ate.png with tags) from the saved trajectories."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

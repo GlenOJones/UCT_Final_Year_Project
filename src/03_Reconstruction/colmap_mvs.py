@@ -1,38 +1,7 @@
 """Dense reconstruction of a scan with COLMAP: rig-constrained SfM, then multi-view PatchMatch stereo.
 
-This is the multi-view counterpart of dense_stereo.py. There, each frame pair is matched on its own
-and the frames only meet when their points are voted on. Here every depth estimate compares a pixel
-against many neighbouring views at once, which is what gives PatchMatch its edge on weak texture.
-
-The stages, each a COLMAP command unless noted:
-  workspace    link the frame pairs tag_poses.py could pose into <workspace>/images/{left,right}/
-               (--all-frames links the rest too, for SfM to register from image features alone)
-  features     SIFT, one run per camera so each gets its own calibrated intrinsics (FULL_OPENCV,
-               which keeps k3; the OPENCV model would drop it)
-  rig          declare left/right a rigid rig with the calibrated extrinsics (rig_configurator)
-  match        SIFT matching on a pair list: each frame's left-right pair plus every camera
-               combination within --window frames, which is all a 1-DOF trolley can overlap with
-  map          incremental SfM with intrinsics and the rig held FIXED, so only the trolley poses and
-               the points are estimated, and the 150 mm baseline carries metric scale into the model
-  align        (Python) rigid transform taking the SfM camera poses onto the poses from
-               tag_poses.py, which puts the model in the board frame. The best-fit SCALE is reported
-               but not applied (see stage_align), and the residual checks both pose sources
-  undistort    image_undistorter: pinhole images for dense matching, of every --dense-step'th frame
-  patchmatch   patch_match_stereo with geometric consistency (needs CUDA)
-  fuse         stereo_fusion into one cloud
-  export       (Python) move the fused cloud into the board frame -> results/<session>/<scan>/colmap/
-
     src/venv/bin/python src/03_Reconstruction/colmap_mvs.py --session Sep24 --scan mjpg_pyr_lights_2
     src/venv/bin/python src/03_Reconstruction/colmap_mvs.py --session Sep24 --scan mjpg_pyr_lights_2 --from-stage patchmatch
-
-The working folder (database, sparse model, depth maps: gigabytes) is work/<session>/<scan>/colmap/;
-the clouds (cloud.ply, sparse.ply) go to results/<session>/<scan>/colmap/.
-
-Written against COLMAP 4.3 built with CUDA: SIFT extraction, matching and PatchMatch run on the GPU.
-Options that differ between COLMAP releases are only passed if `colmap <command> -h` lists them.
-
-Run tag_poses.py first; its YAML names the frames and the calibration. The resulting cloud is in the
-same board frame as dense_stereo.py's, so postprocess_cloud.py and view_cloud.py take either.
 """
 import argparse
 import datetime
@@ -75,10 +44,7 @@ def parse_args(argv=None):
                     help="PatchMatch window half-size, px; larger helps weak texture (COLMAP default 5)")
     ap.add_argument("--align-scale", action="store_true",
                     help="let the board alignment scale the model to the tags (default: rigid)")
-    # COLMAP's default of 3 deg removed most of each depth map here. The source views it picks are
-    # mostly neighbouring trolley frames, 3.3 mm apart at ~450 mm (~0.4 deg each), so few pixels
-    # reach 3 deg. On frame 0100 of Sep24/mjpg_pyr2: 3 deg kept 7% of pixels (two tags, the pyramid
-    # outline); 1 deg kept 31% (all four tags, the board edge, the pyramid outline and ridges).
+    # COLMAP's default of 3 deg removes most of each depth map on the trolley scans.
     ap.add_argument("--min-triangulation-angle", type=float, default=1.0,
                     help="deg; PatchMatch drops pixels no source view sees at this angle or more "
                          "(COLMAP default 3)")
@@ -104,8 +70,7 @@ _help_cache = {}
 
 
 def supports(command, option):
-    """Whether this COLMAP build knows an option. COLMAP renames options between releases (rig
-    support arrived in 3.12), so options that are only improvements are passed only if known."""
+    """Whether this COLMAP build knows an option."""
     if command not in _help_cache:
         result = subprocess.run([COLMAP, command, "-h"], capture_output=True, text=True)
         _help_cache[command] = result.stdout + result.stderr
@@ -113,8 +78,7 @@ def supports(command, option):
 
 
 def colmap(workspace, command, options, optional=None):
-    """Run one COLMAP command, logging to <workspace>/logs/<command>.log. `optional` options are
-    dropped, with a note, if this build does not have them."""
+    """Run one COLMAP command, logging to <workspace>/logs/<command>.log."""
     args = [COLMAP, command]
     for key, value in options.items():
         args += [f"--{key}", str(value)]
@@ -139,8 +103,7 @@ def colmap(workspace, command, options, optional=None):
 
 # ====== INPUTS ======
 def load_poses(path):
-    """(frames_dir, calibration path, {frame name: T_cam_board}, {tag id: 4x3 corners}) from
-    tag_poses.py's YAML."""
+    """(frames_dir, calibration path, {frame name: T_cam_board}, {tag id: 4x3 corners}) from tag_poses.py's YAML."""
     if not os.path.exists(path):
         raise SystemExit(f"no poses at {rel(path)} - run src/03_Reconstruction/tag_poses.py first")
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
@@ -162,8 +125,7 @@ def load_poses(path):
 
 # ====== STAGES ======
 def stage_workspace(ws, frames_dir, names):
-    """Symlink the chosen frame pairs into images/left and images/right. COLMAP names an image by
-    its path under images/, so "left/0123.png" and "right/0123.png" are one frame of the rig."""
+    """Symlink the chosen frame pairs into images/left and images/right."""
     pairs = [p for p in find_frame_pairs(frames_dir) if p[0] in set(names)]
     shutil.rmtree(os.path.join(ws, "images"), ignore_errors=True)
     for camera in CAMERAS:
@@ -179,16 +141,14 @@ def stage_workspace(ws, frames_dir, names):
 
 
 def full_opencv_params(rig, camera):
-    """fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5, k6 for COLMAP's FULL_OPENCV model. k4..k6 are the
-    rational denominator terms OpenCV's 5-coefficient model does not have, so they are zero."""
+    """fx, fy, cx, cy, k1, k2, p1, p2, k3, k4, k5, k6 for COLMAP's FULL_OPENCV model."""
     K, D = rig.K[camera], rig.D[camera].ravel()
     k1, k2, p1, p2, k3 = (list(D) + [0.0] * 5)[:5]
     return [K[0, 0], K[1, 1], K[0, 2], K[1, 2], k1, k2, p1, p2, k3, 0.0, 0.0, 0.0]
 
 
 def stage_features(ws, rig, names, gpu, mask_path=None):
-    """SIFT on each camera's images separately, so each camera is created with its own intrinsics.
-    mask_path: optional folder of COLMAP masks (<mask_path>/<camera>/<name>.png, 0 = no features there)."""
+    """SIFT on each camera's images separately, so each camera is created with its own intrinsics."""
     database = os.path.join(ws, "database.db")
     if os.path.exists(database):
         os.remove(database)
@@ -208,9 +168,7 @@ def stage_features(ws, rig, names, gpu, mask_path=None):
                      "FeatureExtraction.gpu_index": gpu,
                      # The board is low-texture, so take every feature there is (default 8192).
                      "SiftExtraction.max_num_features": 16384,
-                     # Domain-size pooling makes descriptors more robust to the viewpoint change
-                     # along the trolley. (Affine shape estimation would help too, but COLMAP only
-                     # implements it on the CPU, which would forfeit GPU extraction.)
+                     # Domain-size pooling copes better with the viewpoint change.
                      "SiftExtraction.domain_size_pooling": 1})
 
 
@@ -225,8 +183,7 @@ def rotation_to_quaternion(R):
 
 
 def stage_rig(ws, rig):
-    """Declare the stereo pair a rig: left is the reference sensor, right sits at the calibrated
-    (R, T) from it. COLMAP groups images into frames by the name after the prefix."""
+    """Declare the stereo pair a rig: left is the reference sensor, right sits at the calibrated (R, T) from it."""
     if not supports("rig_configurator", "rig_config_path"):
         print("  this COLMAP has no rig_configurator (needs 3.12+): cameras will be posed independently")
         return False
@@ -264,8 +221,7 @@ def stage_match(ws, names, window, gpu):
         "match_type": "pairs",
     }, optional={"FeatureMatching.use_gpu": 0 if gpu == "-1" else 1,
                  "FeatureMatching.gpu_index": gpu,
-                 # Second matching pass restricted to the verified two-view geometry: more
-                 # correct matches on repetitive or weak texture.
+                 # Guided matching on the verified two-view geometry.
                  "FeatureMatching.guided_matching": 1})
 
 
@@ -326,8 +282,7 @@ def quaternion_to_rotation(w, x, y, z):
 
 
 def umeyama(source, target, with_scale=True):
-    """Similarity (scale, R, t) with target ~= scale * R @ source + t, least squares.
-    With with_scale=False the scale is fixed at 1 and the fit is rigid."""
+    """Similarity (scale, R, t) with target ~= scale * R @ source + t, least squares."""
     mu_s, mu_t = source.mean(0), target.mean(0)
     cs, ct = source - mu_s, target - mu_t
     U, S, Vt = np.linalg.svd(ct.T @ cs / len(source))
@@ -337,9 +292,7 @@ def umeyama(source, target, with_scale=True):
     return scale, R, mu_t - scale * R @ mu_s
 
 
-# Each camera pose enters the alignment as its centre plus the points this far out along its three
-# axes, so orientation counts as well as position. 450 mm is roughly the camera-to-board distance, so
-# the fit is weighted towards agreeing where the board and object actually are.
+# Each pose is its centre plus points this far along its axes, so orientation counts too.
 ALIGN_LEVER_MM = 450.0
 
 
@@ -351,16 +304,14 @@ def pose_points(T_cam_world):
 
 
 def tag_points(ws, S, tags_corners):
-    """SfM points lying on the reference tags, in the board frame given by S. Returns the points
-    and {tag id: boolean mask of its points}."""
+    """SfM points lying on the reference tags, in the board frame given by S."""
     points = []
     with open(os.path.join(best_model(ws) + "_txt", "points3D.txt"), encoding="utf-8") as fh:
         for line in fh:
             if not line.startswith("#"):
                 points.append([float(v) for v in line.split()[1:4]])
     xyz = np.array(points) @ S[:3, :3].T + S[:3, 3]
-    # Within the inner 70 mm of each 80 mm tag, and near the board, so edge points and the object
-    # do not count.
+    # Inner 70 mm of each 80 mm tag, near the board.
     masks = {tag_id: np.all(np.abs(xyz[:, :2] - corners.mean(0)[:2]) < 35, axis=1) & (np.abs(xyz[:, 2]) < 60)
              for tag_id, corners in tags_corners.items()}
     return xyz, masks
@@ -373,22 +324,15 @@ def plane_fit(xyz):
 
 
 def tag_plane_check(ws, S, tags_corners):
-    """Height (mm) of the SfM points on each reference tag once in the board frame, and the tilt
-    of a plane fitted through them. The tags ARE the board, so both should be ~0 if the alignment
-    is right; this is the check that caught the roll error of fitting camera centres alone."""
+    """Height (mm) of the SfM points on each reference tag once in the board frame, and the tilt of a plane fitted
+    through them."""
     xyz, masks = tag_points(ws, S, tags_corners)
     heights = {t: float(np.median(xyz[m, 2])) if m.any() else float("nan") for t, m in masks.items()}
     return heights, plane_fit(xyz[np.any(list(masks.values()), axis=0)])[1]
 
 
 def level_on_tags(ws, S, tags_corners):
-    """Correction C so that, in C @ S, the plane through the SfM points on the tags is z = 0.
-
-    The pose alignment leaves the board frame only as good as the tag poses, which carry ~1.5 mm of
-    out-of-plane scatter in the layout; on Sep24/mjpg_pyr2 the SfM tag points came out 0.9-3.4 mm
-    below the board and tilted 0.55 deg. SfM has hundreds of points on every tag, so its own plane
-    through them is the better estimate of the board. The correction rotates about the centroid of
-    those points and shifts along z only, so positions in the board plane are unchanged."""
+    """Correction C so that, in C @ S, the plane through the SfM points on the tags is z = 0."""
     xyz, masks = tag_points(ws, S, tags_corners)
     on_tags = xyz[np.any(list(masks.values()), axis=0)]
     (a, b, c), _ = plane_fit(on_tags)
@@ -405,24 +349,7 @@ def level_on_tags(ws, S, tags_corners):
 
 
 def stage_align(ws, tag_poses, tags_corners, rig, with_scale, sparse_path):
-    """Transform from the SfM world onto the board frame, fitted on the camera poses.
-
-    Positions AND orientations are matched (see ALIGN_LEVER_MM). Fitting camera centres alone was
-    tried first and is not enough on a 1-DOF trolley: the centres lie close to one straight line,
-    which leaves the roll about that line almost free. On Sep24/mjpg_pyr2 it left the board tilted
-    2.9 deg about x and 10 mm off z = 0 in the aligned model (tags at +1.7 to +21 mm).
-
-    Rigid by default, because the SfM model's scale is the better one. On Sep24/mjpg_pyr2 the
-    similarity fit wanted a scale of 1.0091, i.e. the tag-based frame is 0.9% larger than the SfM
-    model - and the tags triangulated to 80.79 mm against 80 mm printed, which is 80.07 mm at SfM
-    scale. The bundle adjustment, with the rig baseline fixed and features over the whole image, gets
-    the scale right; the per-tag triangulation is inflated by the calibration's weak periphery.
-    Scaling the model onto the tags would copy that error into the cloud.
-
-    Both cameras of every tag-posed frame are used: the left from tag_poses.py directly, the right
-    through the calibrated extrinsics. Images whose pose disagrees by more than 3x the median are
-    dropped and the fit repeated, so a few bad tag poses cannot tilt the board frame.
-    """
+    """Transform from the SfM world onto the board frame, fitted on the camera poses."""
     sfm = read_model_images(ws, best_model(ws))
     T_right_left = np.eye(4)
     T_right_left[:3, :3], T_right_left[:3, 3] = rig.R, rig.T.ravel()
@@ -494,8 +421,8 @@ def stage_align(ws, tag_poses, tags_corners, rig, with_scale, sparse_path):
 
 
 def export_sparse(ws, S, out_path):
-    """The SfM points in the board frame, as sparse.ply next to the dense cloud:
-    something to look at, and to check the alignment on, long before PatchMatch finishes."""
+    """The SfM points in the board frame, as sparse.ply next to the dense cloud: something to look at, and to check the
+    alignment on, long before PatchMatch finishes."""
     import open3d as o3d
     sfm_ply = os.path.join(ws, "sparse_points_sfm.ply")
     colmap(ws, "model_converter", {"input_path": best_model(ws), "output_path": sfm_ply, "output_type": "PLY"})
@@ -507,9 +434,7 @@ def export_sparse(ws, S, out_path):
 
 
 def stage_undistort(ws, max_image_size, source_images, names, dense_step):
-    """Undistort the frames that will get depth maps. Only every dense_step'th frame goes into the
-    dense workspace, so PatchMatch also picks its source views among those frames and never needs
-    a depth map that was not computed."""
+    """Undistort the frames that will get depth maps."""
     dense = os.path.join(ws, "dense")
     shutil.rmtree(dense, ignore_errors=True)
     image_list = os.path.join(ws, "dense_images.txt")
@@ -526,10 +451,7 @@ def stage_undistort(ws, max_image_size, source_images, names, dense_step):
     }, optional={"num_patch_match_src_images": source_images})
 
 
-# Source-view selection for --sources rig. COLMAP's own choice ranks views by shared sparse points,
-# which on a trolley scan are the same camera's nearest frames: for left/0100 of Sep24/mjpg_pyr2 all
-# 10 were left frames at 1.2-3.5 deg, and the stereo partner at 18.5 deg was not among them. Depth
-# error scales with 1/angle, so the partner alone is ~10x more precise than those.
+# Source views for --sources rig (COLMAP's own choice misses the stereo partner).
 SOURCE_TARGET_ANGLE = 15.0       # deg; triangulation angle preferred for a source view
 SOURCE_ANGLE_RANGE = (4.0, 40.0)  # deg; outside this a view adds little or matches poorly
 SOURCE_MAX_OFF_AXIS = 35.0       # deg; the reference's target point must be this close to the view's axis
@@ -537,12 +459,11 @@ TARGET_DEPTH_MM = 450.0          # the board's distance, where the angles are me
 
 
 def write_source_lists(ws, n_sources):
-    """Overwrite dense/stereo/patch-match.cfg with explicit source views for every image: its stereo
-    partner first, then the views whose triangulation angle at a point TARGET_DEPTH_MM in front of the
-    reference is closest to SOURCE_TARGET_ANGLE, among those that see that point near their centre."""
+    """Overwrite dense/stereo/patch-match.cfg with explicit source views for every image: its stereo partner first, then
+    the views whose triangulation angle at a point TARGET_DEPTH_MM in front of the reference is closest to
+    SOURCE_TARGET_ANGLE, among those that see that point near their centre."""
     poses = read_model_images(ws, os.path.join(ws, "dense", "sparse"))
-    # The undistorted model lists every image even when --dense-step undistorted only some of them;
-    # a reference or source without an image makes patch_match_stereo abort.
+    # Skip images that were not undistorted, or patch_match_stereo aborts.
     poses = {n: T for n, T in poses.items() if os.path.exists(os.path.join(ws, "dense", "images", n))}
     names = sorted(poses)
     centre = {n: invert(T)[:3, 3] for n, T in poses.items()}
@@ -583,10 +504,7 @@ def stage_patchmatch(ws, args):
 
 
 def stage_fuse(ws, args, mask_path=None, max_image_size=None):
-    """stereo_fusion of the geometric depth maps. mask_path: <mask_path>/<image name>.png masks in the
-    UNDISTORTED images' geometry, 0 = pixel not fused. max_image_size: fuse the depth maps sampled down to this
-    longest side (px), which bounds memory: fusion keeps every point with the list of images that saw it, about
-    1.3 KB per point (S30, 688 images: 17.5 M points in 22 GB at full size)."""
+    """stereo_fusion of the geometric depth maps."""
     options = {
         "workspace_path": os.path.join(ws, "dense"),
         "input_type": "geometric",

@@ -1,26 +1,4 @@
-"""Accuracy check of detection setups on the underwater calibration and the WaterComparison target.
-
-Setups (config.json "accuracy"): {opencv_default, water_final} detector preset x {gray, merge} channel. Each
-is a Calibration.py run saved in <out_dir>/calibration/<medium>/ by reproduce.py; nothing is calibrated here.
-
-Reported, per setup:
-  1. Reprojection error: per-image RMS (Calibration.py's per_image_error_px) as mean, median and max per
-     camera, over every image the run kept and over only the images all four runs kept; plus stereo RMS.
-     1b. Shared tags: the tags all four setups detected in the same image, each scored against its own
-     setup's calibration (RMS corner error per tag), so better detectors are not penalised for the hard
-     tags only they find.
-  2. Camera matrix uncertainty: OpenCV's 1-sigma (calibrateCameraExtended) for fx, fy, cx, cy and the
-     distortion coefficients, and the median board-pose 1-sigma.
-  3. Measurement accuracy: the WaterComparison target (AprilTag 36h11 ids 6-11, printed edge TAG_SIZE_MM)
-     is detected with the setup's own channel and preset (border width 1, as printed), corners refined on
-     the detection image like Calibration.py, triangulated with the setup's calibration, and every tag
-     edge compared with the printed size. Split by the tag's place on the target: left column, right
-     column (as seen in the left camera) and middle row. Also over only the tags all four setups found.
-
-Use (from the project root; reproduce.py detector_sweep makes the calibrations and runs this):
-    src/venv/bin/python src/experiments/detector_sweep/accuracy_check.py
-Writes <out_dir>/accuracy/{accuracy.txt, accuracy.json, fig_accuracy.pdf/png}.
-"""
+"""Accuracy check of detection setups on the underwater calibration and the WaterComparison target."""
 import argparse
 import csv
 import json
@@ -115,8 +93,8 @@ def error_stats(values):
 
 
 def shared_tag_errors(cal):
-    """Corner errors (px) of the tags every setup detected in the same image, each setup judged with its
-    own intrinsics and a robust per-image pose, so every setup is scored on identical tags."""
+    """Corner errors (px) of the tags every setup detected in the same image, each setup judged with its own intrinsics
+    and a robust per-image pose, so every setup is scored on identical tags."""
     corners = {s: json.load(open(yaml_path(s).replace("_stereo.yaml", "_corners.json")))["cameras"] for s in SETUPS}
     holder = SimpleNamespace(board=C.build_board())
     sets = {}

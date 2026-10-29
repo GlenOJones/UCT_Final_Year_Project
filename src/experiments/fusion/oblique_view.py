@@ -1,16 +1,10 @@
 """Side-on (oblique) view of each fusion method's cloud over one scan's ice box: the same virtual camera for every
-method, looking across the ice from evaluation.region's corner at --elevation degrees above the board, points
-coloured by height towards the camera and shaded by their surface normal, so steps and ridges read as shape.
-
-Reads what run_fusion.py saved (<work>/<method>/cloud_board.ply), cut to the ice box. Points are drawn with an
-orthographic projection and a depth buffer (nearest point per pixel wins), --pixel-mm on a side, each splatted
-over a few pixels so the 1 mm clouds have no gaps. COLMAP has no mesh, so points are used for every method alike.
+method, looking across the ice from evaluation.region's corner at --elevation degrees above the board, points coloured
+by height towards the camera and shaded by their surface normal, so steps and ridges read as shape.
 
     src/venv/bin/python src/experiments/fusion/oblique_view.py --config src/experiments/fusion/config_pyramid_shade.json
     src/venv/bin/python src/experiments/fusion/oblique_view.py --grid      # every ice scan: fusion/oblique_grid.png
     src/venv/bin/python src/experiments/fusion/oblique_view.py --grid --with-image   # plus each scan's camera view
-
-Writes results/<out_dir>/<recording>/oblique.png.
 """
 import argparse
 import os
@@ -101,8 +95,7 @@ def scan_images(cfg, args):
 def vertical_scale(ax, image, pixel_mm, elevation):
     """A ruler up the panel's left edge, the full height of the image, in mm of height (0 at the bottom): the view is
     orthographic, so a vertical step of dz shows as dz * cos(elevation) anywhere in the panel, and the ruler reads a
-    vertical edge's true height. Horizontal lengths are foreshortened differently and cannot be read off it. Panels are
-    fitted to their tiles, so each row is drawn at its own scale and the ruler shows it."""
+    vertical edge's true height."""
     h = image.shape[0]
     mm_per_px = pixel_mm / np.cos(np.radians(elevation))
     ticks = matplotlib.ticker.MaxNLocator(5, steps=[1, 2, 2.5, 5, 10]).tick_values(0, h * mm_per_px)
@@ -113,9 +106,8 @@ def vertical_scale(ax, image, pixel_mm, elevation):
 
 
 def place_row_labels(fig, axes, labels, fontsize, strip=0.04):
-    """Row names on one vertical line, each centred on its row: the layout is kept out of a strip of this width at
-    the figure's left, and the names are centred in it. Panels holding narrower images are drawn inset, so axis
-    labels would not line up; the names are placed after the layout is final (then frozen)."""
+    """Row names on one vertical line, each centred on its row: the layout is kept out of a strip of this width at the
+    figure's left, and the names are centred in it."""
     fig.get_layout_engine().set(rect=(strip, 0, 1 - strip, 1))
     fig.canvas.draw()
     fig.set_layout_engine("none")
@@ -129,7 +121,7 @@ def source_image(cfg, samples=4000, margin=0.15, aspect=4 / 3):
     """The camera frame that best sees the ice, cropped to it: the TSDF-FoundationStereo points in the ice box are
     projected into the left image of every frame used (its COLMAP pose, the board fit, the calibration with its
     distortion); the frame where they fall nearest the image centre, all inside the image, is taken, cropped to their
-    bounding box plus margin. Returns (RGB image, frame name)."""
+    bounding box plus margin."""
     import cv2
     import json
     import pose_files
@@ -160,8 +152,7 @@ def source_image(cfg, samples=4000, margin=0.15, aspect=4 / 3):
     image = cv2.cvtColor(cv2.imread(os.path.join(common.project_path(cfg["recording"]["frames"]), "left", name)),
                          cv2.COLOR_BGR2RGB)
     (u0, v0), (u1, v1) = uv.min(0), uv.max(0)
-    # One shape for every scan (aspect, width/height), so each view fills its tile alike: the ice's box plus the
-    # margin, grown along the short side to that shape, then shifted (and if need be shrunk) to stay in the frame.
+    # Same aspect for every scan so the views fill their tiles alike.
     w, h = (u1 - u0) * (1 + 2 * margin), (v1 - v0) * (1 + 2 * margin)
     w, h = max(w, h * aspect), max(h, w / aspect)
     if w > width:

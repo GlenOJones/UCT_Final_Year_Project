@@ -1,23 +1,4 @@
-"""Ground truth for depth on the board: around every tag, the plane of that tag's triangulated corners.
-
-Each tag is printed flat, and the board around it is flat over a few cm. So for every tag found in both cameras
-(tag_poses.triangulate_frame, the same detection and refinement the pipeline poses frames with), the plane of its
-four stereo-triangulated corners is the truth over the tag and its white surround, out to SURROUND times the
-tag's size: the scoring REGION. In it the disparity every pixel should have follows from the plane, and a
-matcher's disparity is scored against that.
-
-One plane per tag rather than one through all of them: the tags of a frame are not coplanar enough. Fitted
-together they leave about 1 mm RMS (3DPrintFinal s30, Ice pyr1; one tag 3.9 mm off), which at 400 mm is a whole
-pixel of disparity, the size of the tolerance. A single tag's four corners fit their own plane to 0.33 mm
-(median; 90th percentile 0.58 mm, 139 tags of s30 and pyr1 pass3). That corner noise is the reference's own
-error: about 0.3 px of disparity at 400 mm, less further away. The learned matchers' median error on s30 (0.46 px)
-is close to it, so differences below about 0.3 px are not resolved.
-
-Scoring in disparity (px) rather than depth (mm) makes one tolerance mean the same matching error at every
-distance: 1 px is about 1.1 mm of depth at 400 mm and 3.5 mm at 750 mm on this rig.
-
-Region pixels whose match would fall left of the right image's edge are left out: no matcher can find them.
-"""
+"""Ground truth for depth on the board: around every tag, the plane of that tag's triangulated corners."""
 import os
 import sys
 
@@ -56,11 +37,7 @@ def plane_disparity(rectifier, normal, offset, u, v):
 
 
 def frame_truth(rectifier, detector, left_path, right_path):
-    """Board ground truth of one frame, or None if no usable tag was found in both cameras.
-
-    Returns {"region": bool mask (rectified left image), "disparity": float32 plane disparity in the region (0
-    elsewhere), "tags": ids used, "plane_rms_mm": the worst tag's corner RMS}.
-    """
+    """Board ground truth of one frame, or None if no usable tag was found in both cameras."""
     tags, _, _ = tag_poses.triangulate_frame(rectifier.rig, detector, left_path, right_path, MAX_REPROJECTION)
     P1, R1 = rectifier.rig.P1, rectifier.rig.R1
     w, h = rectifier.rig.image_size
@@ -88,10 +65,7 @@ def frame_truth(rectifier, detector, left_path, right_path):
 
 
 def score(disparity, truth, tolerance=1.0):
-    """Counts for one frame: region pixels, pixels with depth there, and those within tolerance px of the plane.
-
-    disparity: the matcher's (px, 0 where it kept no depth), as depth_frames.py saves it.
-    """
+    """Counts for one frame: region pixels, pixels with depth there, and those within tolerance px of the plane."""
     region = truth["region"]
     has = region & (disparity > 0)
     error = np.abs(disparity - truth["disparity"])

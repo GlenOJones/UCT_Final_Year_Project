@@ -1,36 +1,7 @@
 """Rig pose for every frame of a scan by registering each frame's depth onto the frames before it (ICP).
 
-Reads depth_frames.py's per-frame points (left camera frame) and chains them: each frame is registered
-onto what came before, and its pose is the previous pose times the registration. Two choices:
-
-  --target f2f   frame-to-frame: onto the previous frame alone. Simple; every error carries forward.
-  --target map   frame-to-local-map: onto the last --map-frames frames, already posed and merged, so
-                 one bad frame pulls the chain less and the overlap is larger.
-
-  --metric plane    point-to-plane ICP on geometry alone.
-  --metric colored  Park et al.'s coloured ICP: geometry plus the grey level. Texture holds the
-                    registration where the surface is flat and point-to-plane can slide.
-
-Registration runs coarse-to-fine over --scales (voxel sizes, mm) from a guess: the previous pose moved by
-the TRANSLATION of the last registered step, with no rotation. Repeating the rotation too was tried first and
-fed itself on 3DPrintFinal s30: on a mostly flat scene ICP has almost no restoring force against a small
-rotation-plus-slide, so it kept whatever the guess offered, the next guess repeated it, and the step's
-rotation grew ~1.5x per frame (0.6 deg to 50 deg in 11 frames, fitness 0.99 throughout). A frame is marked
-LOST when its final fitness (share of its points with a match within the search distance) is below
---min-fitness, or when the registration moved the rig further than a trolley can between two frames
-(--max-step mm, --max-rotation deg). A lost frame keeps the previous frame's pose, is left out of the
-local map, and is flagged so the evaluation counts it as a failure. Without this, one wild step is
-repeated by the constant-velocity guess and the whole rest of the trajectory flies off.
-
-Every frame also records how well the registration pinned the TRANSLATION: the smallest eigenvalue of
-the translational block of ICP's information matrix over the largest. Near 0 means the surface left
-the frame free to slide in some direction (a flat board, featureless ice); point-to-plane ICP then
-drifts along it. This is the number to read before trusting ICP on a new surface.
-
     src/venv/bin/python src/03_Reconstruction/icp_poses.py --depth-dir work/3DPrintFinal/s30_range/depth/sgbm \
         --out results/3DPrintFinal/s30_range/poses/icp_sgbm_map_plane.yaml --target map --metric plane
-
-The world frame is the left camera of the first frame.
 """
 import argparse
 import collections
@@ -91,8 +62,8 @@ def load_frame(path, scales):
 
 
 def register(source, target, init, args):
-    """Coarse-to-fine registration of source (camera frame) onto target (world): (T_world_cam, fitness,
-    rmse, translation constraint ratio) at the finest scale."""
+    """Coarse-to-fine registration of source (camera frame) onto target (world): (T_world_cam, fitness, rmse,
+    translation constraint ratio) at the finest scale."""
     T = init
     for voxel in args.scales:
         distance = args.max_distance * voxel
@@ -110,11 +81,8 @@ def register(source, target, init, args):
 
 
 def translation_constraint(source, target, distance, T):
-    """Smallest over largest eigenvalue of sum(n n^T) over the matched target normals: the translational
-    block of the point-to-plane normal equations. Each match only pins translation along its normal, so a
-    surface whose normals all lie near one plane or line leaves a direction free and the ratio near 0.
-    (Open3D's get_information_matrix_from_point_clouds uses point-to-point terms, whose translational
-    block is always a multiple of the identity, so it cannot show this.)"""
+    """Smallest over largest eigenvalue of sum(n n^T) over the matched target normals: the translational block of the
+    point-to-plane normal equations."""
     moved = np.asarray(source.points) @ T[:3, :3].T + T[:3, 3]
     distances, index = cKDTree(np.asarray(target.points)).query(moved, distance_upper_bound=distance)
     normals = np.asarray(target.normals)[index[np.isfinite(distances)]]
@@ -163,7 +131,7 @@ def main(argv=None):
         if k == 0:
             T, fitness, rmse, ratio, lost = np.eye(4), 1.0, 0.0, None, False
         else:
-            # The last registered step's translation, without its rotation (see the docstring).
+            # The last registered step's translation, without its rotation.
             glide = np.eye(4)
             glide[:3, 3] = last_step[:3, 3]
             guess = poses[-1] @ glide

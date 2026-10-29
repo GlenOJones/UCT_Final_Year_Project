@@ -1,13 +1,4 @@
-"""The board observations of one Calibration.py run, read from what that run saved. Nothing is
-detected here.
-
-Calibration.py writes, side by side:
-    <name>_stereo.yaml    calibration, the images each camera kept, and the tags outlier rejection dropped
-    <name>_corners.json   every detection of every image, refined corners included
-A Frame is one kept image reduced to the tags the run itself fitted on: board ids only, no id seen
-twice, none of the tags rejection dropped. So the methods compared here start from exactly the data
-the pipeline calibrates on. Both files are only ever opened for reading.
-"""
+"""The board observations of one Calibration.py run, read from what that run saved. Nothing is detected here."""
 import json
 import os
 import sys
@@ -91,7 +82,7 @@ def _strings(node):
 
 
 def load(yaml_path):
-    """Read a Calibration.py run. The corners file is found beside the YAML."""
+    """Read a Calibration.py run."""
     corners_path = yaml_path.replace("_stereo.yaml", "_corners.json")
     fs = cv2.FileStorage(yaml_path, cv2.FILE_STORAGE_READ)
     if not fs.isOpened():

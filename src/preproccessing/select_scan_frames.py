@@ -1,22 +1,5 @@
 """Extract every stereo pair of a scan recording in which the whole scan target is in view.
 
-The scan target is two same-size square faces side by side: one carries the reference AprilTags
-(36h11) that tag_poses.py poses the rig from, the other carries the object. A pair is kept when, in
-BOTH cameras:
-  1. every reference tag of the scan is detected, and
-  2. the four outer corners of the two-face block, mapped into the frame, lie inside the image with
-     MARGIN_PX to spare.
-
-The block corners are clicked once per scan in a head-on reference frame (SCANS below). Because the
-tags and both faces are coplanar, the homography from the reference frame's tag corners to this
-frame's tag corners carries the block corners over. It is computed on undistorted points: these
-lenses distort strongly, and a homography on raw pixels bends the far corner of the object face by
-tens of pixels. The calibration is only used for that undistortion.
-
-Kept pairs are written like extract_stereo_frames.py writes them (<recording>/frames/{left,right}/
-NNNN.png plus pairs.csv, with the frame indices in the video), so tag_poses.py and the rest of the
-pipeline read them unchanged.
-
     src/venv/bin/python src/preproccessing/select_scan_frames.py --session Oct1/Testing --scan pyr1
     src/venv/bin/python src/preproccessing/select_scan_frames.py --session Oct1/Testing --scan all --dry-run
 """
@@ -34,10 +17,7 @@ import project_paths as paths  # noqa: E402
 import extract_stereo_frames as ex  # noqa: E402
 
 # ====== SCAN TARGETS ======
-# Per scan: the reference tag ids, a head-on reference pair (right-camera frame index in the video)
-# and the block's outer corners in that right image (px, TL TR BR BL as seen). Corners were read off
-# a 20 px grid, so they are good to ~10 px; MARGIN_PX absorbs that.
-# Oct1/Testing: in cub2 the object face is below the tag face, in the others to its right.
+# Per scan: reference tag ids, a head-on reference pair and the block's corners in that right image (px).
 SCANS = {
     "cub2":  dict(tags=(2, 4, 5), ref_frame=2181, corners=[(995, 60), (1382, 88), (1262, 842), (925, 800)]),
     "hang1": dict(tags=(2, 3, 7), ref_frame=1573, corners=[(325, 405), (1020, 475), (940, 758), (270, 745)]),
@@ -84,11 +64,7 @@ def undistort(points, K, D):
 
 
 def valid_region(K, D, size, margin):
-    """The image area inset by margin px, as a polygon in normalised undistorted coordinates.
-
-    A projected corner is tested against this instead of being re-distorted: the distortion
-    polynomial folds points far outside the image back inside it, which would pass them.
-    """
+    """The image area inset by margin px, as a polygon in normalised undistorted coordinates."""
     w, h = size
     n = 50
     x0, y0, x1, y1 = margin, margin, w - 1 - margin, h - 1 - margin

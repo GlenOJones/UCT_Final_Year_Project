@@ -1,9 +1,5 @@
-"""The two camera models on synthetic board views made with known parameters: projection and
-undistortion invert each other, posing recovers a known pose, fitting recovers known intrinsics, and
-triangulation recovers known lengths.
-
-Run from the project root:
-    src/venv/bin/python -m unittest discover -s src/experiments/compensation/tests -v
+"""The two camera models on synthetic board views made with known parameters: projection and undistortion invert each
+other, posing recovers a known pose, fitting recovers known intrinsics, and triangulation recovers known lengths.
 """
 import os
 import sys
@@ -218,8 +214,8 @@ def write_air_yaml(path, R, T):
 
 class InAirAndCovariance(unittest.TestCase):
     def test_air_direct_uses_air_calibration_unchanged(self):
-        """Fitting reads the in-air K, D; stereo returns the in-air R, T, and scores them at ~0 px on data
-        made with exactly that rig."""
+        """Fitting reads the in-air K, D; stereo returns the in-air R, T, and scores them at ~0 px on data made with
+        exactly that rig."""
         R, T = cv2.Rodrigues(np.radians([0.2, -0.8, 0.1]))[0], np.array([-150.0, 0.5, -0.2])
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "air_stereo.yaml")

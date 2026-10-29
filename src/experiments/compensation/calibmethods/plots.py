@@ -1,9 +1,5 @@
-"""Figures. Every figure puts all techniques (and both cameras) on one scale, so a difference in colour,
-height or arrow length is a difference in the data, not in the axes.
-
-Curves are drawn from the residuals of all splits pooled (each held-out frame appears once per split
-that held it out); the shaded band around each curve is the 2.5-97.5 percentile range of the same
-curve computed split by split, i.e. how much it moves with the choice of held-out recordings.
+"""Figures. Every figure puts all techniques (and both cameras) on one scale, so a difference in colour, height or arrow
+length is a difference in the data, not in the axes.
 """
 import matplotlib
 
@@ -16,16 +12,14 @@ from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter  # noqa: 
 
 
 def _plain_log(axis):
-    """Log axis labelled 0.2, 0.5, 1, 2, 5 ... instead of 2x10^-1, with no minor labels to collide."""
+    """Log axis labelled 0.2, 0.5, 1, 2, 5 ..."""
     axis.set_major_locator(LogLocator(base=10, subs=(1, 2, 5)))
     axis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
     axis.set_minor_formatter(NullFormatter())
 
 from . import data, metrics, stats  # noqa: E402
 
-# Categorical slots 1-8 of the reference palette, in its validated order (adjacent pairs stay apart under
-# colour-vision deficiency); each technique also has its own marker, so colour is never the only cue.
-# Techniques keep their colour in every figure.
+# One colour and marker per technique, the same in every figure.
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
 MARKERS = ["o", "s", "^", "D", "v", "P", "X", "h"]
 INK, INK_2, GRID, MISSING = "#0b0b0b", "#52514e", "#e4e3df", "#d6d5d0"
@@ -44,8 +38,7 @@ plt.rcParams.update({
 })
 
 
-# The cameras the figures show, as indices into data.CAMERAS (points rows store the index). Every camera is
-# still fitted and scored; this only chooses which appear (show_cameras(["left"]) for the reference camera).
+# Cameras shown in the figures, as indices into data.CAMERAS.
 SHOWN = list(range(len(data.CAMERAS)))
 
 
@@ -86,7 +79,7 @@ def _legend(fig, techniques, shown=None, **kw):
     shown = range(len(techniques)) if shown is None else shown
     handles = [plt.Line2D([], [], color=SERIES[i], marker=MARKERS[i], markersize=5, label=techniques[i].label)
                for i in shown]
-    # At most 4 per row, so a long list of techniques wraps instead of widening (and shrinking) the figure.
+    # At most 4 per row.
     fig.legend(handles=handles, loc="lower center", ncol=min(4, len(handles)), frameon=False, **kw)
 
 
@@ -98,10 +91,7 @@ def _nice(x):
 
 
 def heatmaps(points, techniques, params_all, cfg, image_size, path_stem, subset=None, log=False):
-    """Rows: cameras. Columns: techniques (all, or the indices in `subset`). Cells coloured by mean residual
-    length, one colour scale for all panels (logarithmic if `log`, for techniques whose errors differ by more
-    than a factor of 10); arrows are the mean residual vector, one gain for all panels; grey cells have fewer
-    than min_points_per_cell points. Dashed circles are the zone boundaries about the principal point."""
+    """Mean residual per image cell, cameras as rows and techniques as columns."""
     w, h = image_size
     nx, ny = cfg["grid_cells"]
     shown = list(range(len(techniques))) if subset is None else list(subset)
@@ -216,8 +206,8 @@ def distance(points, techniques, cfg, path_stem):
 
 # ====== SCALE BARS ======
 def scale(bars, techniques, cfg, path_stem, subset=None):
-    """Mean signed and RMS length error of the triangulated bars, binned by board distance; all techniques, or
-    only those at the indices in `subset` (a technique tens of mm off would flatten the others)."""
+    """Mean signed and RMS length error of the triangulated bars, binned by board distance; all techniques, or only
+    those at the indices in `subset` (a technique tens of mm off would flatten the others)."""
     shown = list(range(len(techniques))) if subset is None else list(subset)
     width = 2 * cfg["distance_bin_width_mm"]
     d = bars[:, 4]
@@ -287,15 +277,8 @@ def summary(table, techniques, metric_list, path_stem):
 
 # ====== PINAX VS THE IN-WATER CALIBRATION ======
 def ray_mapping(reference, other, image_size, path_stem, label_ref, label_other, observed, reach_px=30):
-    """The angle of the underwater ray each model assigns to the same pixel, against the pixel's radius from
-    the principal point. Both models go pixel -> ray, so each stays inside the image it was calibrated on
-    (for Pinax: the in-air calibration's own image, then Snell's law). No board pose is involved.
-
-    Top row: the two angle curves. Bottom row: their difference, with the part a focal-length difference
-    alone would explain (dashed); the rest is a difference in the SHAPE of the mapping. Only pixels within
-    reach_px of an observed corner are used, where the in-water calibration is not extrapolating.
-    reference, other: {camera: model}; observed: {camera: (N, 2) detected corners}.
-    """
+    """The angle of the underwater ray each model assigns to the same pixel, against the pixel's radius from the
+    principal point."""
     from scipy.spatial import cKDTree
     fig, axes = plt.subplots(2, len(reference), figsize=(3.6 * len(reference) + (1.2 if len(reference) == 1 else 0), 4.6),
                              squeeze=False, sharex=True, sharey="row",
@@ -342,24 +325,14 @@ def ray_mapping(reference, other, image_size, path_stem, label_ref, label_other,
 
 # ====== RESIDUAL VECTORS (QUIVER) ======
 def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=None, gains=None):
-    """Mean held-out residual vector (observed - reprojected) per image cell, one panel per technique and
-    camera. Systematic error shows as coherent arrow fields (radial: distortion/focal; uniform: principal
-    point); noise averages out. Each panel is titled with its RMS and arrow gain. Cells with fewer than
-    min_points_per_cell points are empty.
-
-    gains: {technique index: arrow gain}, for techniques whose errors differ by orders of magnitude (the
-    in-air ones against those fitted in water). There is no arrow key: the caption must state the gain.
-    Better still, draw each gain's techniques as a figure of their own (`subset`), so arrows at
-    different gains are never side by side. Without it, ONE gain is chosen for the whole figure, set by the
-    90th-percentile cell so a few large cells do not shrink every other arrow to a dot."""
+    """Mean held-out residual vector (observed - reprojected) per image cell, one panel per technique and camera."""
     w, h = image_size
     nx, ny = cfg.get("quiver_cells", cfg["grid_cells"])
     shown = list(range(len(techniques))) if subset is None else list(subset)
     grids = {(col, c): metrics.grid_stats(*_select(points, t, c)[:, 4:8].T, image_size, (nx, ny),
                                           cfg["min_points_per_cell"])
              for col, t in enumerate(shown) for c in SHOWN}
-    # The gain is set by the 90th-percentile cell, so a few large cells (drawn longer than a cell) do not
-    # shrink every other arrow to a dot.
+    # Arrow gain from the 90th-percentile cell.
     if gains is None:
         lengths = np.concatenate([np.hypot(g["mean_du"], g["mean_dv"])[g["valid"]] for g in grids.values()])
         gains = dict.fromkeys(shown, _nice(0.9 * (w / nx) / float(np.percentile(lengths, 90))))
@@ -402,9 +375,8 @@ def quiver(points, techniques, cfg, image_size, params_all, path_stem, subset=No
 
 # ====== SEPARATE TARGET (WaterComparison tags) ======
 def target_errors(tag_rows, techniques, size_mm, calib_range_mm, path_stem, subset=None):
-    """Tag error (median edge - printed size) against distance, one point per tag, per technique; the
-    shaded band is the distance range of the calibration boards. Points of a technique are nudged
-    sideways a little so overlapping techniques stay visible."""
+    """Tag error (median edge - printed size) against distance, one point per tag, per technique; the shaded band is the
+    distance range of the calibration boards."""
     shown = list(range(len(techniques))) if subset is None else list(subset)
     fig, ax = plt.subplots(figsize=(7.2, 3.6), constrained_layout=True)
     ax.axvspan(calib_range_mm[0] / 1000, calib_range_mm[1] / 1000, color=GRID, alpha=0.7, lw=0)
@@ -434,8 +406,7 @@ def target_errors(tag_rows, techniques, size_mm, calib_range_mm, path_stem, subs
 
 # ====== PARAMETER CORRELATION ======
 def correlation(cov_results, path_stem):
-    """Correlation matrices of the intrinsics, one panel per (technique, camera). cov_results:
-    [(label, camera, covariance.intrinsic_covariance result)]. Values printed in each cell."""
+    """Correlation matrices of the intrinsics, one panel per (technique, camera)."""
     n = len(cov_results)
     cols = min(2, n)          # two across, so the figure fills a portrait page
     rows_ = int(np.ceil(n / cols))

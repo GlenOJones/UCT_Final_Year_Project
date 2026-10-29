@@ -1,16 +1,6 @@
 """Where in the image the calibration had corners, from the files Calibration.py writes.
 
-Intrinsics, and above all distortion, are only constrained where corners were seen: a lens model fitted
-on a well-covered centre can still be wrong at the edges. Reads <run>_corners.json (every detected tag)
-and <run>_stereo.yaml (image size, and the tags outlier rejection dropped) and, for each camera, draws:
-  - every corner of every board tag used in the fit, with the tags rejection dropped marked;
-  - the image divided into cells, each coloured by how many images put a corner in it, so a cell
-    reached by one lucky frame reads differently from one the whole recording covered.
-Only board ids (0..69) are plotted: false detections never enter the fit.
-
     src/venv/bin/python src/01_Calibration/plot_coverage.py results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml
-
-Writes <yaml without _stereo.yaml>_coverage.png next to each YAML.
 """
 import argparse
 import json

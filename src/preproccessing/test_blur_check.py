@@ -1,13 +1,4 @@
-"""Check blur_check.py against synthetic images whose blur and noise are known exactly.
-
-Real frames cannot test this: there is no ground truth for how blurred they are. So a sharp textured
-image is built, blurred by a known amount, and given a known amount of noise, and the two functions
-are asked to recover what was done to it.
-
-Run (from any directory):
-    src/venv/bin/python -m unittest discover -s src/preproccessing
-    src/venv/bin/python src/preproccessing/test_blur_check.py
-"""
+"""Check blur_check.py against synthetic images whose blur and noise are known exactly."""
 import sys
 import tempfile
 import unittest

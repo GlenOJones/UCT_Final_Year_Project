@@ -1,30 +1,4 @@
-"""Compare calibration runs by reading the YAML files Calibration.py writes.
-
-WHY THIS IS NOT JUST "LOWEST RMS WINS"
-Each preset calibrates from a DIFFERENT set of images, because a preset that detects more tags pulls
-in harder frames - blurrier, further away, more oblique - that the others dropped. Those frames are
-exactly the ones with the largest reprojection error, so a preset can look worse on RMS purely for
-having attempted more. Comparing the headline RMS across presets therefore penalises the better
-detector.
-
-This script reports both:
-  * all-images RMS, over whatever each run happened to use, and
-  * common-subset RMS, over only the images EVERY run used, which is the like-for-like number.
-The YAML stores per-image error keyed by image name, so the common subset is recoverable after the
-fact. A preset that wins on coverage AND ties on the common subset is a genuine improvement; one
-that wins on the common subset but uses far fewer images has simply thrown away the hard frames.
-
-Run (from any directory):
-    src/venv/bin/python src/01_Calibration/compare_calibrations.py
-    src/venv/bin/python src/01_Calibration/compare_calibrations.py --run wide uwaruco opencv_default
-    src/venv/bin/python src/01_Calibration/compare_calibrations.py --run wide uwaruco:scaled
-    src/venv/bin/python src/01_Calibration/compare_calibrations.py 'results/18_Sep/calibration/*_stereo.yaml'
-
-A run to make is named "preset" for the default ArUco detector or "detector:preset" for another,
-so "uwaruco:scaled" calibrates with the UWARUco detector of src/archive/UWARUco at its "scaled" preset.
-Rows are labelled the same way, so an ArUco preset and a UWARUco preset of the same name stay
-apart in the table.
-"""
+"""Compare calibration runs by reading the YAML files Calibration.py writes."""
 import argparse
 import glob
 import os
@@ -48,8 +22,7 @@ def read_run(path):
     if not fs.isOpened():
         return None
     board = fs.getNode("calibration_board")
-    # "detector" was added when the UWARUco detector arrived; a YAML written before that is an
-    # ArUco run, so an absent field means "aruco" rather than an unreadable file.
+    # YAMLs from before UWARUco have no detector field: they are ArUco runs.
     detector = board.getNode("detector").string() or "aruco"
     preset = board.getNode("detector_preset").string() or "?"
     # "channel" came with colour frames; older runs are gray, and gray stays unlabelled to match.
@@ -89,7 +62,7 @@ def rms(values):
 
 
 def compare(runs, camera):
-    """Print one camera's table. Returns the set of images common to every run."""
+    """Print one camera's table."""
     common = set.intersection(*(set(r["cameras"][camera]["per_image"]) for r in runs))
 
     width = max(16, max(len(r["preset"]) for r in runs) + 2)
@@ -162,14 +135,12 @@ def main():
     if not runs:
         sys.exit(f"no readable calibration YAMLs matching {args.pattern}")
 
-    # Runs over different footage share no image names, so a single table would have an empty common
-    # subset and every like-for-like number would be nan. Group by footage and compare within a group.
+    # Compare runs only within the same footage.
     groups = {}
     for run in runs:
         groups.setdefault(run["frames_dir"], []).append(run)
 
-    # Two runs of the same footage and preset are the same experiment, usually an older output file
-    # left behind by a rename. Label them by filename so the table does not show two identical rows.
+    # Same footage and preset: label by filename.
     for group in groups.values():
         seen = {}
         for run in group:

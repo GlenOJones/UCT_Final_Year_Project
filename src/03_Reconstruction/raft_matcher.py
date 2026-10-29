@@ -1,16 +1,6 @@
 """RAFT-Stereo (Lipson, Teed and Deng, 3DV 2021) as a drop-in replacement for SGBM in dense_stereo.py.
 
-A learned stereo network: it builds a correlation volume between left and right image features and
-refines a disparity field over many iterations with a recurrent unit. Unlike block matching it
-fills weakly textured areas by spreading depth in from where the image does have structure, which
-is what the black faces of the pyramid need.
-
-Needs PyTorch, which is not in the main venv: run dense_stereo.py with the separate environment in
-envs/raft (see external/README.md for how it was set up):
-
     envs/raft/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2 --matcher raft
-
-The network and the Middlebury-trained weights live in external/RAFT-Stereo.
 """
 import os
 import sys
@@ -37,9 +27,8 @@ MODELS = {"middlebury": ("raftstereo-middlebury.pth", {}),
 
 
 class StereoNetMatcher:
-    """What every learned matcher shares: resizing, the left-right consistency check, and the
-    output convention (disparity in px at full resolution, -1 where there is no measurement).
-    A subclass loads its network and implements _raw(left, right)."""
+    """What every learned matcher shares: resizing, the left-right consistency check, and the output convention
+    (disparity in px at full resolution, -1 where there is no measurement)."""
 
     scale = 1.0
     lr_tolerance = 1.0
@@ -48,8 +37,7 @@ class StereoNetMatcher:
         raise NotImplementedError
 
     def disparity(self, left, right):
-        """Disparity of the left image in px at full resolution. Pixels failing the left-right check
-        are set to -1 (no measurement), like SGBM's unmatched pixels."""
+        """Disparity of the left image in px at full resolution."""
         h, w = left.shape
         if self.scale != 1.0:
             size = (int(round(w * self.scale)), int(round(h * self.scale)))
@@ -58,8 +46,7 @@ class StereoNetMatcher:
             left_s, right_s = left, right
         d_left = self._raw(left_s, right_s)
         if self.lr_tolerance > 0:
-            # The right image's disparity, by running the network on the mirrored pair: mirrored,
-            # the right image becomes a left image whose matches lie to its right.
+            # Right disparity: run the network on the mirrored pair.
             d_right = self._raw(right_s[:, ::-1].copy(), left_s[:, ::-1].copy())[:, ::-1]
             columns = np.arange(d_left.shape[1])[None, :] - d_left
             back = cv2.remap(d_right.astype(np.float32), columns.astype(np.float32),

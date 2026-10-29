@@ -1,16 +1,6 @@
 """Score every object on a multi-object board against its own CAD model.
 
-compare_to_cad.py takes the tallest object in a cloud, so a board carrying several objects is scored
-one object at a time: the cloud is cropped to a box around each object (board frame, mm) and the crop
-compared with that object's STL. The crops are saved, so the comparison can be re-run or opened in
-CloudCompare on its own.
-
     src/venv/bin/python src/04_Comparison/score_objects.py --session Sep30 --scans s20 s30 merged --methods raft_s075 raft_s075_weighted
-
-Every (scan, method) folder that has a cloud_clean.ply is scored. Writes, per object:
-    results/<session>/<scan>/<method>/objects/<object>.ply          the crop
-    results/<session>/<scan>/comparison/<method>/<object>/          compare_to_cad.py's outputs
-and one table of every scan, method, object and fit: results/<session>/objects_summary.csv.
 """
 import argparse
 import csv
@@ -29,10 +19,7 @@ import project_paths as paths  # noqa: E402
 
 STL_DIR = os.path.join(paths.DATA_DIR, "GroundTruth", "roughness_blocks_STL")
 
-# Sep30 board: object centres in the board frame (mm) and their CAD models. Every scan's board frame
-# comes from the same five tags, so these hold for every pass to within a few mm (the crop is
-# generous). An object with no STL yet is listed with None and skipped. Identified from the COLMAP
-# height map of s30: four apexes on crossed ridges at (-20, 120), a grid of egg-cup bumps at (-210, 10).
+# Sep30 board: object centres in the board frame (mm) and their CAD models (None = no STL yet).
 OBJECTS = {
     "PYRAMID_1": ((195.0, 0.0), "PYRAMID_1.stl"),
     "PYRAMID_2X2": ((-20.0, 120.0), "PYRAMID_2X2.stl"),

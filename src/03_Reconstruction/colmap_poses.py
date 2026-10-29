@@ -1,25 +1,8 @@
 """Rig pose for every frame of a scan from the images alone: COLMAP structure-from-motion, no tags.
 
-The SfM half of colmap_mvs.py, run on every --step'th frame pair whether or not it has a tag pose,
-and written out as a trajectory instead of being aligned onto tag poses:
-
-  workspace  link the frame pairs into <workspace>/images/{left,right}/ (and the masks, if given)
-  features   SIFT per camera with the calibrated intrinsics (FULL_OPENCV)
-  rig        left/right declared a rig with the calibrated extrinsics
-  match      every camera combination within --window frames
-  map        incremental SfM, intrinsics and rig FIXED, so the 150 mm baseline gives metric scale
-
-The stages are colmap_mvs.py's own functions, so both scripts make the same model from the same frames.
-The world frame is the left camera of the first registered frame. SfM may split a scan into several
-models when the images stop overlapping well; only the largest is kept, and the frames it left out
-are written without a pose.
-
     src/venv/bin/python src/03_Reconstruction/colmap_poses.py --frames-dir data/3DRecon/3DPrintFinal/30_frames_range \
         --calibration results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml \
         --workspace work/3DPrintFinal/s30_range/colmap_poses --out results/3DPrintFinal/s30_range/poses/colmap_poses.yaml --step 5
-
---masks takes a folder with {left,right}/<frame name> images, 0 = no features there (e.g. the reference
-tags, when testing what SfM would do without them).
 """
 import argparse
 import os
@@ -65,8 +48,7 @@ def link_masks(ws, masks, names):
 
 
 def frame_poses(ws, rig, names):
-    """{frame name: T_cam_world of the LEFT camera} from the largest model. A frame whose left image did
-    not register but whose right one did is posed through the calibrated extrinsics."""
+    """{frame name: T_cam_world of the LEFT camera} from the largest model."""
     images = colmap_mvs.read_model_images(ws, colmap_mvs.best_model(ws))
     T_right_left = np.eye(4)
     T_right_left[:3, :3], T_right_left[:3, 3] = rig.R, rig.T.ravel()

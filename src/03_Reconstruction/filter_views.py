@@ -1,18 +1,6 @@
 """Make stricter-voted versions of a fused cloud without re-running the matcher.
 
-dense_stereo.py keeps a voxel if at least --min-views frames put a point in it (default 3), and
-records that count in the PLY's "views" field. Raising the threshold afterwards is equivalent to
-re-running with a higher --min-views (checked: raft_v5 matched a --min-views 5 run exactly), and
-takes seconds instead of minutes.
-
     src/venv/bin/python src/03_Reconstruction/filter_views.py --session Sep24 --scan mjpg_pyr_lights_2_all --method raft_s075 15 18
-
-writes <method>_v15/cloud.ply and <method>_v18/cloud.ply next to <method>/. Run postprocess_cloud.py
-and compare_to_cad.py on them as on any method folder.
-
-Stricter voting trades coverage for accuracy: on mjpg_pyr_lights_2_all (RAFT, 212 frames) at least
-3 frames gave 96% coverage at 1.81 mm median error, at least 15 gave 82% at 1.00 mm, and at least 24
-gave 60% at 0.72 mm (on_local_board fit). More frames per scan make stricter thresholds affordable.
 """
 import argparse
 import os

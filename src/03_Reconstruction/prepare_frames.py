@@ -1,20 +1,4 @@
-"""Turn extracted stereo frame pairs into a COLMAP workspace with known intrinsics.
-
-Scores every frame for blur (variance of the Laplacian), drops the ones below a threshold, and
-writes an image folder plus the COLMAP files needed to reconstruct with the intrinsics from
-01_Calibration held FIXED rather than re-estimated from the scene.
-
-Paths resolve from this file, so it can be run from any working directory:
-    src/venv/bin/python src/03_Reconstruction/prepare_frames.py --dry-run
-    src/venv/bin/python src/03_Reconstruction/prepare_frames.py --blur-threshold 15
-
-Run it once with --dry-run to see the blur distribution for the recording, then pick a threshold.
-There is no safe default: the score depends on scene contrast, and on the 18 Sep underwater frames
-the value usually quoted for sharp photographs (100) rejects every single frame.
-
-Left and right become two SEPARATE COLMAP cameras. They have genuinely different intrinsics
-(fx 777.1 vs 767.9 on the 18 Sep set), so sharing one camera would force COLMAP to average them.
-"""
+"""Turn extracted stereo frame pairs into a COLMAP workspace with known intrinsics."""
 import argparse
 import csv
 import glob
@@ -25,24 +9,18 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
-# Paths are relative to the project root, resolved from this file
-# (src/03_Reconstruction/prepare_frames.py -> parents: 03_Reconstruction, src, project root).
+# Paths are relative to the project root.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 CAMERAS = ("left", "right")
 
-# COLMAP camera models and the order of their PARAMS column.
-# OPENCV has NO k3: OpenCV calibration fits k1, k2, p1, p2, k3, so the k3 term is DROPPED when this
-# model is used. FULL_OPENCV keeps it (k4..k6 are written as zero, which OpenCV never fitted).
+# COLMAP camera models and their PARAMS order. OPENCV drops k3; FULL_OPENCV keeps it.
 CAMERA_MODELS = {
     "OPENCV": ("fx", "fy", "cx", "cy", "k1", "k2", "p1", "p2"),
     "FULL_OPENCV": ("fx", "fy", "cx", "cy", "k1", "k2", "p1", "p2", "k3", "k4", "k5", "k6"),
 }
 
-# Thresholds worth knowing about, measured on the 104 left frames of 18_Sep/Rigframes:
-#   min 7.1, p10 8.3, median 12.6, p90 39.8, max 64.4
-# The frames calibration could actually use had a median of 17.3 against 11.4 for those it rejected,
-# so the score does track usefulness on this footage - but only over a narrow range.
+# Blur scores on 18_Sep/Rigframes: min 7.1, median 12.6, max 64.4.
 REPORT_PERCENTILES = (0, 10, 25, 50, 75, 90, 100)
 
 
@@ -111,11 +89,7 @@ def rel(path):
 
 # ====== INTRINSICS ======
 def load_cameras(calibration_path, model):
-    """Read the two cameras out of the calibration YAML as COLMAP cameras.
-
-    COLMAP camera ids are 1-based and must match the order the image lists are fed in, so left is
-    always 1 and right always 2.
-    """
+    """Read the two cameras out of the calibration YAML as COLMAP cameras."""
     if not os.path.exists(calibration_path):
         raise SystemExit(f"no calibration at {rel(calibration_path)} - run "
                          f"src/01_Calibration/Calibration.py first, or pass --calibration")
@@ -151,21 +125,12 @@ def load_cameras(calibration_path, model):
 
 # ====== BLUR ======
 def blur_score(gray):
-    """Variance of the Laplacian: high on sharp edges, low when blur has smeared them out.
-
-    Absolute values are NOT comparable between recordings: the score scales with scene contrast, so
-    a dim underwater frame scores lower than a sharp one of a bright textured wall. Always pick the
-    threshold from the distribution of the recording in hand (--dry-run).
-    """
+    """Variance of the Laplacian: high on sharp edges, low when blur has smeared them out."""
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 
 def collect_frames(frames_dir):
-    """Score every frame of both cameras. Returns {camera: [Frame, ...]}.
-
-    The name inside the COLMAP folder is flattened to <recording>_<file>, because COLMAP identifies
-    an image by a single name and the recording folders would otherwise collide.
-    """
+    """Score every frame of both cameras."""
     frames = {}
     for camera in CAMERAS:
         paths = sorted(glob.glob(os.path.join(frames_dir, "*", camera, "*.png")))
@@ -179,8 +144,7 @@ def collect_frames(frames_dir):
             image = cv2.imread(path, cv2.IMREAD_COLOR)
             if image is None:
                 raise SystemExit(f"could not read {path}")
-            # Blur is measured on grey. Which grey does not matter here the way it does for corner
-            # detection: this is a relative sharpness score, not a corner position.
+            # Blur is measured on grey.
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             recording = os.path.basename(os.path.dirname(os.path.dirname(path)))
             filename = os.path.basename(path)
@@ -217,7 +181,7 @@ def report_blur(frames):
 
 
 def select(frames, args):
-    """Apply the blur rule. Returns {camera: [Frame, ...]} of the frames to write."""
+    """Apply the blur rule."""
     if args.blur_percentile is not None:
         everything = np.array([f.blur for camera in CAMERAS for f in frames[camera]])
         threshold = float(np.percentile(everything, args.blur_percentile))
@@ -232,8 +196,7 @@ def select(frames, args):
     kept = {camera: [f for f in frames[camera] if f.blur >= threshold] for camera in CAMERAS}
 
     if args.require_pairs:
-        # COLMAP reconstructs from single images, so a frame whose partner is blurry is still
-        # useful. Keeping pairs intact only matters if the extrinsics are to be imposed later.
+        # COLMAP uses single images, so a frame with a blurry partner is still kept.
         labels = {f.label for f in kept["left"]} & {f.label for f in kept["right"]}
         dropped = sum(len(kept[c]) - len([f for f in kept[c] if f.label in labels]) for c in CAMERAS)
         kept = {camera: [f for f in kept[camera] if f.label in labels] for camera in CAMERAS}
@@ -282,12 +245,7 @@ def write_cameras(out_dir, cameras):
 
 
 def write_image_lists(out_dir, kept):
-    """One image list per camera, for feeding feature_extractor once per camera.
-
-    COLMAP takes a single --ImageReader.camera_params for a whole feature_extractor run, so two
-    cameras with different intrinsics mean two runs over two lists, into the same database.
-    Names are relative to the image folder, which is what COLMAP expects in a list.
-    """
+    """One image list per camera, for feeding feature_extractor once per camera."""
     paths = {}
     for camera in CAMERAS:
         path = os.path.join(out_dir, f"{camera}_images.txt")
@@ -312,11 +270,7 @@ def write_blur_report(out_dir, frames, kept):
 
 
 def write_run_script(out_dir, cameras):
-    """A runnable COLMAP pipeline with the calibrated intrinsics pinned.
-
-    The three ba_refine flags are the point of this whole script: without them the mapper treats the
-    intrinsics as a starting guess and refits them on the scene, which throws away the calibration.
-    """
+    """A runnable COLMAP pipeline with the calibrated intrinsics pinned."""
     path = os.path.join(out_dir, "run_colmap.sh")
     lines = [
         "#!/usr/bin/env bash",

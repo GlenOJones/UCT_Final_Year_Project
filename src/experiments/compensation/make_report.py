@@ -1,17 +1,4 @@
-"""Build the methods report (PDF) from a finished comparison run. Nothing is fitted or detected here: every
-number comes from the files run_comparison.py wrote, so the report can be rebuilt at any time and always
-matches the results beside it.
-
-Use (from the project root, after run_comparison.py --config src/experiments/compensation/config_full.json):
-    src/venv/bin/python src/experiments/compensation/make_report.py [--config PATH]
-
-Reads <output>/{summary.csv, comparisons.csv, run_info.json, params/*.json, target.json, covariance.json,
-fig_*.pdf}; writes <output>/report/methods_report.tex and builds methods_report.pdf with pdflatex (run twice
-for the references). The discussion section is hand-written: report_discussion.tex beside this script, or the
-file the config's report.discussion names,
-because what the numbers mean is a judgement, not a computation; it is dated and names the run it was
-written for, and the report flags it if the run is newer.
-"""
+"""Build the methods report (PDF) from a finished comparison run."""
 import argparse
 import csv
 import json

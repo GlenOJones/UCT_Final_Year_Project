@@ -1,23 +1,6 @@
 """Re-align every frame of a dense_stereo.py run to the others, then fuse again.
 
-Each frame is placed in the board frame by its own tag pose (tag_poses.py). Small errors in those
-poses do not average out: they stack frames at slightly different heights and tilts, so a flat face
-comes out as a slab mm thick, and the thicker the farther it is from the tags, because a rotation
-error grows with the lever arm (Oct1/cub2: 4.5 mm thick on the tag block, 7-11 mm on the cube block
-150-400 mm away). This script removes that error, as a multi-view refinement:
-
-  1. fuse all frames (1 mm voxels, kept if seen from --min-views frames) into a reference model;
-  2. align every frame to the reference with robust point-to-plane ICP, starting from its tag pose;
-     a correction larger than --max-shift mm / --max-turn deg is refused and the frame keeps its pose;
-  3. remove the corrections' common part, so the result stays in the tag-defined board frame;
-  4. rebuild the reference from the corrected frames and repeat, with a tighter correspondence
-     distance each round (--distances).
-
     src/venv/bin/python src/03_Reconstruction/refine_frames.py --session Oct1 --scan cub2_all --method raft_s075_frames
-
-Needs a run made with dense_stereo.py --save-frames (<method>/frames/*.npz). Writes
-<method>_refined/cloud.ply (same format as dense_stereo.py's, with "views") and corrections.json.
-Run postprocess_cloud.py on it as on any method.
 """
 import argparse
 import glob

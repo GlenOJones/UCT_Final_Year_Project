@@ -1,8 +1,5 @@
-"""The restart rule (restarts.py), checked on synthetic trajectories whose failures are known exactly, and on a
-fake estimator that only works from a given frame on.
-
-Run from the project root:
-    src/venv/bin/python -m unittest discover -s src/experiments/pose_estimation/tests -v
+"""The restart rule (restarts.py), checked on synthetic trajectories whose failures are known exactly, and on a fake
+estimator that only works from a given frame on.
 """
 import os
 import sys

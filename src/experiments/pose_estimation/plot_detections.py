@@ -1,17 +1,6 @@
 """Where in the image each markerless pose estimator gets its grip, for a few frames along the scan.
 
-Left panel, COLMAP: every SIFT keypoint in the left image, split into those the final model triangulated
-(used to pose the frame) and those it did not. Right panel, ICP: the frame's depth points (as icp_poses.py
-sees them, 2 mm), coloured by how much each resists a slide along the direction of travel, |n . d| with n the
-surface normal and d the pass's main direction of travel from the tag poses. A flat board parallel to the motion
-scores 0 everywhere; object walls and brick edges facing along the track score near 1. Both panels show the
-masked tags (hatched red) and the board outline from the tag layout (dashed), so the share of the grip that
-comes from the board and from its surroundings can be read off.
-
     src/venv/bin/python src/experiments/pose_estimation/plot_detections.py --config src/experiments/pose_estimation/config.json
-
-Writes results/<out_dir>/<recording>/evaluation/detections/<frame>.png and detections.json (per frame: keypoints,
-triangulated, share on the board; ICP points and share with |n . d| > 0.5 on and off the board).
 """
 import argparse
 import json
@@ -113,8 +102,7 @@ def run(cfg, recording, args):
     depth_dir = p["depth"](args.depth)
     names = sorted(n for n in os.listdir(os.path.join(p["masks"], "left")) if n in reference)
     picks = [names[int(i)] for i in np.linspace(0, len(names) - 1, args.frames + 2)[1:-1]]
-    # The pass's main direction of travel (board frame): the trolley's motion is close to one straight line,
-    # while neighbouring frames' motion is too small and noisy where it stops and starts.
+    # Main direction of travel in the board frame.
     centres = np.array([invert(reference[n])[:3, 3] for n in names])
     track = np.linalg.svd(centres - centres.mean(0))[2][0]
     out_dir = os.path.join(p["out"], "evaluation", "detections")

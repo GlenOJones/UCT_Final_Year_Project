@@ -1,28 +1,7 @@
-"""Merge reconstructions of the same board made from several passes (e.g. Sep30 s20 ... s60, the rig
-20 ... 60 cm above the board) into one cloud.
-
-Each pass has its own board frame: tag_poses.py builds it from that pass's estimate of the tag layout,
-so two passes over an unmoved board differ by a small rigid motion (Sep30: about 1-2 deg of yaw). The
-merge:
-
-  1. ALIGNS every scan to the reference scan's frame: a rigid fit of its tag layout onto the
-     reference layout (the corners of the tags both saw), then point-to-plane ICP of its cloud onto
-     the reference cloud, which takes out the remaining mm-level frame error;
-  2. FUSES them as a height field. Every pass looks down on the board, so each scan holds at most one
-     surface per (x, y): per 1 mm cell, each scan's height is the median of its points there. Each
-     scan's noise sigma is measured on the bare board (spread about local planes), and per cell:
-       - weighted: the inverse-variance weighted mean of the scans' heights, after dropping heights
-         more than --reject mm from the cell's weighted median. Near passes dominate where they have
-         data, far passes fill the gaps they leave;
-       - nearest: the height of the lowest-noise scan that has the cell (no averaging, hole filling);
-       - concat: every aligned point of every scan, as a baseline.
+"""Merge reconstructions of the same board made from several passes (e.g. Sep30 s20 ... s60, the rig 20 ... 60 cm above
+the board) into one cloud.
 
     src/venv/bin/python src/03_Reconstruction/merge_scans.py --session Sep30 --scans s20 s30 s40 s50 s60
-
-Reads results/<session>/<scan>/<method>/cloud_clean.ply and poses/tag_poses.yaml of every scan;
-writes results/<session>/<out-scan>/<method>_{weighted,nearest,concat}/cloud_clean.ply, aligned/
-(each scan in the reference frame), alignment.json, and poses/tag_poses.yaml (the reference scan's,
-so later stages find the tags). Score them with compare_to_cad.py / score_objects.py like any scan.
 """
 import argparse
 import json

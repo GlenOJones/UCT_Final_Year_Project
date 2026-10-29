@@ -9,17 +9,7 @@
       board   for evaluation only: the subset's trajectory fitted onto the AprilGrid tag poses (run_fusion.py's
               board_alignment), and each cloud moved into the board frame.
 
-Every stage runs through monitor.py, one at a time, so its wall time, CPU, peak RAM and peak GPU memory are its own.
-
     src/venv/bin/python src/experiments/frame_count/run_frame_count.py [--config ...] [--skip-existing]
-
-Writes, under work/<work_dir>/<recording>/:
-    depth/<source>/                       depth_frames.py output, every frame
-    step_<N>/colmap/                      COLMAP workspace
-    step_<N>/tsdf_<source>/               tsdf_fuse.py output; cloud_board.ply in the board frame
-    logs/                                 each stage's console output
-and under results/<out_dir>/<recording>/: depth_costs.json, step_<N>/poses_colmap.yaml (the subset's trajectory),
-step_<N>/run.json (frames, each stage's cost record, the board fit).
 """
 import argparse
 import json

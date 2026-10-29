@@ -1,8 +1,5 @@
 """The pipeline runs of the pose experiment: reference poses, tag masks, per-frame depth, then every estimator.
 
-Each step is an ordinary pipeline script run with the interpreter its matcher needs (FoundationStereo lives in
-envs/ffs), with every setting taken from config.json. Per recording:
-
     results/<out_dir>/<recording>/tag_poses.yaml          reference: tag_poses.py on every frame
     work/<work_dir>/<recording>/tag_masks/                 make_tag_masks.py, every frame_step'th pair
     work/<work_dir>/<recording>/depth/<source>/            depth_frames.py (tags masked)
@@ -10,19 +7,6 @@ envs/ffs), with every setting taken from config.json. Per recording:
     results/<out_dir>/<recording>/poses/<estimator>.yaml   colmap_poses.py / icp_poses.py
 
     src/venv/bin/python src/experiments/pose_estimation/run_poses.py --config src/experiments/pose_estimation/config.json
-
-With skip_existing, a step whose output exists is not run again.
-
-A recording may set its own frame_step, and icp_argv (appended to every ICP estimator's argv, so it overrides
-them: e.g. a larger --max-step where the rig moves faster). A backlit one may set "enhance_tags": true (tag
-detection on a contrast-boosted image, for the reference and the masks) and its own "max_reprojection_px".
-
-A recording with "restart_on_failure": true has every estimator's run judged by restarts.assess (cfg
-"restarts" holds the criteria); a failed run is repeated from later start frames on symlinked subsets of its
-inputs until one passes (restarts.py). The full run stays as poses/<name>.yaml; the attempts go to
-work/<work_dir>/<recording>/restarts/ and poses/restarts/, the record to poses/<name>_restarts.json, and a
-passing restart to poses/<name>_restart.yaml. One with "tags": false (no tag anywhere in it) gets
-no reference and no masks; its estimators still run.
 """
 import argparse
 import os
@@ -51,7 +35,7 @@ def recording_paths(cfg, recording):
 
 
 def run(python, script, argv, output, skip_existing, runs, label):
-    """One pipeline script; recorded for the manifest. Skipped if output exists and skip_existing."""
+    """One pipeline script; recorded for the manifest."""
     record = {"step": label, "script": script, "python": python, "argv": [common.rel(a) if os.path.isabs(a) else a for a in argv]}
     if skip_existing and os.path.exists(output):
         print(f"=== {label}: {common.rel(output)} exists, skipped")

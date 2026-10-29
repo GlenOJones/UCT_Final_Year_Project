@@ -1,28 +1,7 @@
-"""Fuse two reconstructions of the same scan: a sparse, reliable one (COLMAP) checks a dense, smooth
-one (RAFT-Stereo) and vetoes it where they disagree.
-
-On dark, low-texture prints the two fail differently. RAFT always returns a disparity, so where the
-image has no detail it invents a smooth surface (Sep30: the 2x2 pyramid and the egg cartons came out
-as flat slabs at ~30 mm). COLMAP's PatchMatch leaves those pixels empty, but what it keeps is right
-(Sep30/s30 EGG_1PK: 1.9 mm RMS against RAFT's 7.0 mm, on 19% of the surface). The fusion:
-
-  1. ALIGNS the dense cloud onto the sparse one (point-to-plane ICP, from the shared board frame);
-  2. CHECKS every dense point against the sparse points within --radius mm of it in x, y: if at least
-     --min-support of them are there, it is "checked", and it agrees if it lies within --agree mm of
-     their median height;
-  3. VETOES the dense points that disagree, and the unchecked dense points where most checked points
-     within --veto mm disagree: a slab is wrong across the whole hole COLMAP leaves in it, not just at
-     the hole's rim, while scattered board noise is not a reason to drop anything;
-  4. KEEPS all sparse points, the dense points that agree, and the unchecked dense points far from
-     any disagreement (where COLMAP has nothing to say and RAFT is not contradicted).
-
-Everything runs in x, y with heights, as every view of these scans looks down on the board.
+"""Fuse two reconstructions of the same scan: a sparse, reliable one (COLMAP) checks a dense, smooth one (RAFT-Stereo)
+and vetoes it where they disagree.
 
     src/venv/bin/python src/03_Reconstruction/fuse_methods.py --session Sep30 --scan s30 --sparse colmap --dense raft_s075
-
-Reads <scan>/<sparse>/cloud_clean.ply and <scan>/<dense>/cloud_clean.ply; writes
-<scan>/<out>/cloud_clean.ply (default <sparse>+<dense>), with the dense points coloured by verdict in
-fusion_verdicts.ply beside it. Score it with score_objects.py like any method.
 """
 import argparse
 import json
@@ -83,9 +62,7 @@ def verdicts(sparse, dense, args):
     agree = checked & (np.abs(dense[:, 2] - reference) <= args.agree)
     disagree = checked & ~agree
     result = np.where(agree, "agree", np.where(disagree, "disagree", "unchecked")).astype(object)
-    # Veto where MOST checked points within --veto disagree. A single disagreeing point is no
-    # evidence: on bare Sep30/s30 board the two differ with a 1.8 mm MAD, so 30% of board points fall
-    # outside 3 mm by noise alone, and vetoing around each of those blanked the whole board.
+    # Veto only where most checked points within --veto disagree.
     share = disagreement_share(dense[:, :2], checked, disagree, args.veto)
     result[~checked & (share > args.veto_share)] = "vetoed"
     return result

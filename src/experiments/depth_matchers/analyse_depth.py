@@ -14,10 +14,6 @@
                                                        image then every matcher's depth, each row on its own scale
 
     src/venv/bin/python src/experiments/depth_matchers/analyse_depth.py [--trial N] [the options run_depth.py took]
-
-Seconds per frame: the median, so a learned matcher's first frame (CUDA warm-up, several seconds) does not count.
-Pixels with depth are counted after the depth limits; points are those pixels merged into 1 mm voxels, which is
-what the reconstruction uses, so a matcher that fills a surface densely is not rewarded for pixels beyond 1 per mm.
 """
 import argparse
 import csv
@@ -216,8 +212,7 @@ def round_ticks(depth_min, depth_max, count=5):
 
 
 def colour_bar(height, depth_min, depth_max, width=90, font=0.45, ticks=(0, 0.5, 1), light=False):
-    """A vertical key for colour_depth, labelled in mm. light: dark text on white, for figures on a white page
-    (ticks then sit beside the bar); otherwise white text on black, with ticks across the bar."""
+    """A vertical key for colour_depth, labelled in mm."""
     bar_width = int(24 * font / 0.45)
     t = np.linspace(1, 0, height)[:, None].repeat(bar_width, 1)
     bar = cv2.applyColorMap((t * 255).astype(np.uint8), cv2.COLORMAP_VIRIDIS)
@@ -279,8 +274,7 @@ def grid_pixels(shape, grid):
 
 def matches_figure(rectifier, recording, left, right, disparity, grid, title):
     """Rectified left above right; a line from each grid pixel to where the matcher found it in the right image,
-    coloured by its depth; a grey cross where the matcher kept no depth. In a rectified pair every match lies on
-    the same row, so each line drops straight down and leans left by the disparity."""
+    coloured by its depth; a grey cross where the matcher kept no depth."""
     height = left.shape[0]
     canvas = np.vstack([left, right])
     depth = depth_of(rectifier, disparity)
@@ -342,11 +336,8 @@ def frame_figures(cfg, recording, rectifier, pairs):
 
 
 def combined_figure(cfg, spec):
-    """One figure across recordings: a column per recording (in spec's order) holding its rectified left image and
-    then every matcher's depth map of its figure frame, all coloured on one depth scale, with one key on the right.
-
-    One scale has to span every recording's depth range, so a recording that fills only part of it (S30, 250-600 mm,
-    on a 250-1400 mm scale) shows less depth contrast than its own depth_compare.jpg."""
+    """One figure across recordings: a column per recording (in spec's order) holding its rectified left image and then
+    every matcher's depth map of its figure frame, all coloured on one depth scale, with one key on the right."""
     recordings = {r["name"]: r for r in cfg["recordings"]}
     columns = [recordings[n] for n in spec["recordings"] if n in recordings]
     if not columns:
@@ -401,11 +392,7 @@ def crop_padded(array, box, fill):
 
 def crop_figure(cfg, spec):
     """Close-ups for the report: a row per recording (spec["rows"]: recording, box [x0, y0, x1, y1] in the rectified
-    left image at full size, title), holding the crop of the image and then every matcher's depth of it.
-
-    The depth range of a crop is the 5th-95th percentile of every matcher's depths there, plus 10%. With
-    spec["common_scale"] every row is coloured on one range spanning all the crops, with one key down the right;
-    otherwise each row has its own range and key, which shows more of an object's few cm of relief."""
+    left image at full size, title), holding the crop of the image and then every matcher's depth of it."""
     recordings = {r["name"]: r for r in cfg["recordings"]}
     tile, gap, key_width = spec.get("tile_height", 420), 12, 170
     text = spec.get("label_scale", 0.8)
@@ -425,8 +412,7 @@ def crop_figure(cfg, spec):
                   for m in cfg["matchers"] if m in runs}
         low, high = np.percentile(np.concatenate([d[np.isfinite(d)] for d in depths.values()]), [5, 95])
         image = crop_padded(rectified_colour(rectifier, "left", pairs[name][0]), box, 128)
-        # row["rotate_cw"]: turn the whole row (image and depths) by this many degrees clockwise, a multiple of 90,
-        # so recordings filmed with the block at a different orientation line up in the figure.
+        # rotate_cw: rotate the row clockwise (multiple of 90) so the recordings line up.
         turns = -(row.get("rotate_cw", 0) // 90)
         if turns:
             image = np.ascontiguousarray(np.rot90(image, turns))
@@ -440,8 +426,7 @@ def crop_figure(cfg, spec):
     if common_scale:
         shared = (min(r[3][0] for r in rows), max(r[3][1] for r in rows))
 
-    # Names go outside the tiles, in dark text on white: column headings once along the top, row names once
-    # down the left (read bottom to top), so they never compete with the image content.
+    # Column headings along the top, row names down the left.
     ink, thick = (30, 30, 30), max(2, int(round(2.2 * text)))
 
     def caption(width, height, words, vertical=False):

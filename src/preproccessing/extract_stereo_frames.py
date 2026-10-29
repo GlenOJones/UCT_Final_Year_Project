@@ -1,48 +1,5 @@
-"""
-
-Note - this script was generated with the assistance of claude code
-It allows for a simple and standardised extraction of chosen frames fram raw YUYV recordngs.
-
-Extract timestamp-matched stereo frame pairs from raw YUYV or MJPEG .mkv recordings.
-
-A recording folder must contain left.mkv, left_timestamps.csv, right.mkv and
-right_timestamps.csv. Each right frame is paired with the left frame whose
-pts_ns is nearest; pairs further apart than --max-dt-ms are skipped with a
-warning. Output goes to <folder>/frames/{left,right}/NNNN.png (lossless, same
-name for both halves of a pair) plus <folder>/frames/pairs.csv; --out DIR
-replaces <folder>/frames with DIR.
-
-The format is detected from the files. --gray saves 8-bit grayscale luma
-instead of colour; use it for calibration and stereo matching, keep colour for
-texturing.
-    raw YUYV  colour converted by ffmpeg (BT.601, limited range); --gray is the
-              recorded Y plane byte-for-byte (levels 16-235), no conversion
-    MJPEG     frames decoded by OpenCV (libjpeg); --gray is the JPEG's luma
-              channel, full range 0-255. The camera already JPEG-compressed
-              these frames, so neither output is lossless sensor data.
-
-Usage (setup: python3 -m venv src/venv && src/venv/bin/pip install -r src/requirements.txt):
-    PY=src/venv/bin/python
-    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug all --step 20
-    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug all --start 120 --end 450
-    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/LabTesting/26Aug select --gray
-    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 select --gray --name C1
-    $PY src/preproccessing/extract_stereo_frames.py data/Calibration/18_Sep/C1 all --out data/Calibration/18_Sep/C1_frames
-
-Viewer keys (select mode, right camera with matched left alongside):
-    a/d or left/right   back/forward 1      s/w or down/up, A/D   back/forward 10
-    space               mark/unmark         enter                 save pairs
-    r                   range: press at the first frame, move, press again at the last
-                        frame to mark every frame between (unmarks them if all were marked)
-    q/esc               quit (press twice if there are unsaved changes)
-Select mode starts with nothing marked. Both modes refuse to start if the output directory
-already has frames or pairs.csv, unless --overwrite is given; saving then replaces them.
-
-Labels (select mode with --name PREFIX): marking a frame asks for a label, typed
-in the viewer (letters, digits, - _ .; enter confirms, esc cancels, empty uses
-the frame number; range marks use the frame number). The pair is saved as left/PREFIX_Left_LABEL.png and
-right/PREFIX_Right_LABEL.png, e.g. --name C1 and label 20mm give C1_Left_20mm.png.
-Without --name, files are numbered 0000.png, 0001.png, ...
+"""Note - this script was generated with the assistance of claude code It allows for a simple and standardised
+extraction of chosen frames fram raw YUYV recordngs.
 """
 import argparse
 import csv
@@ -73,13 +30,7 @@ HELP = "a/d: -1/+1   s/w: -10/+10   space: mark   r: mark range   enter: save   
 
 
 def probe(video):
-    """Return (width, height, codec, offsets, sizes) for a raw YUYV or MJPEG .mkv.
-
-    codec is "yuyv" or "mjpeg"; offsets/sizes locate each frame's data in the
-    file (the pixels for YUYV, a complete JPEG for MJPEG). ffprobe's packet pos
-    points at the Matroska block body: a track-number varint, a 2-byte timecode
-    and a flags byte come before the frame data.
-    """
+    """Return (width, height, codec, offsets, sizes) for a raw YUYV or MJPEG .mkv."""
     info = json.loads(subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0", "-of", "json",
          "-show_entries", "stream=codec_name,width,height,pix_fmt:packet=pos,size", str(video)],
@@ -160,13 +111,7 @@ def colour_frames(cam, wanted):
 
 
 def ffmpeg_frames(cam, wanted):
-    """Yield (index, BGR frame) for the wanted indices, decoded by ffmpeg.
-
-    ffmpeg applies the stream's colour tags (BT.601, limited range) and
-    interpolates the half-width chroma, so this is the path for saved frames.
-    -nostdin stops ffmpeg putting the terminal in raw mode, which it would
-    never undo when killed early below.
-    """
+    """Yield (index, BGR frame) for the wanted indices, decoded by ffmpeg."""
     w, h, wanted = cam["w"], cam["h"], set(wanted)
     cmd = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(cam["video"]), "-map", "0:v:0",
            "-fps_mode", "passthrough", "-vf", "scale=flags=accurate_rnd+full_chroma_int",
@@ -204,10 +149,7 @@ def file_name(k, cam, prefix, label):
 
 
 def write_pairs(rec, pairs, out, gray=False, prefix=None, labels=None):
-    """Replace frames/ output with lossless PNG pairs plus pairs.csv.
-
-    labels maps right frame index -> label; files are named by file_name().
-    """
+    """Replace frames/ output with lossless PNG pairs plus pairs.csv."""
     labels = labels or {}
     frames = luma_frames if gray else colour_frames
     with ThreadPoolExecutor(8) as pool:
@@ -248,11 +190,7 @@ def put_text(img, lines, x, y, color=WHITE):
 
 
 def render(rec, i, marks, max_dt_ms, screen, status, typing=None):
-    """Matched left | right frame i, scaled to fit the screen, with overlay.
-
-    marks maps marked right indices to their label (None without --name);
-    typing is the label being entered, or None.
-    """
+    """Matched left | right frame i, scaled to fit the screen, with overlay."""
     _, l, dt = match_left(rec, [i])[0]
     ok, marked, pts = abs(dt) <= max_dt_ms, i in marks, rec["right"]["pts"]
     left = read_frame(rec["left"], l) // (1 if ok else 3)  # dim a rejected match
@@ -285,10 +223,7 @@ def window_open(win):
 
 
 def run_select(rec, out, max_dt_ms, screen, gray, prefix=None):
-    """Interactive viewer on the right camera; Enter saves the marked pairs.
-
-    With a prefix, marking a frame first asks for its label (typed in the window).
-    """
+    """Interactive viewer on the right camera; Enter saves the marked pairs."""
     n, win = len(rec["right"]["pts"]), "stereo frame select"
     i, marks, saved, status, armed, typing, range_start = 0, {}, {}, "", False, None, None
     cv2.namedWindow(win, cv2.WINDOW_AUTOSIZE | cv2.WINDOW_GUI_NORMAL)

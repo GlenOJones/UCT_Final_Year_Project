@@ -1,37 +1,9 @@
 """Fuse posed depth frames into one surface with a TSDF (truncated signed distance function).
 
-The standard way to fuse depth maps (Curless & Levoy 1996; KinectFusion, Newcombe et al. 2011): every
-voxel near a measured surface keeps a running average of its signed distance to that surface along
-the camera ray, truncated to +-trunc, and the fused surface is where the average crosses zero. Unlike
-voxel voting (dense_stereo.py) it averages frames that disagree into one surface instead of stacking
-them, and a voxel one frame saw as surface and others saw through (free space in front of their
-surface) is averaged away, which is what removes floaters. Unlike median_fuse.py it is not limited to a
-height field over the board, so walls and overhangs survive.
-
-Input is depth_frames.py's output (points in each frame's left camera frame) and any trajectory file
-pose_files.read_trajectory() reads: tag_poses.py's (board frame), colmap_poses.py's or icp_poses.py's
-(their own world frame). Frames with no pose (lost) are skipped. TSDF integration needs a depth IMAGE
-per frame, so each frame's points are first rendered into one with a virtual pinhole camera at the
-left camera's centre, nearest point per pixel, its pixel --pixel-mm wide at the frame's near depth (2nd
-percentile), so the 1 mm points leave no holes. Integration is Open3D's voxel-block TSDF on the CPU,
-uniform weights (one per frame).
-
     src/venv/bin/python src/03_Reconstruction/tsdf_fuse.py \
         --depth-dir work/experiments/pose_comparison/ice_pyramid_shade_pyr1_pass4/depth/foundationstereo \
         --poses results/experiments/pose_comparison/ice_pyramid_shade_pyr1_pass4/tag_poses.yaml \
         --out-dir work/experiments/fusion/ice_shade/tags_tsdf
-
-Writes <out-dir>/cloud.ply (points on the zero crossing, with normals: the cloud to compare with the other
-fusion methods' clouds), with --mesh also mesh.ply (the zero crossing triangulated), both in the poses'
-frame and coloured by grey, and tsdf_fuse.json.
-
-Open3D 0.20's mesh extraction overflows a 32-bit index once the grid holds more than 2^31/16 (~134 M)
-voxels and segfaults (found on the shade ice pass: fine at 122.6 M voxels, crash at 135.0 M, faulting
-voxel index x 16 just past 2^31). Point-cloud extraction is not affected. Storage is allocated a whole
-block at a time, so small blocks (--block-resolution 4) keep the grid far below the limit: the shade pass
-at 1 mm is 65 M voxels, 3.5 GB, 11 s with 4-voxel blocks, against 178 M voxels and ~10 GB with 8-voxel
-blocks. Above the limit --mesh is skipped with a message instead of crashing. Block size barely changes
-the fused surface (on the shade pyramid: median 0.2 mm apart, peak 1 mm apart, 4- vs 8-voxel blocks).
 """
 import argparse
 import datetime
@@ -65,18 +37,17 @@ def parse_args(argv=None):
                          "point spacing (depth_frames.py --voxel) so the rendering has no holes (default 1.2)")
     ap.add_argument("--depth-min", type=float, default=0.0, help="mm, ignore frame points nearer than this camera z")
     ap.add_argument("--depth-max", type=float, default=1e5, help="mm, ignore frame points further than this camera z")
-    ap.add_argument("--mesh", action="store_true", help="also extract and write the triangle mesh (see above)")
+    ap.add_argument("--mesh", action="store_true", help="also extract and write the triangle mesh")
     ap.add_argument("--block-resolution", type=int, default=4,
-                    help="voxels along a block's edge; storage is allocated a whole block at a time, so small "
-                         "blocks waste less memory on thin surfaces (default 4; see above)")
+                    help="voxels along a block's edge; small blocks use less memory (default 4)")
     ap.add_argument("--block-count", type=int, default=20000,
                     help="initial number of blocks allocated (grows if needed; default 20000)")
     return ap.parse_args(argv)
 
 
 def render_depth(xyz, grey, pixel_mm):
-    """A depth image (mm, float32, 0 = empty), grey image and pinhole intrinsics (3x3) holding xyz,
-    seen from the camera centre: nearest point per pixel, each pixel pixel_mm wide at the near depth."""
+    """A depth image (mm, float32, 0 = empty), grey image and pinhole intrinsics (3x3) holding xyz, seen from the camera
+    centre: nearest point per pixel, each pixel pixel_mm wide at the near depth."""
     z = xyz[:, 2]
     focal = np.percentile(z, 2) / pixel_mm
     u, v = focal * xyz[:, 0] / z, focal * xyz[:, 1] / z

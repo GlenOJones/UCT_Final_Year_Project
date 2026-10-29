@@ -1,32 +1,4 @@
-"""Check a folder of frames for blur, by the variance of the Laplacian.
-
-The Laplacian is a second-derivative filter, so it responds to whatever changes quickly in the
-image. A sharp frame is full of hard edges and its Laplacian swings widely, giving a large variance;
-blur smooths those edges away and the variance collapses. Frames scoring below the threshold are
-called blurry.
-
-Noise is reported alongside, because it works against the score: sensor noise is high-frequency too,
-so it also makes the Laplacian swing and can lift the score of a frame that is genuinely soft. The
-estimate is Immerkaer's, from a 3x3 second-derivative kernel, measured over the flat parts of the
-image only - the strongest 10% of Sobel gradients are masked out so that the board's own edges are
-not counted as noise. Read it as a sanity check: a frame with high noise and a middling score is
-softer than its score suggests.
-
-The score is not absolute, so neither is the threshold. It measures how much fine detail is in the
-frame, and DISTANCE changes that as much as focus does: on the 18 Sep set, C90_Left_50 (board close,
-filling the frame) scores 41.8 while C90_Left_140 (board small and distant) scores 7.8, at the same
-focus on the same camera. Across all of Rigframes the scores run 7 to 88 with a median of 12.7, so
-the default of 100 - a number that suits a webcam photo - calls every frame blurry. Run this once on
-a set you know is good, look at the spread, and set --threshold from that.
-
-The input images are only ever read.
-
-Usage (sub-folders are included, so a whole recording works too):
-    src/venv/bin/python src/preproccessing/blur_check.py data/Calibration/18_Sep/Rigframes/90
-    src/venv/bin/python src/preproccessing/blur_check.py data/Calibration/18_Sep/Rigframes --threshold 30
-
-Tests: src/venv/bin/python -m unittest discover -s src/preproccessing
-"""
+"""Check a folder of frames for blur, by the variance of the Laplacian."""
 import argparse
 from pathlib import Path
 
@@ -38,8 +10,7 @@ EDGE_PERCENTILE = 90        # gradients above this are real edges, excluded from
 IMAGE_TYPES = (".png", ".jpg", ".jpeg")
 MAX_NAMES_LISTED = 12       # a whole recording flags hundreds; listing them all scrolls the table away
 
-# Immerkaer's 3x3 second-derivative kernel. Convolving with it cancels any locally linear ramp in
-# intensity, so what is left over a flat patch of image is the noise on its own.
+# Immerkaer's 3x3 second-derivative kernel.
 IMMERKAER_KERNEL = np.array([
     [1, -2, 1],
     [-2, 4, -2],
@@ -54,11 +25,7 @@ def blur_score(gray):
 
 
 def noise_sigma(gray):
-    """Immerkaer's estimate of the noise standard deviation, in grey levels.
-
-    Measured only where the image is flat. Without that the board's own edges would be counted as
-    noise, and the answer would say more about the scene than about the sensor.
-    """
+    """Immerkaer's estimate of the noise standard deviation, in grey levels."""
     image = gray.astype(np.float64)
 
     # Step 1: find the edges, using the first-order (Sobel) gradient.
@@ -66,15 +33,11 @@ def noise_sigma(gray):
     gradient_y = cv2.Sobel(image, cv2.CV_64F, 0, 1)
     gradient_magnitude = np.hypot(gradient_x, gradient_y)
 
-    # Step 2: keep the flat pixels, which is everything below the 90th percentile of that gradient.
-    # The comparison is "<=" rather than "<": on an image with large perfectly flat areas the
-    # percentile is itself 0, and "< 0" would select no pixels at all and leave nothing to average.
+    # Step 2: keep the flat pixels, below the 90th percentile (<= so all-flat images still work).
     edge_threshold = np.percentile(gradient_magnitude, EDGE_PERCENTILE)
     is_flat = gradient_magnitude <= edge_threshold
 
-    # Step 3: average the second-derivative response over those flat pixels. The constants are
-    # Immerkaer's: 6 is the kernel's norm and sqrt(pi/2) converts a mean absolute value to a
-    # standard deviation, assuming the noise is Gaussian.
+    # Step 3: mean response over the flat pixels (Immerkaer's constants).
     response = np.abs(cv2.filter2D(image, -1, IMMERKAER_KERNEL))
     mean_response = response[is_flat].mean()
     return np.sqrt(np.pi / 2) * mean_response / 6
@@ -92,7 +55,7 @@ def find_images(folder):
 
 
 def measure(folder):
-    """Score every image under folder. Returns a list of {name, score, noise}. Read only."""
+    """Score every image under folder."""
     results = []
     for path in find_images(folder):
         gray = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
@@ -137,7 +100,7 @@ def print_summary(results, threshold):
 
 
 def report(folder, results, threshold):
-    """Print the table and the summary. Returns the names called blurry."""
+    """Print the table and the summary."""
     print(f"\n{len(results)} images in {folder}, blurry below a score of {threshold:g}")
     print_table(results, threshold)
     return print_summary(results, threshold)
@@ -149,7 +112,7 @@ def main():
     parser.add_argument("folder", help="folder of frames to check (sub-folders included; read only)")
     parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
                         help=f"blurry below this variance of the Laplacian "
-                             f"(default {DEFAULT_THRESHOLD:g}, but see the notes above)")
+                             f"(default {DEFAULT_THRESHOLD:g})")
     args = parser.parse_args()
 
     results = measure(args.folder)

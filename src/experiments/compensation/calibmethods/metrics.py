@@ -1,10 +1,5 @@
-"""Error metrics computed from reprojection residuals. Pure NumPy, no OpenCV, so each can be tested on
-synthetic residuals with known errors (tests/test_metrics.py).
-
-Every function takes plain arrays, one entry per image point:
-    du, dv   residual = observed - reprojected, px
-    r        radius from the principal point, normalised so the farthest image corner is 1 (see
-             normalised_radius); zones and radial bins are defined on this scale
+"""Error metrics computed from reprojection residuals. Pure NumPy, no OpenCV, so each can be tested on synthetic
+residuals with known errors (tests/test_metrics.py).
 """
 import numpy as np
 
@@ -20,12 +15,8 @@ def rms(du, dv):
 
 
 def normalised_radius(u, v, principal_point, image_size):
-    """Distance of each point from the principal point, divided by the distance from the principal point
-    to the farthest image corner, so 0 is the principal point and 1 the farthest corner of the frame.
-
-    Normalising to the frame rather than to pixels makes the zone radii mean the same thing for every
-    model (their principal points differ by a pixel or two) and for any resolution.
-    """
+    """Distance of each point from the principal point, divided by the distance from the principal point to the farthest
+    image corner, so 0 is the principal point and 1 the farthest corner of the frame."""
     cx, cy = principal_point
     w, h = image_size
     r_max = max(np.hypot(x - cx, y - cy) for x in (0, w) for y in (0, h))
@@ -45,8 +36,7 @@ def zone_of(r, radii):
 
 
 def zone_rms(du, dv, r, radii):
-    """{"centre"|"mid"|"outer": {"rms", "n"}} plus "outer_to_centre" and "mid_to_centre" ratios.
-    A zone without points has rms nan, and any ratio involving it is nan."""
+    """{"centre"|"mid"|"outer": {"rms", "n"}} plus "outer_to_centre" and "mid_to_centre" ratios."""
     du, dv = np.asarray(du, float), np.asarray(dv, float)
     zone = zone_of(r, radii)
     out = {}
@@ -61,8 +51,7 @@ def zone_rms(du, dv, r, radii):
 
 # ====== BINNED PROFILES ======
 def binned_rms(x, du, dv, edges, min_count=1):
-    """RMS residual in each bin of x (radius, distance, ...): (centres, rms, n). Bins with fewer than
-    min_count points get rms nan, so a profile is never drawn through a handful of points."""
+    """RMS residual in each bin of x (radius, distance, ...): (centres, rms, n)."""
     x = np.asarray(x, float)
     e2 = np.asarray(du, float) ** 2 + np.asarray(dv, float) ** 2
     edges = np.asarray(edges, float)
@@ -78,15 +67,7 @@ def binned_rms(x, du, dv, edges, min_count=1):
 
 # ====== IMAGE GRID ======
 def grid_stats(u, v, du, dv, image_size, cells, min_count=5):
-    """Residuals gathered into a cells[0] x cells[1] (across x down) grid over the image.
-
-    Returns a dict of (rows, cols) arrays:
-        mean_error  mean residual LENGTH in the cell, px (what the heatmap colours)
-        mean_du/dv  mean residual VECTOR, px (what the arrows show: systematic, not random, error)
-        n           points in the cell
-        valid       n >= min_count; the other cells are greyed out rather than coloured by a few points
-    Points outside the image are ignored.
-    """
+    """Residuals gathered into a cells[0] x cells[1] (across x down) grid over the image."""
     nx, ny = cells
     w, h = image_size
     u, v = np.asarray(u, float), np.asarray(v, float)

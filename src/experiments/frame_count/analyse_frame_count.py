@@ -1,29 +1,6 @@
 """Analysis of the frame-count sweep: reads what run_frame_count.py saved and scores every subset.
 
-Per step (every N'th frame) and depth source:
-    poses        frames SfM posed, ATE / RPE against the AprilGrid tag poses (evaluate_poses.evaluate)
-    coverage     share of the ice region's 1 mm cells (board frame, seen from the camera side) with a point
-    cloud-to-cloud  against the same source's all-frames cloud, inside the region: accuracy = share of the subset's
-                 points within each threshold of the reference; completeness = share of the reference's points
-                 within it of the subset
-                 (the subset's cloud first aligned onto the reference by a short rigid ICP, since its own SfM poses
-                 place it a few mm from the all-frames run's; the unaligned completeness is kept too)
-    cost         wall time and peak RAM / GPU memory of each stage. SfM and TSDF are measured per subset; depth is
-                 made once on every frame, so a subset's depth time is the matcher's start-up (the run's wall time
-                 less its frames' times) plus its own frames' times, and its peak memory is the full run's.
-
     src/venv/bin/python src/experiments/frame_count/analyse_frame_count.py [--config ...]
-
-Writes, under results/<out_dir>/<recording>/:
-    summary.csv / summary.md      every measure, one row per step and source
-    stage_costs.md                time and peak compute per stage and step
-    table_frame_count.tex         the report table (LaTeX)
-    quality_vs_frames.png         registration, ATE, coverage and completeness against frames used
-    pose_vs_frames.png            the SfM poses alone: frames posed, ATE median / p95 / max
-    time_vs_frames.png            time per stage against frames used, one panel per depth source
-    memory_by_stage.png           peak RAM and GPU memory of each stage against frames used
-    oblique_by_frames.png         each subset's cloud from the same oblique view (oblique_view.py's renderer), for
-                                  the depth sources in figures.oblique_sources
 """
 import argparse
 import csv
@@ -96,9 +73,9 @@ def coverage(xyz, region, cell):
 
 
 def align_to(a, b, max_distance):
-    """a moved onto b by point-to-point ICP (rigid, from identity): each subset's cloud is placed in the board frame
-    by its own SfM poses, which differ from the all-frames run's by a few mm, and that offset would otherwise be
-    counted as missing surface. Returns (moved a, ICP fitness, translation applied in mm)."""
+    """a moved onto b by point-to-point ICP (rigid, from identity): each subset's cloud is placed in the board frame by
+    its own SfM poses, which differ from the all-frames run's by a few mm, and that offset would otherwise be counted as
+    missing surface."""
     pa, pb = o3d.geometry.PointCloud(), o3d.geometry.PointCloud()
     pa.points, pb.points = o3d.utility.Vector3dVector(a), o3d.utility.Vector3dVector(b)
     result = o3d.pipelines.registration.registration_icp(
@@ -116,12 +93,7 @@ def nearest(a, b):
 
 
 def clean_reference(reference, window, limit):
-    """The tag poses without the frames whose camera centre lies more than limit mm from where its neighbours put
-    it. Each tag-posed frame within window frames either side predicts the centre as its own centre plus the pass's
-    median velocity per frame times the frame gap; the median of those predictions is compared with the frame's
-    centre. The rig moves ~7-10 mm per frame along a near-straight pass, so the prediction holds at the ends of the
-    pass too; a tag pose far from it (seen on the overhang: ~250 mm jumps between consecutive frames) is a wrong
-    tag fit, not camera motion. Returns (cleaned reference, dropped frame names)."""
+    """The tag poses without the frames whose camera centre lies more than limit mm from where its neighbours put it."""
     names = sorted(reference)
     index = {n: int(os.path.splitext(n)[0]) for n in names}
     centre = {n: np.linalg.inv(reference[n])[:3, 3] for n in names}
@@ -403,8 +375,8 @@ def memory_figure(cfg, p, rows):
 
 def oblique_images(cfg, p, steps, sources, azimuth=225.0, elevation=30.0, pixel_mm=0.6, splat=1):
     """({(step, source): rendered image or None}, (low, high)): every subset's cloud over the ice region from one
-    oblique view (oblique_view.render), with one colour range and extent for all, both set from the first step's
-    clouds (heights 10th-99.5th percentile, as oblique_view.py)."""
+    oblique view (oblique_view.render), with one colour range and extent for all, both set from the first step's clouds
+    (heights 10th-99.5th percentile, as oblique_view.py)."""
     ev = cfg["evaluation"]
     side = compare_fusion.camera_side(p)
     clouds = {(n, s): region_cloud(os.path.join(p["step_work"](n), f"tsdf_{s}", "cloud_board.ply"), ev["region"], side)
@@ -421,9 +393,7 @@ def oblique_images(cfg, p, steps, sources, azimuth=225.0, elevation=30.0, pixel_
             continue
         colours = cmap(np.clip((xyz[:, 2] - low) / (high - low), 0, 1))[:, :3] * oblique_view.shading(xyz)[:, None]
         images[key], _ = oblique_view.render(xyz, colours, azimuth, elevation, pixel_mm, splat, extent)
-    # One crop for all of them, to the rows and columns any image draws on (plus a small margin): the extent comes
-    # from the first step's points before the far-below cut above, so it leaves white space; a shared crop keeps
-    # every panel at the same scale.
+    # One shared crop so every panel has the same scale.
     drawn = [np.any(im < 1, axis=2) for im in images.values() if im is not None]
     if drawn:
         mask = np.logical_or.reduce(drawn)

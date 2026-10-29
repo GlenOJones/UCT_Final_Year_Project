@@ -12,19 +12,6 @@
     src/venv/bin/python src/experiments/reproduce.py fusion_ice        # the same on the ice pyramid, cubes, wave
     src/venv/bin/python src/experiments/reproduce.py frame_count       # frames needed: whole pipeline per subset
     src/venv/bin/python src/experiments/reproduce.py all
-
-Each experiment's settings are in src/experiments/<experiment>/config.json and its results go to
-results/experiments/<experiment>/, with a manifest.json saying what they were made from. The steps of each
-experiment are the functions below, in order: the pipeline runs first (ordinary Calibration.py runs, every
-setting stated in the config), then the analyses and figures, which only read what those runs saved.
-
-The run refuses to start while src/ has uncommitted changes, because the results could then not be traced
-to a commit. --allow-dirty overrides that for trial runs; the manifest records the changes.
-
-Options:
-    --config PATH      another config for a single experiment (e.g. channels/variants/wide.json)
-    --skip-existing    keep pipeline runs (and the sweep's evaluation cache) that already exist
-    --allow-dirty      run even though src/ has uncommitted changes
 """
 import argparse
 import os
@@ -116,8 +103,8 @@ def detector_sweep(config, skip_existing):
 
 # ====== EXPERIMENT 3: UNDERWATER CALIBRATION METHODS ======
 def compensation(config, skip_existing):
-    """The Calibration.py runs the comparison reads, then the held-out comparison for each config, then the
-    methods report (PDF) for each config that asks for one."""
+    """The Calibration.py runs the comparison reads, then the held-out comparison for each config, then the methods
+    report (PDF) for each config that asks for one."""
     import make_report
     import run_comparison
 
@@ -152,8 +139,8 @@ def compensation(config, skip_existing):
 
 # ====== EXPERIMENT 4: MARKERLESS POSE ESTIMATION ======
 def pose_estimation(config, skip_existing):
-    """Reference tag poses, tag masks, per-frame depth and every markerless estimator (run_poses.py), then their
-    scores against the tag poses (evaluate_poses.py)."""
+    """Reference tag poses, tag masks, per-frame depth and every markerless estimator (run_poses.py), then their scores
+    against the tag poses (evaluate_poses.py)."""
     import evaluate_poses
     import run_poses
 
@@ -180,9 +167,9 @@ def depth_matchers(config, skip_existing):
 
 
 def pose_comparison(config, skip_existing):
-    """Experiment 4 on the depth-test recordings, one mode per method (pose_estimation/config_comparison.json):
-    the pipeline runs (run_poses.py), grip and detection images (detection_figures.py), then the table
-    (compare_poses.py)."""
+    """Experiment 4 on the depth-test recordings, one mode per method (pose_estimation/config_comparison.json): the
+    pipeline runs (run_poses.py), grip and detection images (detection_figures.py), then the table (compare_poses.py).
+    """
     import compare_poses
     import detection_figures
     import run_poses
@@ -198,8 +185,7 @@ def pose_comparison(config, skip_existing):
 
 def pose_ice(config, skip_existing):
     """Pose estimation on the two ice passes (pose_estimation/config_ice.json): AprilGrid, COLMAP, ICP on
-    FoundationStereo and on AquaStereo depth, with restarts of failed runs on the sun pass. The restart rule's
-    unit tests run first, so a broken rule stops the run before any compute."""
+    FoundationStereo and on AquaStereo depth, with restarts of failed runs on the sun pass."""
     import unittest
     import compare_poses
     import detection_figures
@@ -218,9 +204,9 @@ def pose_ice(config, skip_existing):
 
 
 def fusion(config, skip_existing):
-    """Fusion comparison on S30 (fusion/config.json): full COLMAP against TSDF on FoundationStereo and on SGBM
-    depth, all at the COLMAP poses and on the pose comparison's inputs (run_fusion.py), then CAD scores and
-    figures (compare_fusion.py). Needs pose_comparison's outputs."""
+    """Fusion comparison on S30 (fusion/config.json): full COLMAP against TSDF on FoundationStereo and on SGBM depth,
+    all at the COLMAP poses and on the pose comparison's inputs (run_fusion.py), then CAD scores and figures
+    (compare_fusion.py)."""
     import compare_fusion
     import run_fusion
 
@@ -239,10 +225,7 @@ FUSION_ICE_CONFIGS = ("config_pyramid_shade.json", "config_cubes.json", "config_
 
 
 def fusion_ice(config, skip_existing):
-    """The fusion comparison on four ice passes (pyramid, cubes, wave, overhang; shade). Inputs: the pyramid's come from
-    pose_comparison; the cubes' and wave's are made here by the same pipeline runs (run_poses.py,
-    pose_estimation/config_fusion_inputs.json). Then, per pass, run_fusion.py and compare_fusion.py (top-down
-    view; coverage once the pass's evaluation.region is set). --config runs one pass's fusion config only."""
+    """The fusion comparison on four ice passes (pyramid, cubes, wave, overhang; shade)."""
     import compare_fusion
     import run_fusion
     import run_poses
@@ -268,10 +251,9 @@ FRAME_COUNT_CONFIGS = ("config.json", "config_cubes.json", "config_wave.json", "
 
 def frame_count(config, skip_existing):
     """Frame-count sweep on the four shaded ice objects (frame_count/config*.json): the whole chosen pipeline (COLMAP
-    SfM, FoundationStereo and tuned-SGBM depth, TSDF) on every N'th frame, each stage's time and peak compute
-    recorded (run_frame_count.py); per object, poses, coverage and cloud-to-cloud scored (analyse_frame_count.py);
-    then the average over the objects (aggregate_frame_count.py). Needs the tag masks and reference poses of
-    pose_comparison (pyramid) and fusion_ice (cubes, wave, overhang). --config runs one object only."""
+    SfM, FoundationStereo and tuned-SGBM depth, TSDF) on every N'th frame, each stage's time and peak compute recorded
+    (run_frame_count.py); per object, poses, coverage and cloud-to-cloud scored (analyse_frame_count.py); then the
+    average over the objects (aggregate_frame_count.py)."""
     import aggregate_frame_count
     import analyse_frame_count
     import run_frame_count

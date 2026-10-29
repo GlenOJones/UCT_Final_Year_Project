@@ -1,25 +1,9 @@
 """Per-frame depth of a scan in each frame's own LEFT CAMERA frame, without any poses.
 
-dense_stereo.py needs a pose for every frame before it matches: the tag poses crop each frame to a box
-around the board and set SGBM's search range. A scan with no tags (ice) has no poses until they are
-estimated from the images themselves, and icp_poses.py estimates them from exactly this depth. So
-here every --step'th frame pair is matched on its own, with the same rectification and matchers as
-dense_stereo.py, and the only limits are camera-frame ones:
-
-  - depth (camera z) between --depth-min and --depth-max, which also sets SGBM's disparity range;
-  - optionally --masks: pixels to ignore, as images <masks>/left/<frame name> (0 = ignore), in the
-    original (unrectified) left image. The pose experiment masks the reference tags this way, so the
-    markerless estimators cannot lean on texture that ice will not have.
-
     src/venv/bin/python src/03_Reconstruction/depth_frames.py --frames-dir data/3DRecon/3DPrintFinal/30_frames_range \
         --calibration results/Calibration/calibration/FullCalibration_water_final_merge_stereo.yaml \
         --out-dir work/3DPrintFinal/s30_range/depth/sgbm --step 5 --depth-min 250 --depth-max 600
     envs/ffs/bin/python src/03_Reconstruction/depth_frames.py ... --matcher foundationstereo --net-scale 0.5 --lr-tolerance 3
-
-Writes <out-dir>/frames/<frame>.npz (xyz: float32 points in the left camera frame, mm, one per --voxel
-cube, the mean of the pixels in it; grey: uint8) and <out-dir>/depth_frames.json (settings, and per frame
-the matching time, the pixels with depth and the points kept). --save-disparity also keeps each frame's
-disparity map.
 """
 import argparse
 import datetime
@@ -76,10 +60,7 @@ def voxel_means(xyz, grey, voxel):
 
 
 def frame_points(rectifier, network, left_path, right_path, mask, args, search):
-    """Left-camera-frame points and grey of one pair, within the depth limits and outside the mask.
-
-    Also returns the disparity (px, 0 where no point was kept) and the seconds the matcher alone took.
-    """
+    """Left-camera-frame points and grey of one pair, within the depth limits and outside the mask."""
     left, right = rectifier.rectify("left", left_path), rectifier.rectify("right", right_path)
     minimum, count = search
     start = time.perf_counter()

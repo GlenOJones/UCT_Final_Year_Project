@@ -1,32 +1,4 @@
-"""Stereo camera calibration from Kalibr AprilGrid (36h11) frames.
-
-Detects the board in every extracted frame pair, refines the corners to sub-pixel accuracy, and fits
-a pinhole-plus-distortion model for each camera. The result is written as a commented YAML file that
-is readable both by a person and by cv2.FileStorage.
-
-THE STANDARD PIPELINE is this script at its defaults: preset water_final (detector_presets.json "default"),
-channel merge, outlier rejection on. Experiments in src/experiments/ never rely on these defaults: each states
-every setting in its own config, so changing a default here does not change any experiment's result.
-
-Paths resolve from this file, so it can be run from any working directory:
-    src/venv/bin/python src/01_Calibration/Calibration.py --frames-dir data/Calibration/FinalComparison/Water
-    src/venv/bin/python src/01_Calibration/Calibration.py --preset opencv_default --channel gray --no-reject
-    src/venv/bin/python src/01_Calibration/Calibration.py --detector uwaruco --preset scaled
-
-Two detectors can be put in front of the calibration. --detector aruco (the default) is OpenCV's
-ArucoDetector, tuned by a preset from detector_presets.json, which detector_config.py checks on
-load. --detector uwaruco is the re-implementation of the underwater detector of Cejka et al. 2019
-in src/archive/UWARUco, tuned by a preset from src/archive/UWARUco/uwaruco_presets.json. Either way the detector,
-the preset name and its full settings are recorded in the output, so a run can be reproduced from
-the YAML alone, and compare_calibrations.py reads those outputs to compare runs.
-
-Each camera is calibrated on every image it could use, then the rotation and baseline between
-them are fitted with the intrinsics held fixed, on the frame pairs where both cameras saw enough of
-the same tags. The rectification transforms are saved alongside, so 03_Reconstruction can rectify
-and triangulate from this file alone.
-
-See docs/calibration_improvement_notes.md for notes on improving the quality of the result.
-"""
+"""Stereo camera calibration from Kalibr AprilGrid (36h11) frames."""
 import argparse
 import contextlib
 import datetime
@@ -43,14 +15,12 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from detector_config import parameters, validate  # noqa: E402
 
-# Paths are relative to the project root, resolved from this file
-# (src/01_Calibration/Calibration.py -> parents: 01_Calibration, src, project root).
+# Paths are relative to the project root.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ====== BOARD GEOMETRY ======
-# Board config used: kalibr_create_target_pdf --type apriltag --nx 10 --ny 7 --tsize 0.050 --tspace 0.3
-# TAG_SIZE should be MEASURED on the print with callipers, not taken from the PDF: printers scale,
-# and a 1% size error goes straight into the baseline and every reconstructed distance.
+# Board: kalibr_create_target_pdf --type apriltag --nx 10 --ny 7 --tsize 0.050 --tspace 0.3
+# TAG_SIZE is measured on the print, not taken from the PDF.
 TAG_SIZE =  35.355339           # mm, edge of the outer black square as printed
 TAG_GAP = TAG_SIZE * 0.3    # mm, white gap between tags
 PITCH = TAG_SIZE + TAG_GAP  # mm, centre to centre
@@ -58,47 +28,18 @@ N_TAGS = 70                 # 10 across x 7 up, ids 0..69
 
 CAMERAS = ("left", "right")
 
-# Corner refinement. On the 18 Sep underwater frames the built-in options were poor:
-#   CORNER_REFINE_APRILTAG  accurate corners (~0.3 px) but drops ~75% of the tags
-#   CORNER_REFINE_SUBPIX    keeps the tags but corners are off by ~1.5 px (OpenCV 5.0.0)
-# Calling cv2.cornerSubPix directly keeps every tag and gives ~0.3 px corners, so the detector's own
-# refinement is left off (forced in Presets.make_detector).
-#
-# The search window scales with each tag instead of being fixed. Every tag corner of the AprilGrid
-# touches a small black square, so the true corner is an X-junction, and the detector's starting point
-# sits a few px inside the tag - further for large, soft tags close to the camera. The window must:
-#   - reach from that starting point to the junction, or cornerSubPix sees only flat dark pixels and
-#     stays put. A fixed 5 px half-window left 40-60 cm frames 4-6 px off, pulled into the tag;
-#   - stay inside the white gap (TAG_GAP = 30% of the tag side), or it also sees the far corner of the
-#     small square and is pulled towards it. With 5 px this broke the 20-25 px tags at 1-1.3 m in air.
-# 15% of the tag side does both: 0.22-0.30 px at every distance from 0.2 to 1.3 m, in air (5 Oct) and in
-# water (30 Sep), against 1.5-2.2 px with 5 px. 20% was marginal and 25% failed (it reaches the square).
+# Corners are refined with cv2.cornerSubPix (detector refinement off), window 15% of the tag side.
 SUBPIX_WIN_FRACTION = 0.15   # half-size of the search window, as a fraction of the tag side
 SUBPIX_WIN_MIN = 2           # px, floor for very small tags
 SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
 
 
 # ====== IMAGE CHANNEL ======
-# Which single-channel image the detector and cornerSubPix work on. Frames are saved in colour and this
-# picks what is made of them, so comparing channels is a set of ordinary calibration runs.
-#   gray     cv2.cvtColor BGR2GRAY (0.299R + 0.587G + 0.114B) of the colour PNG; on a grayscale PNG
-#            this is the file itself, so runs made before colour frames existed are unchanged
-#   y        the camera's own JPEG luma, read from the gray/ copy that extract_stereo_frames.py --gray
-#            writes beside left/ and right/: <recording>/gray/<camera>/<file>
-#   r, g, b  one colour channel. Water absorbs red first, so r should fade fastest with range.
-#   merge    detect separately in each of MERGE_ORDER and keep every board tag any of them found (see
-#            merge_detections). The channels find different tags in the same image: on the 30 Sep water
-#            set with the wide preset, gray+R+G+B together held 13.8% more tags than gray alone, their
-#            extra corners reprojecting at a median 0.25 px (gray's own: 0.19 px). Y is left out: it is
-#            gray up to rounding for MJPEG, and merging the two added 2 tags in 7623. The channels are
-#            used to find tags only: all corners are refined on the gray image (see detect_tags).
+# Channel the detector works on: gray, y, r, g, b, or merge (detect in each, keep every tag found).
 CHANNELS = ("gray", "y", "r", "g", "b", "merge")
-# Merge priority: a tag found in several channels takes its corners from the first of these that found
-# it. Gray first, then the single channels in the order they did on their own (recall g > r > b).
+# A tag found in several channels takes its corners from the first of these.
 MERGE_ORDER = ("gray", "g", "r", "b")
-# px. A tag found in several channels whose corners disagree by more than this in any corner is
-# dropped: the same tag seen twice should land within a fraction of a pixel, so a larger gap means
-# one channel misread the id or misplaced the tag.
+# px. A tag whose corners disagree by more than this between channels is dropped.
 MERGE_TOLERANCE_PX = 1.0
 
 
@@ -111,23 +52,14 @@ PRESETS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "detecto
 
 @dataclass
 class Presets:
-    """The validated contents of detector_presets.json.
-
-    Tuning lives in JSON so that changing it is a data change rather than a code change. Structure
-    and key names are checked by detector_config.validate() when the file is read, so everything
-    here can assume the presets are usable.
-    """
+    """The validated contents of detector_presets.json."""
     path: str
     default: str
     board_params: dict
     presets: dict
 
     def settings(self, preset):
-        """Detector parameters for one preset: board_params overlaid with the preset's own tuning.
-
-        board_params describe the printed target rather than the tuning, so merging them in under
-        every preset means a preset cannot silently drop a setting the board requires.
-        """
+        """Detector parameters for one preset: board_params overlaid with the preset's own tuning."""
         if preset not in self.presets:
             raise SystemExit(f"unknown preset {preset!r}; {self.path} defines: {', '.join(self.presets)}")
         return {**self.board_params, **self.presets[preset]}
@@ -139,9 +71,7 @@ class Presets:
     def make_detector(self, preset):
         """ArucoDetector for this board, configured from one preset."""
         params = cv2.aruco.DetectorParameters()
-        # Set before the preset is applied so that no preset can turn it back on: corners are
-        # refined afterwards by refine_corners() on the original image, and enabling both would
-        # refine twice, each pass moving the corners again.
+        # Corners are refined later by refine_corners(), so the detector's own refinement stays off.
         params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_NONE
         for key, value in self.settings(preset).items():
             setattr(params, key, value)
@@ -159,19 +89,12 @@ def load_presets():
 
 
 # ====== DETECTOR REGISTRY ======
-# Two detectors can be put in front of the same calibration: OpenCV's ArucoDetector, and the
-# re-implementation of Cejka et al.'s underwater ARUco in src/archive/UWARUco. They are swapped here rather
-# than compared in a script of their own, so that what gets compared is two real calibrations of the
-# same frames and not two tag counts from a program that only resembles this one.
-#
-# Each entry answers three questions: which preset to use when none is named, what the settings were
-# (recorded in the YAML), and how to build the detector. Anything with a detectMarkers(gray) that
-# returns (corners, ids, rejected) fits here.
+# OpenCV's ArucoDetector, or UWARUco (Cejka et al. 2019).
 UWARUCO_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "archive", "UWARUco")
 
 
 def uwaruco_module():
-    """Import src/archive/UWARUco/uwaruco.py. Imported on use so that ArUco runs do not depend on it."""
+    """Import src/archive/UWARUco/uwaruco.py."""
     sys.path.insert(0, UWARUCO_DIR)
     import uwaruco
     return uwaruco
@@ -194,11 +117,10 @@ DETECTORS = {"aruco": aruco_backend, "uwaruco": uwaruco_backend}
 
 # ====== RUN SETTINGS ======
 def run_name(frames_dir, detector_name, preset, channel="gray"):
-    """Runs are named by recording, detector, preset and channel, so a sweep over any of them does not
-    overwrite itself and compare_calibrations.py can pick the whole set up with a glob."""
+    """Runs are named by recording, detector, preset and channel, so a sweep over any of them does not overwrite itself
+    and compare_calibrations.py can pick the whole set up with a glob."""
     recording = os.path.basename(os.path.normpath(frames_dir)).replace(" ", "_")
-    # The default detector is left unlabelled so that the ArUco runs made before UWARUco existed
-    # keep their filenames and stay comparable with new ones.
+    # The default detector is unlabelled so older filenames stay the same.
     label = preset if detector_name == "aruco" else f"{detector_name}-{preset}"
     # Likewise the default channel, so gray runs keep the names they had before --channel.
     return f"{recording}_{label}" + ("" if channel == "gray" else f"_{channel}")
@@ -251,8 +173,7 @@ def parse_args(presets, argv=None):
     ap.add_argument("--detector", default="aruco", choices=list(DETECTORS),
                     help="which detector implementation to use: OpenCV's ArUco, or the UWARUco "
                          "re-implementation in src/archive/UWARUco (default aruco)")
-    # No choices= here: the valid presets depend on --detector, and each detector's own loader
-    # already rejects an unknown name with a message listing the ones it does define.
+    # Valid presets depend on --detector, so no choices= here.
     ap.add_argument("--preset", default=None,
                     help=f"detector preset; from detector_presets.json for --detector aruco "
                          f"(default {presets.default}), or from src/archive/UWARUco/uwaruco_presets.json "
@@ -286,16 +207,14 @@ def build_board():
     tag_corners = []
     for tag_id in range(N_TAGS):
         x, y = (tag_id % 10) * PITCH, (tag_id // 10) * PITCH   # id 0 bottom-left, ids run right then up
-        # Kalibr prints tags rotated 180 deg, so OpenCV reports: bottom-right, bottom-left, top-left,
-        # top-right. The object points below are in that same order; changing one without the other
-        # silently corrupts the fit.
+        # Kalibr prints tags rotated 180 deg: corners come as BR, BL, TL, TR. Object points use the same order.
         tag_corners.append(np.array([[x + TAG_SIZE, y, 0], [x, y, 0],
                                      [x, y + TAG_SIZE, 0], [x + TAG_SIZE, y + TAG_SIZE, 0]], np.float32))
     return cv2.aruco.Board(tag_corners, dictionary, np.arange(N_TAGS))
 
 
 def setup(args, arguments=""):
-    """Validate the inputs and resolve everything the run needs. Returns a Run."""
+    """Validate the inputs and resolve everything the run needs."""
     default_preset, describe, make_detector = DETECTORS[args.detector]()
     preset = args.preset or default_preset
 
@@ -324,8 +243,7 @@ def setup(args, arguments=""):
 
 # ====== DETECTION ======
 def load_image(path, channel="gray"):
-    """Read a frame as (BGR image for drawing on, single-channel image for detection); see CHANNELS.
-    Works for colour and grayscale PNGs alike: a grayscale file loads as three equal channels."""
+    """Read a frame as (BGR image for drawing on, single-channel image for detection); see CHANNELS."""
     if channel == "y":
         folder, name = os.path.split(path)
         luma_path = os.path.join(os.path.dirname(folder), "gray", os.path.basename(folder), name)
@@ -348,21 +266,13 @@ def channel_image(image, channel):
 
 
 def detect(run, image, refine_on=None):
-    """(corners, ids, rejected) in one single-channel image, corners refined on refine_on (default: the
-    same image)."""
+    """(corners, ids, rejected) in one single-channel image, corners refined on refine_on (default: the same image)."""
     corners, ids, rejected = run.detector.detectMarkers(image)
     return refine_corners(image if refine_on is None else refine_on, corners), ids, rejected
 
 
 def merge_detections(results):
-    """Combine detections of the same frame from several channels, given in MERGE_ORDER.
-
-    Each board id is kept once, with the corners of the first channel that found it. Within a channel,
-    an id reported twice is ambiguous and ignored. A tag found in several channels whose corners
-    disagree by more than MERGE_TOLERANCE_PX is dropped. Ids not on the board are kept (once each) so
-    the false-detection rate stays comparable with single-channel runs.
-    Returns (corners, ids, number of tags dropped for disagreeing).
-    """
+    """Combine detections of the same frame from several channels, given in MERGE_ORDER."""
     found = {}                               # id -> [4x2 corners per channel that found it once]
     for corners, ids, _ in results:
         if ids is None:
@@ -421,11 +331,7 @@ def save_detection_image(run, camera, name, image, corners, ids, rejected):
 
 
 def detect_tags(run, camera, found=None):
-    """Detect tags in every image of one camera.
-    Returns {"folder/filename": (corners, ids)} for the usable images only. If `found` is a dict, it
-    is filled with {"folder/filename": {"ids": [...], "corners": [4x2 per id]}} for EVERY image,
-    usable or not, and every detection including false ids and repeats, so the detection rate can be
-    reported and the corners re-used from the run itself."""
+    """Detect tags in every image of one camera."""
     image_files = find_images(run.frames_dir, camera)
     detections = {}
     for path in image_files:
@@ -435,10 +341,7 @@ def detect_tags(run, camera, found=None):
         name = os.path.relpath(path, run.frames_dir).replace(os.sep + camera + os.sep, "/")   # "140/C140_Left_90.png"
         conflicts = None
         if run.channel == "merge":
-            # Channels only FIND tags; every corner is refined on gray. Refined on its own channel, the
-            # same tag landed 1-4.5 px apart between channels (8 Oct, 145 mm reference tags), because R
-            # and B carry half-resolution, more compressed chroma; that put soft corners into the fit
-            # and made the agreement check below throw most large tags away.
+            # Channels only find tags; every corner is refined on gray.
             results = [detect(run, channel_image(image, c), refine_on=gray) for c in MERGE_ORDER]
             corners, ids, conflicts = merge_detections(results)
             rejected = results[0][2]         # gray's, for the detection image
@@ -465,8 +368,7 @@ def detect_tags(run, camera, found=None):
 
 # ====== CAMERA CALIBRATION ======
 def calibrate_camera(run, camera, detections):
-    """Calibrate one camera from its detections.
-    Returns a dict: camera_matrix, dist_coeffs, rms, std_intrinsics, images, per_image_errors."""
+    """Calibrate one camera from its detections."""
     names = sorted(detections)
     all_obj_points, all_img_points = [], []
     for name in names:
@@ -507,14 +409,7 @@ def calibrate_camera(run, camera, detections):
 
 
 # ====== OUTLIER REJECTION ======
-# A tag the detector reads as ANOTHER board id is placed at that id's board position, and one such tag
-# ruins its image. On the 8 Oct water set with the swept detector settings, board tag 17 was decoded as
-# id 45 (124-132 px from where 45 belongs), giving its image 19-21 px RMS, and an extreme-angle frame
-# (C7, ~57 deg) fitted at 78 px; a handful of such images moved fx by up to 60 px. Neither is caught at
-# detection time (45 is a valid board id), so they are caught by the fit: each round fits each camera on
-# the tags kept so far, re-poses EVERY image robustly (RANSAC, so one misread cannot drag its pose), and
-# keeps the tags and images that agree with the model. Re-checking every tag each round lets a tag
-# dropped under an early, contaminated fit come back once the fit is clean.
+# Each round refits, re-poses every image with RANSAC and keeps the tags and images that agree.
 REJECT_TAG_PX = 2.0          # a tag is dropped when its worst corner is further than
 REJECT_TAG_MEDIANS = 5.0     #   max(REJECT_TAG_PX, REJECT_TAG_MEDIANS x the median over kept tags)
 REJECT_IMAGE_PX = 1.0        # an image is dropped when its kept tags' corner RMS is above
@@ -523,8 +418,8 @@ REJECT_MAX_ROUNDS = 10
 
 
 def tag_errors(run, corners, ids, K, D):
-    """{tag id: (worst corner px, mean squared corner px)} for the board tags of one image, against the
-    board posed robustly on them with intrinsics K, D. Ids repeated in the image are left out."""
+    """{tag id: (worst corner px, mean squared corner px)} for the board tags of one image, against the board posed
+    robustly on them with intrinsics K, D."""
     flat = [int(i) for i in ids.ravel()]
     tags = {i: c.reshape(4, 2) for i, c in zip(flat, corners) if 0 <= i < N_TAGS and flat.count(i) == 1}
     if len(tags) < 4:
@@ -552,8 +447,7 @@ def keep_only(detections, keep):
 
 
 def reject_outliers(run, camera, detections):
-    """Iteratively drop misplaced tags and badly fitting images (see REJECT_*).
-    Returns (kept detections, report dict)."""
+    """Iteratively drop misplaced tags and badly fitting images (see REJECT_*)."""
     keep = {n: {int(i) for i in ids.ravel() if 0 <= i < N_TAGS} for n, (_, ids) in detections.items()}
     keep = {n: k for n, k in keep.items() if len(k) >= run.min_tags}
     for rounds in range(1, REJECT_MAX_ROUNDS + 1):
@@ -584,24 +478,14 @@ def reject_outliers(run, camera, detections):
 
 # ====== STEREO EXTRINSICS ======
 def pair_up(detections):
-    """Match each left detection to its right one, as (left_name, right_name) pairs.
-
-    extract_stereo_frames.py writes a timestamp-matched pair under the same label, so the two names
-    differ only by Left/Right and the pairing is already in the filename. pairs.csv says the same
-    thing, but reading it would tie this script to a file the frames do not have to carry.
-    """
+    """Match each left detection to its right one, as (left_name, right_name) pairs."""
     right = detections["right"]
     return [(name, name.replace("_Left_", "_Right_")) for name in sorted(detections["left"])
             if name.replace("_Left_", "_Right_") in right]
 
 
 def common_tag_points(run, left, right):
-    """Object and image points for the tags BOTH cameras saw in one pair, or None if too few.
-
-    stereoCalibrate needs one object point list that both image point lists line up with, so the
-    tags each camera saw on its own are useless here and have to be dropped. Ids are sorted so the
-    two cameras contribute their corners in the same order.
-    """
+    """Object and image points for the tags BOTH cameras saw in one pair, or None if too few."""
     left_corners = {int(i): c for i, c in zip(left[1].ravel(), left[0])}
     right_corners = {int(i): c for i, c in zip(right[1].ravel(), right[0])}
     shared = sorted(left_corners.keys() & right_corners.keys())
@@ -615,13 +499,7 @@ def common_tag_points(run, left, right):
 
 
 def calibrate_stereo(run, detections, intrinsics):
-    """Fit the rotation and translation from the left camera to the right. Returns a dict, or None.
-
-    The intrinsics are held FIXED (CALIB_FIX_INTRINSIC). Each camera was just calibrated on every
-    image it could use on its own, whereas only the pairs where both cameras saw the same tags can
-    contribute here - usually far fewer. Refitting the intrinsics on that smaller set would replace
-    a good estimate with a worse one, and a single bad pair could then corrupt both cameras.
-    """
+    """Fit the rotation and translation from the left camera to the right."""
     pairs = pair_up(detections)
     obj_points, left_points, right_points, used = [], [], [], []
     for left_name, right_name in pairs:
@@ -657,8 +535,7 @@ def calibrate_stereo(run, detections, intrinsics):
     print("rotation (deg about x, y, z): " + ", ".join(f"{a:.3f}" for a in angles))
     print("CHECK the baseline against a ruler: it carries the same scale error as TAG_SIZE.")
 
-    # Rectification is a pure function of the intrinsics and extrinsics, so it costs nothing to
-    # derive here and saves 03_Reconstruction from having to recompute it consistently.
+    # Rectification, so 03_Reconstruction does not recompute it.
     R1, R2, P1, P2, Q = cv2.stereoRectify(
         left_cam["camera_matrix"], left_cam["dist_coeffs"],
         right_cam["camera_matrix"], right_cam["dist_coeffs"],
@@ -707,8 +584,7 @@ def write_camera(fs, camera, result, image_size):
         fs.write(key, value)
     fs.endWriteStruct()
 
-    # OpenCV's other uncertainty output: the 1-sigma of every image's board pose (its "extrinsics").
-    # Written as the size of the rotation and translation uncertainty per image, in the order of images.
+    # 1-sigma of every image's board pose.
     ext = result["std_extrinsics"]
     rot_deg = np.degrees(np.linalg.norm(ext[:, :3], axis=1))
     trans_mm = np.linalg.norm(ext[:, 3:], axis=1)
@@ -804,10 +680,7 @@ def write_detection(fs, run, found):
     fs.startWriteStruct("detection", cv2.FileNode_MAP)
     for camera in CAMERAS:
         names = sorted(found[camera])
-        # Ids outside the board's 0..N_TAGS-1 are false detections (the calibration ignores them:
-        # matchImagePoints only knows the board's ids). Underwater caustics produce them.
-        # A board id reported twice in one image is a duplicate: one tag can only be seen once, so at
-        # least one of the two is a misread. Counts are of DISTINCT ids, or duplicates would inflate them.
+        # Ids off the board are false detections; a board id seen twice in one image is a misread.
         ids = {n: found[camera][n]["ids"] for n in names}
         on_board = {n: sorted({i for i in ids[n] if 0 <= i < N_TAGS}) for n in names}
         counts = np.array([len(on_board[n]) for n in names])
@@ -955,11 +828,7 @@ def write_yaml(run, intrinsics, stereo, found=None, rejection=None):
 
 
 def write_corners(run, found):
-    """Every detection of the run, refined corners included, as JSON beside the YAML.
-
-    The YAML says how many tags were found; this says where. Analyses that need the corners (stereo
-    triangulation, corner shift between runs) read them from here instead of detecting again.
-    """
+    """Every detection of the run, refined corners included, as JSON beside the YAML."""
     with open(run.corners_path, "w", encoding="utf-8") as fh:
         json.dump({"calibration": os.path.basename(run.yaml_path), "frames_dir": rel(run.frames_dir),
                    "channel": run.channel, "detector": run.detector_name, "preset": run.preset,
@@ -968,11 +837,7 @@ def write_corners(run, found):
 
 
 def calibrate(argv=None):
-    """Run one calibration end to end. Returns (run, intrinsics, stereo) for callers to use.
-
-    The detections are kept rather than consumed per camera: the stereo fit needs the same tags
-    again, and detecting them twice would be both slow and a chance for the two passes to disagree.
-    """
+    """Run one calibration end to end."""
     presets = load_presets()
     argv = sys.argv[1:] if argv is None else list(argv)
     arguments = " ".join(rel(a) if os.path.isabs(a) else a for a in argv)

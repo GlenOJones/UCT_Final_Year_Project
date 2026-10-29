@@ -1,30 +1,6 @@
 """Pose of the stereo rig in every frame of a scan, from reference AprilTags triangulated in stereo.
 
-The scan target is a flat board carrying a few large AprilTags (36h11, standard 1-bit border) around
-the object. In each frame pair the tags both cameras see are detected, their corners refined to
-sub-pixel and triangulated with the calibrated rig, which gives the tag corners in 3D in the left
-camera frame. From those:
-
-  1. the LAYOUT of the tags on the board is estimated from all frames at once (where each tag sits
-     relative to the others), and a board frame is defined on it: origin at the centre of the tags,
-     z out of the board towards the cameras, x along the first reference tag's x edge;
-  2. each frame's POSE, T_cam_board, is the rigid fit of the layout onto that frame's triangulated
-     corners.
-
-Triangulating in stereo rather than solving PnP in one camera is deliberate: the depth then comes
-from the 150 mm baseline instead of from the apparent size of a tag, which is the weakest direction
-of a single-camera pose.
-
-The layout is estimated from the triangulated corners, not built from the nominal tag size, so the
-stereo scale is left untouched and the printed size becomes a CHECK: a tag edge that triangulates to
-81 mm on an 80 mm print means the calibration scale is 1.3% off, and every reconstructed distance
-carries the same error. (Sep24: 80.79 mm, so ~1.0% high.)
-
     src/venv/bin/python src/03_Reconstruction/tag_poses.py --session Sep24 --scan mjpg_pyr_lights_2
-
-Reads the scan's frames from data/.../<session>/<scan>/frames and the session's calibration from
-results/<session>/calibration/; writes results/<session>/<scan>/poses/tag_poses.yaml, which every
-later stage reads (see src/project_paths.py for the layout).
 """
 import argparse
 import collections
@@ -42,8 +18,7 @@ from stereo_rig import (CAMERAS, find_frame_pairs, invert, load_rig, mean_rotati
 import project_paths as paths  # noqa: E402
 
 # ====== REFERENCE TAGS ======
-# Edge of the outer black square as printed, mm (Sep24: 80; Sep30: 50). Used to seed the layout and
-# as the scale check; the layout itself is refined from the triangulated corners. --tag-size sets it.
+# Printed tag edge, mm (Sep24: 80; Sep30: 50). --tag-size sets it.
 TAG_SIZE = 80.0
 
 # The reference tags are ordinary AprilTags: 1-bit border, unlike the Kalibr calibration board (2).
@@ -53,8 +28,7 @@ dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
 SUBPIX_WIN = (5, 5)
 SUBPIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
 
-# Tag corners in the tag's own frame, in the order OpenCV reports them (top-left, top-right,
-# bottom-right, bottom-left): x right, y up, so z = x cross y points out of the tag at the viewer.
+# Tag corners in OpenCV's order (TL, TR, BR, BL): x right, y up, z out of the tag.
 TAG_MODEL = np.array([[-1, 1, 0], [1, 1, 0], [1, -1, 0], [-1, -1, 0]], np.float64) * TAG_SIZE / 2
 
 LAYOUT_ITERATIONS = 10
@@ -66,24 +40,17 @@ def parse_args(argv=None):
     ap.add_argument("--calibration", default=None,
                     help="stereo calibration YAML from src/01_Calibration/Calibration.py "
                          "(default: the one in results/<session>/calibration/)")
-    # The gate matters more than it looks. On Sep24/mjpg_pyr2, tags near the image centre triangulate
-    # to 80.5-80.9 mm edges at ~0.35 px, but in the right camera's left 200 px they come out at 86 mm
-    # with ~1.0 px: the calibration is weak at the periphery. At 2.0 px those tags stay in, and the
-    # layout gets 84-86 mm edges and a 2.7 mm median fit residual; at 0.8 px every tag is 80.1-81.3 mm
-    # and the residual 0.94 mm, at the cost of posing 211 of 365 frames instead of all of them.
+    # Tags near the image edge triangulate too large, so the gate is kept tight.
     ap.add_argument("--max-reprojection", type=float, default=0.8,
                     help="px; a triangulated tag whose corners reproject worse than this is dropped "
                          "from that frame (default 0.8)")
-    # Backlit scans (ice in sun) leave the tags dark and flat: the plain detector found tag 3 in both cameras
-    # in 2 of 280 frames of Ice/Pyramid/Sun py2 pass 1, with --enhance in 144 (and 49.8 mm edges, so the
-    # corners are sound: sub-pixel refinement still runs on the plain image).
+    # For backlit scans; corners are still refined on the plain image.
     ap.add_argument("--enhance", action="store_true",
                     help="detect on a contrast-boosted copy of each image (gamma 0.5, then CLAHE) with a wider "
                          "adaptive-threshold search; corners are still refined on the plain image (default off)")
     ap.add_argument("--tag-size", type=float, default=TAG_SIZE,
                     help=f"mm, printed edge of the reference tags' outer black square (default {TAG_SIZE:g})")
-    # For frames outside data/<kind>/<session>/<scan>/frames (e.g. a range picked from a longer recording)
-    # and for experiments that keep their own results.
+    # For frames outside data/<kind>/<session>/<scan>/frames.
     ap.add_argument("--frames-dir", default=None,
                     help="frame pairs (left/, right/) to pose instead of the scan's frames/ folder")
     ap.add_argument("--out", default=None,
@@ -126,10 +93,7 @@ def detect(detector, path):
 
 
 def triangulate_frame(rig, detector, left_path, right_path, max_reprojection):
-    """Tags seen by both cameras in one pair, triangulated.
-
-    Returns ({id: 4x3 corners in the left camera frame, mm}, {id: reprojection px}, [rejected ids]).
-    """
+    """Tags seen by both cameras in one pair, triangulated."""
     left, right = detect(detector, left_path), detect(detector, right_path)
     tags, errors, rejected = {}, {}, []
     for tag_id in sorted(left.keys() & right.keys()):
@@ -144,12 +108,7 @@ def triangulate_frame(rig, detector, left_path, right_path, max_reprojection):
 
 # ====== LAYOUT ======
 def initial_layout(observations):
-    """First guess of each tag's corners, in the frame of the most often seen tag.
-
-    Each tag is placed by averaging, over the frames where it was seen together with an already
-    placed tag, the transform between the two. Tags are placed outwards from the reference, so a tag
-    never seen with the reference is still reached through one that was.
-    """
+    """First guess of each tag's corners, in the frame of the most often seen tag."""
     counts = collections.Counter(t for frame in observations for t in frame)
     reference = counts.most_common(1)[0][0]
     # Pose of each tag in each frame, from the nominal square.
@@ -182,9 +141,8 @@ def initial_layout(observations):
 
 
 def refine_layout(observations, layout):
-    """Refine the tag corners by alternating: fit every frame to the layout, then move each corner to
-    the mean of where the frames put it (generalised Procrustes). The nominal tag size drops out
-    here, and what remains is the geometry the stereo rig actually measured."""
+    """Refine the tag corners by alternating: fit every frame to the layout, then move each corner to the mean of where
+    the frames put it (generalised Procrustes)."""
     for _ in range(LAYOUT_ITERATIONS):
         sums = {t: np.zeros((4, 3)) for t in layout}
         n = collections.Counter()
@@ -202,8 +160,8 @@ def refine_layout(observations, layout):
 
 
 def board_frame(layout, reference, camera_centres):
-    """T_board_layout: origin at the centroid of all tag corners, z normal to the best-fit plane and
-    pointing at the cameras, x along the reference tag's top edge projected onto the plane."""
+    """T_board_layout: origin at the centroid of all tag corners, z normal to the best-fit plane and pointing at the
+    cameras, x along the reference tag's top edge projected onto the plane."""
     points = np.vstack(list(layout.values()))
     origin = points.mean(0)
     normal = np.linalg.svd(points - origin)[2][2]
