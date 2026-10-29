@@ -1,6 +1,6 @@
 # Stereo Reconstruction of the Sea Ice Underside
 
-Code for my EEE4022F final year project (UCT): calibrating a stereo camera rig underwater and reconstructing
+Code for EEE4022F final year project (UCT): calibrating a stereo camera rig underwater and reconstructing
 the underside of sea ice, tested on 3D-printed shapes with known CAD geometry and foam blocks that imitate
 ice.
 
