@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import common  # noqa: E402
 from common import PROJECT_ROOT, Calibration as C  # noqa: E402
-sys.path.insert(0, os.path.join(common.SRC_DIR, "03_Reconstruction"))
+sys.path.insert(0, common.SRC_DIR)
 from stereo_rig import load_rig  # noqa: E402
 
 CONFIG_FILE = os.path.join(HERE, "config.json")

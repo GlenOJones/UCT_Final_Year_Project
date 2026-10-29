@@ -1,0 +1,587 @@
+"""Compare reconstructed point clouds with the object's CAD model (ground-truth STL).
+
+    src/venv/bin/python src/evaluation/compare_to_cad.py --session Sep24 --scan mjpg_pyr_lights_2
+    src/venv/bin/python src/evaluation/compare_to_cad.py --session Sep24 --scan mjpg_pyr2 --methods sgbm
+    src/venv/bin/python src/evaluation/compare_to_cad.py any_cloud.ply --out-dir some/folder
+"""
+import argparse
+import csv
+import datetime
+import json
+import os
+import sys
+
+import cv2
+import numpy as np
+import open3d as o3d
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import project_paths as paths  # noqa: E402
+from project_paths import PROJECT_ROOT, rel  # noqa: E402
+
+DEFAULT_REFERENCE = os.path.join(PROJECT_ROOT, "data/GroundTruth/roughness_blocks_STL/PYRAMID_1.stl")
+
+# Degrees of freedom of each fit: indices into (rx, ry, rz, tx, ty, tz).
+FITS = {"on_board": [2, 3, 4], "shape": [0, 1, 2, 3, 4, 5]}
+
+# The local board: a ring this far outside the object's footprint (mm), used by the on_local_board fit.
+LOCAL_BOARD_RING = (10.0, 40.0)
+
+ICP_ITERATIONS = 60
+ICP_START_DISTANCE = 20.0     # mm; residuals above this are ignored in the first iteration...
+ICP_MAD_FACTOR = 3.0          # ...then above 3 robust standard deviations of the current residuals
+YAW_START_STEP = 15           # deg between the starting rotations tried about z
+
+# Below this coverage a fit is flagged unreliable.
+MIN_RELIABLE_COVERAGE = 0.15
+
+# Diverging map for signed distance: blue = inside the CAD surface, grey = on it, red = outside.
+DIVERGING = ["#184f95", "#3987e5", "#9ec5f4", "#e9e8e4", "#f4b3a6", "#d9534a", "#8e2a1f"]
+SURFACE = "#fcfcfb"
+INK = "#2b2b2a"
+MUTED = "#8a8a86"
+
+
+def parse_args(argv=None):
+    ap = argparse.ArgumentParser(description="Compare reconstructed clouds with a CAD mesh.")
+    ap.add_argument("clouds", nargs="*", help="board-frame PLY clouds by path (instead of --session/--scan)")
+    paths.add_scan_arguments(ap)
+    ap.add_argument("--methods", nargs="+", help="method folders to compare (default: all with a cloud_clean.ply)")
+    ap.add_argument("--reference", default=DEFAULT_REFERENCE, help="ground-truth mesh, mm (STL/PLY/OBJ)")
+    ap.add_argument("--out-dir", help="output folder for a cloud given by path outside results/<session>/<scan>/")
+    ap.add_argument("--min-height", type=float, default=3.0,
+                    help="mm; points below this are board, not object (default 3)")
+    ap.add_argument("--margin", type=float, default=15.0,
+                    help="mm; object points must lie within the placed CAD footprint plus this (default 15)")
+    ap.add_argument("--eval-margin", type=float, default=2.0,
+                    help="mm; points are scored only within the CAD footprint plus this. Further out they "
+                         "are board raised by noise, not object (default 2)")
+    ap.add_argument("--coverage-radius", type=float, default=2.0,
+                    help="mm; a CAD surface patch counts as covered if a point is this close (default 2)")
+    ap.add_argument("--error-range", type=float, default=5.0,
+                    help="mm; colour scale of the error map runs from minus to plus this (default 5)")
+    ap.add_argument("--no-summary", action="store_true",
+                    help="leave results/<session>/summary.csv alone (score_objects.py keeps its own table)")
+    ap.add_argument("--square-yaw", type=float, default=None,
+                    help="deg; the object sits square on the board: start the yaw search near 0/90/180/270 deg and "
+                         "keep only fits within this of square (for repeating shapes such as the egg cartons)")
+    args = ap.parse_args(argv)
+    if not args.clouds:
+        paths.require_scan(args, ap)
+    return args
+
+
+# ====== REFERENCE ======
+class Reference:
+    """The CAD mesh, its visible faces grouped into facets, and a ray-casting scene for exact closest-point queries
+    against the visible triangles."""
+
+    def __init__(self, path):
+        mesh = o3d.io.read_triangle_mesh(path)
+        if mesh.is_empty():
+            raise SystemExit(f"could not read a mesh from {rel(path)}")
+        mesh.remove_duplicated_vertices()
+        mesh.remove_degenerate_triangles()
+        mesh.compute_triangle_normals()
+        self.path = path
+        self.full = mesh
+        normals = np.asarray(mesh.triangle_normals)
+        visible = normals[:, 2] > -0.9           # downward faces rest on the board
+        self.mesh = o3d.geometry.TriangleMesh(mesh.vertices, o3d.utility.Vector3iVector(np.asarray(mesh.triangles)[visible]))
+        self.mesh.compute_triangle_normals()
+        self.normals = np.asarray(self.mesh.triangle_normals)
+        self.facet = facet_labels(self.normals)
+        self.scene = o3d.t.geometry.RaycastingScene()
+        self.scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(self.mesh))
+        vertices = np.asarray(mesh.vertices)
+        self.footprint = (vertices[:, :2].min(0), vertices[:, :2].max(0))
+        self.centre_xy = vertices[:, :2].mean(0)
+        self.height = float(np.ptp(vertices[:, 2]))
+
+    def closest(self, points):
+        """Closest point on the visible CAD surface, its triangle's normal and the triangle id."""
+        result = self.scene.compute_closest_points(o3d.core.Tensor(points.astype(np.float32)))
+        return (result["points"].numpy().astype(np.float64),
+                result["primitive_normals"].numpy().astype(np.float64),
+                result["primitive_ids"].numpy())
+
+
+def facet_labels(normals, tolerance_deg=5.0):
+    """Group triangles whose normals agree within tolerance: one label per flat face of the CAD model (a pyramid's face
+    may be split into several triangles)."""
+    labels = -np.ones(len(normals), int)
+    directions = []
+    for i, n in enumerate(normals):
+        for k, d in enumerate(directions):
+            if np.degrees(np.arccos(np.clip(n @ d, -1, 1))) < tolerance_deg:
+                labels[i] = k
+                break
+        else:
+            directions.append(n)
+            labels[i] = len(directions) - 1
+    return labels
+
+
+# ====== OBJECT POINTS ======
+def object_points(xyz, min_height, object_height):
+    """Points above the board in the connected cluster that reaches highest: the one with the most points above half the
+    object's height."""
+    raised = xyz[xyz[:, 2] > min_height]
+    if len(raised) < 50:
+        raise SystemExit(f"only {len(raised)} points above {min_height} mm: nothing to compare")
+    cloud = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(raised))
+    labels = np.asarray(cloud.cluster_dbscan(eps=4.0, min_points=10))
+    if labels.max() < 0:
+        return raised
+    tall = raised[:, 2] > object_height / 2
+    counts = np.bincount(labels[(labels >= 0) & tall], minlength=labels.max() + 1)
+    if counts.max() == 0:
+        counts = np.bincount(labels[labels >= 0])
+    return raised[labels == counts.argmax()]
+
+
+# ====== ALIGNMENT ======
+def small_motion(x):
+    """4x4 transform from a small motion (rx, ry, rz, tx, ty, tz)."""
+    T = np.eye(4)
+    T[:3, :3] = cv2.Rodrigues(np.asarray(x[:3], np.float64))[0]
+    T[:3, 3] = x[3:]
+    return T
+
+
+def transform(T, points):
+    return points @ T[:3, :3].T + T[:3, 3]
+
+
+def icp(reference, points, T_ref, dof, min_height, margin):
+    """Robust point-to-plane ICP moving the REFERENCE onto the points (the scan stays in the board frame)."""
+    T_ref_board = np.linalg.inv(T_ref)
+    threshold = ICP_START_DISTANCE
+    for _ in range(ICP_ITERATIONS):
+        local = transform(T_ref_board, points)
+        q, n, _ = reference.closest(local)
+        r = np.sum((local - q) * n, axis=1)
+        distance = np.linalg.norm(local - q, axis=1)
+        inside = inside_footprint(reference, local, margin) & (local[:, 2] > min_height - 1.0)
+        use = inside & (distance < threshold)
+        if use.sum() < 20:
+            break
+        J = np.hstack([np.cross(local[use], n[use]), n[use]])[:, dof]
+        step = np.zeros(6)
+        step[dof] = np.linalg.lstsq(J, -r[use], rcond=None)[0]
+        T_ref_board = small_motion(step) @ T_ref_board
+        mad = 1.4826 * np.median(np.abs(r[use]))
+        threshold = max(ICP_MAD_FACTOR * mad, 0.5)
+        if np.linalg.norm(step[:3]) < 1e-6 and np.linalg.norm(step[3:]) < 1e-4:
+            break
+    local = transform(T_ref_board, points)
+    q, n, _ = reference.closest(local)
+    distance = np.linalg.norm(local - q, axis=1)
+    use = inside_footprint(reference, local, margin) & (distance < threshold)
+    rms = float(np.sqrt(np.mean(distance[use] ** 2))) if use.any() else np.inf
+    return np.linalg.inv(T_ref_board), rms, int(use.sum())
+
+
+def inside_footprint(reference, local, margin):
+    low, high = reference.footprint
+    return np.all((local[:, :2] >= low - margin) & (local[:, :2] <= high + margin), axis=1)
+
+
+def local_board_levelling(reference, xyz, T_board_ref):
+    """Transform C (board -> levelled) making the board AROUND the object z = 0, plus the ring's height offset (mm) and
+    tilt (deg) before levelling."""
+    T_ref_board = np.linalg.inv(T_board_ref)
+    local = transform(T_ref_board, xyz)
+    low, high = reference.footprint
+    outside = np.maximum.reduce([low[0] - local[:, 0], local[:, 0] - high[0],
+                                 low[1] - local[:, 1], local[:, 1] - high[1]])
+    ring = (outside > LOCAL_BOARD_RING[0]) & (outside < LOCAL_BOARD_RING[1]) & (np.abs(local[:, 2]) < 8)
+    board = xyz[ring]
+    if len(board) < 100:
+        return None, None, None
+    keep = np.ones(len(board), bool)
+    for _ in range(5):
+        a, b, c = np.linalg.lstsq(np.c_[board[keep, :2], np.ones(keep.sum())], board[keep, 2], rcond=None)[0]
+        r = board[:, 2] - (a * board[:, 0] + b * board[:, 1] + c)
+        keep = np.abs(r) < 3 * 1.4826 * np.median(np.abs(r[keep])) + 1e-6
+    normal = np.array([-a, -b, 1.0]) / np.linalg.norm([-a, -b, 1.0])
+    axis = np.cross(normal, [0.0, 0.0, 1.0])
+    angle = np.arcsin(np.linalg.norm(axis))
+    R = cv2.Rodrigues(axis / np.linalg.norm(axis) * angle)[0] if angle > 1e-12 else np.eye(3)
+    centre = board[keep].mean(0)
+    on_plane = np.array([centre[0], centre[1], a * centre[0] + b * centre[1] + c])
+    C = np.eye(4)
+    C[:3, :3], C[:3, 3] = R, np.array([centre[0], centre[1], 0.0]) - R @ on_plane
+    object_xy = transform(T_board_ref, np.array([[reference.centre_xy[0], reference.centre_xy[1], 0.0]]))[0]
+    offset = float(a * object_xy[0] + b * object_xy[1] + c)
+    return C, offset, float(np.degrees(angle))
+
+
+def off_square_deg(T):
+    """How far the yaw of T is from the nearest multiple of 90 degrees."""
+    yaw = np.degrees(np.arctan2(T[1, 0], T[0, 0]))
+    return abs((yaw + 45) % 90 - 45)
+
+
+def align(reference, points, dof, min_height, margin, start=None, square_yaw=None):
+    """Best ICP result over starting yaws about the object's centre (or from `start`)."""
+    if start is not None:
+        return icp(reference, points, start, dof, min_height, margin)
+    centre = np.median(points[:, :2], axis=0)
+    yaws = range(0, 360, YAW_START_STEP) if square_yaw is None else [b + o for b in (0, 90, 180, 270) for o in (-5, 0, 5)]
+    best, best_any = None, None
+    for yaw in yaws:
+        T = np.eye(4)
+        T[:3, :3] = cv2.Rodrigues(np.array([0, 0, np.radians(yaw)]))[0]
+        T[:2, 3] = centre - T[:2, :2] @ reference.centre_xy
+        result = icp(reference, points, T, dof, min_height, margin)
+        # Prefer the fit explaining the most points, then the lowest residual.
+        if best_any is None or (result[2], -result[1]) > (best_any[2], -best_any[1]):
+            best_any = result
+        if square_yaw is not None and off_square_deg(result[0]) > square_yaw:
+            continue
+        if best is None or (result[2], -result[1]) > (best[2], -best[1]):
+            best = result
+    if best is None:
+        print(f"  no fit within {square_yaw} deg of square; keeping the best fit at "
+              f"{off_square_deg(best_any[0]):.1f} deg off")
+        return best_any
+    return best
+
+
+# ====== METRICS ======
+def evaluate(reference, points, T_board_ref, args):
+    """Signed distances, their statistics, and per-facet coverage and slope."""
+    T_ref_board = np.linalg.inv(T_board_ref)
+    local = transform(T_ref_board, points)
+    q, n, tri = reference.closest(local)
+    signed = np.sign(np.sum((local - q) * n, axis=1)) * np.linalg.norm(local - q, axis=1)
+    # Scored only over the footprint, not the board around it.
+    keep = inside_footprint(reference, local, args.eval_margin)
+    halo = int(np.sum(inside_footprint(reference, local, args.margin) & ~keep))
+    local, signed, tri = local[keep], signed[keep], tri[keep]
+    a = np.abs(signed)
+    stats = {
+        "points": int(len(signed)),
+        "points_outside_footprint": halo,
+        "mean_signed_mm": float(np.mean(signed)),
+        "median_signed_mm": float(np.median(signed)),
+        "std_mm": float(np.std(signed)),
+        "rms_mm": float(np.sqrt(np.mean(signed ** 2))),
+        "median_abs_mm": float(np.median(a)),
+        "p90_abs_mm": float(np.percentile(a, 90)),
+        "p95_abs_mm": float(np.percentile(a, 95)),
+        "max_abs_mm": float(a.max()),
+        "within_1mm": float(np.mean(a < 1)),
+        "within_2mm": float(np.mean(a < 2)),
+        "within_5mm": float(np.mean(a < 5)),
+    }
+
+    # Coverage: sample the visible CAD surface ~1 per mm^2 (seeded) and check for a scan point nearby.
+    o3d.utility.random.seed(0)
+    samples = reference.mesh.sample_points_uniformly(max(int(reference.mesh.get_surface_area()), 1000))
+    sample_xyz = np.asarray(samples.points)
+    _, _, sample_tri = reference.closest(sample_xyz)
+    tree = o3d.geometry.KDTreeFlann(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(local)))
+    covered = np.array([tree.search_radius_vector_3d(p, args.coverage_radius)[0] > 0 for p in sample_xyz])
+
+    facets = []
+    point_facet = reference.facet[tri]
+    for k in range(reference.facet.max() + 1):
+        design = reference.normals[reference.facet == k][0]
+        mine = point_facet == k
+        entry = {"facet": k, "design_normal": design.round(4).tolist(),
+                 "points": int(mine.sum()),
+                 "coverage": float(np.mean(covered[reference.facet[sample_tri] == k]))}
+        if mine.sum() >= 30:
+            entry["mean_signed_mm"] = float(np.mean(signed[mine]))
+            entry["rms_mm"] = float(np.sqrt(np.mean(signed[mine] ** 2)))
+            # Plane through this facet's points; its tilt from the design face is the slope error.
+            p = local[mine]
+            # full_matrices=False: the default also builds the N x N U, ~7 GB for a 30k-point face.
+            fitted = np.linalg.svd(p - p.mean(0), full_matrices=False)[2][2]
+            fitted = fitted if fitted @ design > 0 else -fitted
+            entry["plane_angle_error_deg"] = float(np.degrees(np.arccos(np.clip(fitted @ design, -1, 1))))
+        entry["board_direction"] = board_direction(T_board_ref[:3, :3] @ design)
+        facets.append(entry)
+    stats["coverage"] = float(np.mean(covered))
+    # Faces are labelled by board direction, since fits can rotate a symmetric model.
+    order = {d: i for i, d in enumerate(("+x", "+y", "-x", "-y"))}
+    stats["facets"] = sorted(facets, key=lambda f: order.get(f["board_direction"], 9))
+    return stats, local, signed, keep
+
+
+def board_direction(normal):
+    """'+x', '+y', '-x' or '-y' (the board axis a face points along), or 'up' for a top face."""
+    if abs(normal[2]) > 0.95:
+        return "up"
+    azimuth = np.degrees(np.arctan2(normal[1], normal[0]))
+    return ("+x", "+y", "-x", "-y")[int(np.round(azimuth / 90)) % 4]
+
+
+def describe_transform(T):
+    angles = np.degrees(cv2.Rodrigues(T[:3, :3])[0].ravel())
+    return {"translation_mm": T[:3, 3].round(3).tolist(), "rotation_deg_xyz": angles.round(3).tolist(),
+            "matrix": T.round(6).tolist()}
+
+
+# ====== OUTPUTS ======
+def diverging_colours(values, limit):
+    from matplotlib.colors import LinearSegmentedColormap
+    cmap = LinearSegmentedColormap.from_list("signed", DIVERGING)
+    return cmap(np.clip((values + limit) / (2 * limit), 0, 1))[:, :3]
+
+
+def write_distance_ply(path, xyz, signed, limit):
+    """Binary PLY: x y z, colour from the error map, and signed_distance as a float scalar field."""
+    colours = (diverging_colours(signed, limit) * 255).round().astype(np.uint8)
+    record = np.dtype([("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("red", "u1"), ("green", "u1"),
+                       ("blue", "u1"), ("scalar_signed_distance", "<f4")])
+    data = np.empty(len(xyz), record)
+    data["x"], data["y"], data["z"] = xyz.T
+    data["red"], data["green"], data["blue"] = colours.T
+    data["scalar_signed_distance"] = signed
+    header = ("ply\nformat binary_little_endian 1.0\n"
+              "comment board frame, mm; signed_distance to the CAD surface, positive = outside\n"
+              f"element vertex {len(data)}\nproperty float x\nproperty float y\nproperty float z\n"
+              "property uchar red\nproperty uchar green\nproperty uchar blue\n"
+              "property float scalar_signed_distance\nend_header\n")
+    with open(path, "wb") as fh:
+        fh.write(header.encode("ascii"))
+        fh.write(data.tobytes())
+
+
+def draw_signed_top(ax, reference, xyz_board, signed, T_board_ref, cmap, norm):
+    """Object points seen from above, coloured by signed distance, with the placed CAD triangles."""
+    ref_vertices = transform(T_board_ref, np.asarray(reference.full.vertices))
+    order = np.argsort(np.abs(signed))
+    ax.scatter(xyz_board[order, 0], xyz_board[order, 1], c=signed[order], cmap=cmap, norm=norm, s=1, linewidths=0)
+    for tri in np.asarray(reference.full.triangles):
+        loop = ref_vertices[np.r_[tri, tri[0]]]
+        ax.plot(loop[:, 0], loop[:, 1], color=INK, lw=0.6, alpha=0.6)
+    ax.set_aspect("equal")
+    ax.set_xlabel("x (mm)")
+    ax.set_ylabel("y (mm)")
+
+
+def cad_apex(reference):
+    vertices = np.asarray(reference.full.vertices)
+    return vertices[np.argmax(vertices[:, 2])]
+
+
+def cad_section(reference, apex, axis, other):
+    """The CAD model's cross-section through the apex along its own `axis` (0 = x, 1 = y): (distance from the apex,
+    height), as the top of a dense surface sample per 0.5 mm bin, so it is right for any shape (not only a single
+    pyramid)."""
+    cad = np.asarray(reference.full.sample_points_uniformly(number_of_points=400000).points)
+    line = cad[np.abs(cad[:, other] - apex[other]) < 0.5]
+    bins = np.round((line[:, axis] - apex[axis]) / 0.5).astype(int)
+    order = np.lexsort((-line[:, 2], bins))
+    first = order[np.r_[True, np.diff(bins[order]) != 0]]
+    return bins[first] * 0.5, line[first, 2]
+
+
+def draw_profiles(ax, reference, xyz_board, T_board_ref):
+    """Scan points in slabs of +-3 mm through the CAD apex, along the CAD model's own x and y axes, with the model's
+    cross-section on the same lines."""
+    local = transform(np.linalg.inv(T_board_ref), xyz_board)
+    apex = cad_apex(reference)
+    for axis, other, colour, style, label in ((0, 1, "#184f95", "-", "along CAD x"), (1, 0, "#8e2a1f", "--", "along CAD y")):
+        slab = np.abs(local[:, other] - apex[other]) < 3.0
+        ax.scatter(local[slab, axis] - apex[axis], local[slab, 2], s=2, color=colour, alpha=0.6,
+                   linewidths=0, label=f"scan, {label}")
+        ax.plot(*cad_section(reference, apex, axis, other), color=INK, lw=1.2, ls=style, label=f"CAD, {label}")
+    ax.set_aspect("equal")
+    ax.set_xlabel("distance from apex (mm)")
+    ax.set_ylabel("height (mm)")
+
+
+def plot(path, name, reference, xyz_board, signed, T_board_ref, stats, limit, fit="on_board"):
+    """Top-down error map with the placed CAD outline, histogram, and profiles through the apex."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import LinearSegmentedColormap, Normalize
+    cmap = LinearSegmentedColormap.from_list("signed", DIVERGING)
+    norm = Normalize(-limit, limit)
+    plt.rcParams.update({"font.size": 9, "text.color": INK, "axes.labelcolor": INK,
+                         "xtick.color": MUTED, "ytick.color": MUTED, "axes.edgecolor": MUTED})
+    fig = plt.figure(figsize=(15, 5.2), facecolor=SURFACE)
+    fig.suptitle(f"{name} vs {os.path.basename(reference.path)}: RMS {stats['rms_mm']:.2f} mm, "
+                 f"bias {stats['mean_signed_mm']:+.2f} mm, coverage {100 * stats['coverage']:.0f}% "
+                 f"({fit} fit)", x=0.01, ha="left", fontsize=11)
+
+    top = fig.add_subplot(1, 3, 1, facecolor=SURFACE)
+    draw_signed_top(top, reference, xyz_board, signed, T_board_ref, cmap, norm)
+    top.set_title("Signed distance to CAD, top-down", loc="left")
+
+    hist = fig.add_subplot(1, 3, 2, facecolor=SURFACE)
+    bins = np.linspace(-3 * limit, 3 * limit, 121)
+    hist.hist(np.clip(signed, bins[0], bins[-1]), bins=bins, color="#3987e5", edgecolor=SURFACE, linewidth=0.3)
+    hist.axvline(0, color=INK, lw=0.8)
+    hist.axvline(stats["mean_signed_mm"], color="#d9534a", lw=1, ls="--")
+    hist.set_title(f"Distribution: median |d| {stats['median_abs_mm']:.2f} mm, "
+                   f"p95 {stats['p95_abs_mm']:.2f} mm", loc="left")
+    beyond = int(np.sum(np.abs(signed) > bins[-1]))
+    if beyond:
+        hist.text(0.99, 0.97, f"{beyond} points beyond +/-{bins[-1]:g} mm\ndrawn in the end bins",
+                  transform=hist.transAxes, ha="right", va="top", fontsize=8, color=MUTED)
+    hist.set_xlabel("signed distance (mm), positive = outside the CAD surface")
+    hist.set_ylabel("points")
+
+    prof = fig.add_subplot(1, 3, 3, facecolor=SURFACE)
+    draw_profiles(prof, reference, xyz_board, T_board_ref)
+    prof.set_title("Profiles through the apex (slabs of +/-3 mm)", loc="left")
+    prof.legend(frameon=False, fontsize=8, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=2)
+
+    colourbar = fig.colorbar(matplotlib.cm.ScalarMappable(norm, cmap), ax=top, orientation="horizontal",
+                             shrink=0.8, pad=0.14, aspect=30)
+    colourbar.set_label(f"signed distance (mm), clipped at +/-{limit:g}")
+    fig.savefig(path, dpi=150, facecolor=SURFACE, bbox_inches="tight")
+    plt.close(fig)
+
+
+SUMMARY_FIELDS = ["created", "session", "scan", "method", "reference", "fit", "points", "coverage",
+                  "mean_signed_mm", "rms_mm", "median_abs_mm", "p95_abs_mm", "within_2mm", "reliable",
+                  "tx_mm", "ty_mm", "tz_mm", "yaw_deg", "face_coverage", "face_slope_errors_deg", "cloud"]
+
+
+def update_summary(path, where, cloud_path, reference, fits):
+    """Replace this scan and method's rows in the session summary (or add them), keeping the rest."""
+    session, scan, method = where
+    rows = []
+    if os.path.exists(path):
+        with open(path, newline="", encoding="utf-8") as fh:
+            rows = [r for r in csv.DictReader(fh)
+                    if (r["session"], r["scan"], r["method"], r["reference"])
+                    != (session, scan, method, os.path.basename(reference.path))]
+    for fit, (T, stats) in fits.items():
+        angles = np.degrees(cv2.Rodrigues(T[:3, :3])[0].ravel())
+        rows.append({
+            "created": datetime.datetime.now().isoformat(timespec="seconds"),
+            "session": session, "scan": scan, "method": method,
+            "reference": os.path.basename(reference.path), "fit": fit, "points": stats["points"],
+            "coverage": f"{stats['coverage']:.3f}", "mean_signed_mm": f"{stats['mean_signed_mm']:.3f}",
+            "rms_mm": f"{stats['rms_mm']:.3f}", "median_abs_mm": f"{stats['median_abs_mm']:.3f}",
+            "p95_abs_mm": f"{stats['p95_abs_mm']:.3f}", "within_2mm": f"{stats['within_2mm']:.3f}",
+            "reliable": stats["reliable"], "tx_mm": f"{T[0, 3]:.2f}", "ty_mm": f"{T[1, 3]:.2f}",
+            "tz_mm": f"{T[2, 3]:.2f}", "yaw_deg": f"{angles[2]:.2f}",
+            # Per face, labelled by the board direction it faces: "+x:0.93;+y:0.94;...".
+            "face_coverage": ";".join(f"{f['board_direction']}:{f['coverage']:.2f}" for f in stats["facets"]),
+            "face_slope_errors_deg": ";".join(
+                f"{f['board_direction']}:" + (f"{f['plane_angle_error_deg']:.2f}" if "plane_angle_error_deg" in f else "-")
+                for f in stats["facets"]),
+            "cloud": rel(cloud_path)})
+    rows.sort(key=lambda r: (r["session"], r["scan"], r["method"], r["fit"]))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=SUMMARY_FIELDS, extrasaction="ignore", restval="")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def jobs(args):
+    """(cloud path, (session, scan, method) or None, output folder) for every cloud to compare."""
+    if args.clouds:
+        for cloud in args.clouds:
+            where = paths.locate(cloud)
+            if args.out_dir:
+                yield cloud, where, os.path.join(args.out_dir, os.path.splitext(os.path.basename(cloud))[0])
+            elif where:
+                yield cloud, where, paths.comparison_dir(*where)
+            else:
+                raise SystemExit(f"{cloud} is not under results/<session>/<scan>/<method>/: pass --out-dir")
+        return
+    scan = paths.scan_dir(args.session, args.scan)
+    methods = args.methods or sorted(m for m in os.listdir(scan)
+                                     if os.path.exists(os.path.join(scan, m, paths.CLOUD_CLEAN)))
+    if not methods:
+        raise SystemExit(f"no <method>/{paths.CLOUD_CLEAN} under {rel(scan)}: run postprocess_cloud.py first")
+    for method in methods:
+        cloud = os.path.join(paths.method_dir(args.session, args.scan, method), paths.CLOUD_CLEAN)
+        if not os.path.exists(cloud):
+            raise SystemExit(f"no {rel(cloud)}")
+        yield cloud, (args.session, args.scan, method), paths.comparison_dir(args.session, args.scan, method)
+
+
+def report(name, fits):
+    print(f"\n{name}")
+    print(f"  scored inside the CAD footprint; {fits['on_board'][1]['points_outside_footprint']} raised points "
+          f"just outside it (board noise) not scored")
+    print(f"  {'fit':14s} {'points':>7s} {'cover':>6s} {'bias':>7s} {'RMS':>6s} {'med|d|':>7s} {'p95':>6s} "
+          f"{'<2mm':>5s}   placement (x, y, z mm; yaw deg)")
+    for fit, (T, s) in fits.items():
+        yaw = np.degrees(cv2.Rodrigues(T[:3, :3])[0].ravel())[2]
+        print(f"  {fit:14s} {s['points']:7d} {100 * s['coverage']:5.0f}% {s['mean_signed_mm']:+7.2f} "
+              f"{s['rms_mm']:6.2f} {s['median_abs_mm']:7.2f} {s['p95_abs_mm']:6.2f} {100 * s['within_2mm']:4.0f}%   "
+              f"({T[0, 3]:.1f}, {T[1, 3]:.1f}, {T[2, 3]:.2f}; {yaw:.1f})"
+              + ("" if s["reliable"] else f"   UNRELIABLE: covers under {100 * MIN_RELIABLE_COVERAGE:.0f}% of the surface"))
+        faces = ", ".join(f"{f['board_direction']} {100 * f['coverage']:.0f}%" + (f"/{f['plane_angle_error_deg']:.1f}deg"
+                          if "plane_angle_error_deg" in f else "") for f in s["facets"])
+        print(f"  {'':14s} per face (coverage/slope error): {faces}")
+        if "local_board_offset_mm" in s:
+            print(f"  {'':14s} board around the object was {s['local_board_offset_mm']:+.2f} mm off z = 0 and "
+                  f"tilted {s['local_board_tilt_deg']:.2f} deg in the tag frame (levelled out for this fit)")
+
+
+def main():
+    args = parse_args()
+    reference = Reference(args.reference)
+    print(f"reference {rel(args.reference)}: {len(reference.mesh.triangles)} visible triangles in "
+          f"{reference.facet.max() + 1} faces, footprint {np.ptp(np.array(reference.footprint), 0).round(1).tolist()} mm, "
+          f"height {reference.height:.1f} mm")
+    for cloud_path, where, out_dir in jobs(args):
+        xyz = np.asarray(o3d.io.read_point_cloud(cloud_path).points, np.float64)
+        name = " / ".join(where) if where else os.path.splitext(os.path.basename(cloud_path))[0]
+        points = object_points(xyz, args.min_height, reference.height)
+        print(f"\n{rel(cloud_path)}: {len(xyz)} points, {len(points)} on the object")
+
+        fits = {}
+        T_on_board, _, _ = align(reference, points, FITS["on_board"], args.min_height, args.margin,
+                                 square_yaw=args.square_yaw)
+        T_shape, _, _ = align(reference, points, FITS["shape"], args.min_height, args.margin, start=T_on_board)
+        for fit, T in (("on_board", T_on_board), ("shape", T_shape)):
+            stats, _, _, _ = evaluate(reference, points, T, args)
+            stats["reliable"] = bool(stats["coverage"] >= MIN_RELIABLE_COVERAGE)
+            fits[fit] = (T, stats)
+        # on_local_board: the same 3-DOF fit after levelling the board around the object.
+        C, ring_offset, ring_tilt = local_board_levelling(reference, xyz, T_on_board)
+        if C is not None:
+            levelled = transform(C, points)
+            T_local, _, _ = align(reference, levelled, FITS["on_board"], args.min_height, args.margin, start=T_on_board)
+            stats, _, _, _ = evaluate(reference, levelled, T_local, args)
+            stats["reliable"] = bool(stats["coverage"] >= MIN_RELIABLE_COVERAGE)
+            stats["local_board_offset_mm"], stats["local_board_tilt_deg"] = ring_offset, ring_tilt
+            fits["on_local_board"] = (np.linalg.inv(C) @ T_local, stats)
+
+        os.makedirs(out_dir, exist_ok=True)
+        T, stats = fits["on_board"]
+        _, _, signed, keep = evaluate(reference, points, T, args)
+        write_distance_ply(os.path.join(out_dir, "distances.ply"), points[keep], signed, args.error_range)
+        placed = o3d.geometry.TriangleMesh(reference.full)
+        placed.transform(T)
+        placed.compute_vertex_normals()
+        o3d.io.write_triangle_mesh(os.path.join(out_dir, "cad_aligned.ply"), placed)
+        plot(os.path.join(out_dir, "comparison.png"), name, reference, points[keep], signed, T, stats,
+             args.error_range)
+        if "on_local_board" in fits:
+            T_local, stats_local = fits["on_local_board"]
+            _, _, signed_local, keep_local = evaluate(reference, points, T_local, args)
+            plot(os.path.join(out_dir, "comparison_local_board.png"), name, reference, points[keep_local],
+                 signed_local, T_local, stats_local, args.error_range, fit="on_local_board")
+        with open(os.path.join(out_dir, "metrics.json"), "w", encoding="utf-8") as fh:
+            json.dump({"created": datetime.datetime.now().isoformat(timespec="seconds"),
+                       "cloud": rel(cloud_path), "reference": rel(args.reference),
+                       "session": where[0] if where else None, "scan": where[1] if where else None,
+                       "method": where[2] if where else None,
+                       "settings": {k: v for k, v in vars(args).items() if k not in ("clouds",)},
+                       "fits": {fit: {"transform_board_from_cad": describe_transform(T), **s}
+                                for fit, (T, s) in fits.items()}}, fh, indent=2, default=str)
+        if where and not args.no_summary:
+            update_summary(paths.summary_path(where[0]), where, cloud_path, reference, fits)
+        report(name, fits)
+        print(f"  -> {rel(out_dir)}/")
+
+
+if __name__ == "__main__":
+    main()

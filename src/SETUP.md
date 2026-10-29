@@ -55,8 +55,8 @@ src/venv/bin/pip install -r src/requirements.txt
 Call each environment's Python directly. No activation is needed:
 
 ```bash
-src/venv/bin/python src/03_Reconstruction/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2
-PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True envs/ffs/bin/python src/03_Reconstruction/dense_stereo.py \
+src/venv/bin/python src/03_depth/dense_stereo.py --session Sep24 --scan mjpg_pyr_lights_2
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True envs/ffs/bin/python src/03_depth/dense_stereo.py \
     --session <session> --scan <scan> --matcher foundationstereo --net-scale 0.5 --lr-tolerance 3
 ```
 

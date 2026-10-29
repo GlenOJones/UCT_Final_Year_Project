@@ -27,13 +27,11 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, EXPERIMENTS)
 sys.path.insert(0, os.path.join(EXPERIMENTS, "fusion"))
 sys.path.insert(0, os.path.join(EXPERIMENTS, "pose_estimation"))
-sys.path.insert(0, os.path.join(SRC, "03_Reconstruction"))
+sys.path.insert(0, os.path.join(SRC, "04_pose"))
 import common  # noqa: E402
 import monitor  # noqa: E402
 import pose_files  # noqa: E402
 from run_fusion import board_alignment  # noqa: E402
-
-RECON = os.path.join("src", "03_Reconstruction")
 
 
 def paths(cfg):
@@ -73,7 +71,7 @@ def run_depth(cfg, p, skip_existing):
         argv = ["--frames-dir", common.project_path(rec["frames"]), "--calibration", common.project_path(rec["calibration"]),
                 "--out-dir", out, "--step", "1", "--depth-min", str(rec["depth_min_mm"]),
                 "--depth-max", str(rec["depth_max_mm"]), "--masks", common.project_path(rec["tag_masks"]), *spec["argv"]]
-        costs[source] = stage(cfg, p, f"depth_{source}", spec["python"], os.path.join(RECON, "depth_frames.py"), argv)
+        costs[source] = stage(cfg, p, f"depth_{source}", spec["python"], os.path.join("src", "03_depth", "depth_frames.py"), argv)
         if costs[source]["returncode"] != 0:
             raise SystemExit(f"depth {source} failed")
         with open(costs_path, "w", encoding="utf-8") as fh:
@@ -106,7 +104,7 @@ def run_step(cfg, p, n, skip_existing):
     record = {"step": n, "stages": {}}
 
     record["stages"]["sfm"] = stage(
-        cfg, p, f"step{n}_sfm", "default", os.path.join(RECON, "colmap_poses.py"),
+        cfg, p, f"step{n}_sfm", "default", os.path.join("src", "04_pose", "colmap_poses.py"),
         ["--frames-dir", common.project_path(rec["frames"]), "--calibration", common.project_path(rec["calibration"]),
          "--workspace", os.path.join(work, "colmap"), "--out", trajectory, "--step", str(n),
          "--masks", common.project_path(rec["tag_masks"]), *cfg["colmap"]["argv"]])
@@ -123,7 +121,7 @@ def run_step(cfg, p, n, skip_existing):
         for source in cfg["depth"]:
             folder = os.path.join(work, f"tsdf_{source}")
             record["stages"][f"tsdf_{source}"] = stage(
-                cfg, p, f"step{n}_tsdf_{source}", "default", os.path.join(RECON, "tsdf_fuse.py"),
+                cfg, p, f"step{n}_tsdf_{source}", "default", os.path.join("src", "05_fusion", "tsdf_fuse.py"),
                 ["--depth-dir", p["depth"](source), "--poses", trajectory, "--out-dir", folder, *cfg["tsdf"]["argv"]],
                 cfg["tsdf"]["memory_max"])
             if record["stages"][f"tsdf_{source}"]["returncode"] != 0:

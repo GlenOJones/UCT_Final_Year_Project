@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 SRC_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-sys.path.insert(0, os.path.join(SRC_DIR, "01_Calibration"))
+sys.path.insert(0, os.path.join(SRC_DIR, "02_calibration"))
 import Calibration  # noqa: E402  (board geometry: one definition, shared with the pipeline)
 
 CAMERAS = Calibration.CAMERAS

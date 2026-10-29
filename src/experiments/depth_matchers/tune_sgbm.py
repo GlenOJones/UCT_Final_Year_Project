@@ -23,7 +23,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(SRC, "03_Reconstruction"))
+sys.path.insert(0, SRC)
+for _stage in ("03_depth", "04_pose"):
+    sys.path.insert(0, os.path.join(SRC, _stage))
 import board_truth  # noqa: E402
 import common  # noqa: E402
 import depth_frames  # noqa: E402

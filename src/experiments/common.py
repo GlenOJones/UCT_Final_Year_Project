@@ -13,7 +13,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.dirname(HERE)
 PROJECT_ROOT = os.path.dirname(SRC_DIR)
-sys.path.insert(0, os.path.join(SRC_DIR, "01_Calibration"))
+sys.path.insert(0, os.path.join(SRC_DIR, "02_calibration"))
 import Calibration  # noqa: E402
 
 # The settings block every pipeline run in an experiment must spell out in full.

@@ -21,14 +21,14 @@ from matplotlib.colors import LinearSegmentedColormap, Normalize  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(SRC, "04_Comparison"))
-sys.path.insert(0, os.path.join(SRC, "03_Reconstruction"))
+for _stage in ("04_pose", "evaluation"):
+    sys.path.insert(0, os.path.join(SRC, _stage))
 import common  # noqa: E402
 import compare_to_cad  # noqa: E402
 import pose_files  # noqa: E402
 from run_fusion import recording_paths  # noqa: E402
 
-COMPARE_SCRIPT = os.path.join("src", "04_Comparison", "compare_to_cad.py")
+COMPARE_SCRIPT = os.path.join("src", "evaluation", "compare_to_cad.py")
 STL_DIR = os.path.join("data", "GroundTruth", "roughness_blocks_STL")
 FITS = ("on_board", "on_local_board", "shape")
 # One colour per method, in config order, for the overlaid profiles.

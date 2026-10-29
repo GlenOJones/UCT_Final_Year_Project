@@ -12,8 +12,8 @@ import cv2
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(HERE), "..", "03_Reconstruction"))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "..", "04_pose"))
 from stereo_rig import CAMERAS, find_frame_pairs, load_rig, rel  # noqa: E402
 import tag_poses  # noqa: E402
 from tag_poses import detect, make_detector  # noqa: E402

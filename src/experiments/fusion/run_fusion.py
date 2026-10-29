@@ -19,14 +19,16 @@ SRC = os.path.dirname(EXPERIMENTS)
 sys.path.insert(0, EXPERIMENTS)
 sys.path.insert(0, os.path.join(EXPERIMENTS, "pose_estimation"))
 sys.path.insert(0, SRC)
-sys.path.insert(0, os.path.join(SRC, "03_Reconstruction"))
+sys.path.insert(0, SRC)
+for _stage in ("04_pose", "05_fusion"):
+    sys.path.insert(0, os.path.join(SRC, _stage))
 import colmap_mvs  # noqa: E402
 import common  # noqa: E402
 import pose_files  # noqa: E402
 from evaluate_poses import pose_points, umeyama  # noqa: E402
 from stereo_rig import CAMERAS, invert  # noqa: E402
 
-TSDF_SCRIPT = os.path.join("src", "03_Reconstruction", "tsdf_fuse.py")
+TSDF_SCRIPT = os.path.join("src", "05_fusion", "tsdf_fuse.py")
 
 
 def recording_paths(cfg):

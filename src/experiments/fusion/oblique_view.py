@@ -19,7 +19,8 @@ from matplotlib import colormaps  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "03_Reconstruction"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "04_pose"))
 import common  # noqa: E402
 import compare_fusion  # noqa: E402
 from run_fusion import recording_paths  # noqa: E402

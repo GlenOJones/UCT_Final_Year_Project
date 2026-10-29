@@ -15,7 +15,7 @@ intermediates (depth, COLMAP workspace): `work/experiments/pose_estimation/<reco
   A tag is masked where it is detected in that image and wherever the tag layout projects it in a tag-posed frame,
   which also catches tags cut off at the image edge. Frames with neither stay unmasked (17 of 344 on s30).
 - **Same frames for everyone:** every `frame_step`th frame pair of the recording, posed by tags or not.
-- **Estimators** (pipeline scripts in `src/03_Reconstruction/`, used unchanged if one is adopted):
+- **Estimators** (pipeline scripts in `src/04_pose/`, used unchanged if one is adopted):
   - `colmap_poses.py`: COLMAP SfM, intrinsics and stereo rig fixed (the stages of `colmap_mvs.py`), with SIFT kept
     off the masked pixels.
   - `icp_poses.py` on the depth from `depth_frames.py`, which is made in each frame's own camera frame with

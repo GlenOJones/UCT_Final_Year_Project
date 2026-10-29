@@ -11,7 +11,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 import common  # noqa: E402
 from common import Calibration as C  # noqa: E402
-from compare_calibrations import read_run, rms  # noqa: E402  (src/01_Calibration, on the path via common)
+from compare_calibrations import read_run, rms  # noqa: E402  (src/02_calibration, on the path via common)
 
 CONFIG_FILE = os.path.join(HERE, "config.json")
 

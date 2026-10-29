@@ -27,7 +27,9 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "03_Reconstruction"))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
+for _stage in ("03_depth", "04_pose"):
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), _stage))
 import common  # noqa: E402
 import depth_config  # noqa: E402
 from dense_stereo import Rectifier  # noqa: E402

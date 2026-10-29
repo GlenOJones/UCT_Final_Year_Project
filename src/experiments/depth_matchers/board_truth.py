@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "03_Reconstruction"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(HERE)), "04_pose"))
 import tag_poses  # noqa: E402
 
 SURROUND = 1.6          # region per tag: the tag scaled about its centre by this (the white border around it)

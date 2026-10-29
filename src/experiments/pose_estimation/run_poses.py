@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 import common  # noqa: E402
 import restarts  # noqa: E402
 
-RECON = os.path.join("src", "03_Reconstruction")
+POSE_DIR = os.path.join("src", "04_pose")
 
 
 def recording_paths(cfg, recording):
@@ -63,7 +63,7 @@ def run_recording(cfg, recording, skip_existing):
     frames, calibration = common.project_path(recording["frames"]), common.project_path(recording["calibration"])
 
     if has_tags(recording):
-        run(py["default"], os.path.join(RECON, "tag_poses.py"),
+        run(py["default"], os.path.join(POSE_DIR, "tag_poses.py"),
             ["--frames-dir", frames, "--calibration", calibration, "--tag-size", str(recording["tag_size_mm"]),
              "--max-reprojection", str(recording.get("max_reprojection_px", cfg["reference"]["max_reprojection_px"])),
              "--out", p["reference"], *(["--enhance"] if recording.get("enhance_tags") else [])],
@@ -79,7 +79,7 @@ def run_recording(cfg, recording, skip_existing):
 
     for source in sorted({e["depth"] for e in cfg["estimators"] if e["kind"] == "icp"}):
         spec = cfg["depth"][source]
-        run(py[spec["python"]], os.path.join(RECON, "depth_frames.py"),
+        run(py[spec["python"]], os.path.join("src", "03_depth", "depth_frames.py"),
             ["--frames-dir", frames, "--calibration", calibration, "--out-dir", p["depth"](source), "--step", step,
              "--depth-min", str(recording["depth_min_mm"]), "--depth-max", str(recording["depth_max_mm"]),
              *masks, *spec["argv"]],
@@ -91,11 +91,11 @@ def run_recording(cfg, recording, skip_existing):
         if estimator["kind"] == "colmap":
             argv = ["--frames-dir", frames, "--calibration", calibration, "--workspace", p["colmap"], "--out", out,
                     "--step", step, *masks, *estimator["argv"]]
-            script = os.path.join(RECON, "colmap_poses.py")
+            script = os.path.join(POSE_DIR, "colmap_poses.py")
         elif estimator["kind"] == "icp":
             argv = ["--depth-dir", p["depth"](estimator["depth"]), "--out", out, *estimator["argv"],
                     *recording.get("icp_argv", [])]
-            script = os.path.join(RECON, "icp_poses.py")
+            script = os.path.join(POSE_DIR, "icp_poses.py")
         else:
             raise SystemExit(f"unknown estimator kind {estimator['kind']!r}")
         run(py["default"], script, argv, out, skip_existing, runs, f"{recording['name']}: {estimator['name']}")
@@ -106,7 +106,7 @@ def run_recording(cfg, recording, skip_existing):
 
 def restart_estimator(cfg, recording, estimator, argv, script, skip_existing, runs):
     """Judge the full run; if it failed, rerun from later starts on subsets of its inputs (restarts.py)."""
-    sys.path.insert(0, os.path.join(common.PROJECT_ROOT, RECON))
+    sys.path.insert(0, os.path.join(common.PROJECT_ROOT, POSE_DIR))
     import pose_files
     p = recording_paths(cfg, recording)
     name, out = estimator["name"], p["poses"](estimator["name"])

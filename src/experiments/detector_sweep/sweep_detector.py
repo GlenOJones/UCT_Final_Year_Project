@@ -10,7 +10,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                                "01_Calibration"))
+                                "02_calibration"))
 import Calibration as calib  # noqa: E402
 from detector_config import validate  # noqa: E402
 
@@ -364,7 +364,7 @@ def main(argv=None):
     if args.save_preset:
         save_preset(args.save_preset, body)
     print(f"\nNow check it calibrates well, not just detects well:\n"
-          f"  src/venv/bin/python src/01_Calibration/Calibration.py --preset {name}")
+          f"  src/venv/bin/python src/02_calibration/Calibration.py --preset {name}")
     return best, best_score, log
 
 

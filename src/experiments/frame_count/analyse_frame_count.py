@@ -21,7 +21,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, EXPERIMENTS)
 sys.path.insert(0, os.path.join(EXPERIMENTS, "fusion"))
 sys.path.insert(0, os.path.join(EXPERIMENTS, "pose_estimation"))
-sys.path.insert(0, os.path.join(os.path.dirname(EXPERIMENTS), "03_Reconstruction"))
+sys.path.insert(0, os.path.join(os.path.dirname(EXPERIMENTS), "04_pose"))
 import common  # noqa: E402
 import compare_fusion  # noqa: E402
 import oblique_view  # noqa: E402

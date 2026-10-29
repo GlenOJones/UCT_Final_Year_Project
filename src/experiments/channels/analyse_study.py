@@ -20,7 +20,7 @@ sys.path.insert(0, HERE)
 import run_study  # noqa: E402
 from run_study import Calibration, PROJECT_ROOT  # noqa: E402
 
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "src", "03_Reconstruction"))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "src"))
 from stereo_rig import load_rig  # noqa: E402
 
 CAMERAS = Calibration.CAMERAS

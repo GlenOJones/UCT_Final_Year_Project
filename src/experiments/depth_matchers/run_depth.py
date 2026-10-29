@@ -22,7 +22,7 @@ sys.path.insert(0, HERE)
 import common  # noqa: E402
 import depth_config  # noqa: E402
 
-DEPTH_FRAMES = os.path.join("src", "03_Reconstruction", "depth_frames.py")
+DEPTH_FRAMES = os.path.join("src", "03_depth", "depth_frames.py")
 
 
 def run_one(cfg, recording, matcher, skip_existing):

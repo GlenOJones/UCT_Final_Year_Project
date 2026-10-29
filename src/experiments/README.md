@@ -12,7 +12,7 @@ library versions, the config, the resolved detector presets and a digest of ever
 
 ## Rules that keep results repeatable
 
-1. **The pipeline is fixed.** `src/01_Calibration/Calibration.py` is the only code that detects tags and fits
+1. **The pipeline is fixed.** `src/02_calibration/Calibration.py` is the only code that detects tags and fits
    cameras. Experiments call it with `Calibration.calibrate(argv)`; they never re-implement it. The analysis
    scripts only read what those runs saved (`*_stereo.yaml`, `*_corners.json`).
 2. **Every setting is in the config.** Each experiment's `config.json` states every pipeline setting (detector,
